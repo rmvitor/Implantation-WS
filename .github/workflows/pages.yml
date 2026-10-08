@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -37,6 +38,30 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Aguardar publicação antiga do Pages, quando habilitada
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const { data: pages } = await github.rest.repos.getPages({ owner, repo });
+            if (pages.build_type !== 'legacy') return;
+
+            // A branch-based Pages build can publish raw Vite source after this
+            // workflow. Wait for those builds before deploying our dist artifact.
+            // Selecting GitHub Actions in Settings > Pages removes this extra build.
+            await new Promise(resolve => setTimeout(resolve, 15000));
+            for (let attempt = 0; attempt < 40; attempt++) {
+              const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, {
+                owner, repo, branch: pages.source?.branch || 'main', per_page: 100,
+              });
+              const pending = runs.filter(run =>
+                run.name === 'pages build and deployment' && run.status !== 'completed'
+              );
+              if (pending.length === 0) return;
+              core.info(`Aguardando ${pending.length} publicação(ões) automática(s) do Pages.`);
+              await new Promise(resolve => setTimeout(resolve, 10000));
+            }
+            throw new Error('A publicação antiga do Pages ainda está em execução. Reexecute este workflow após ela terminar.');
       - name: Publicar no GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

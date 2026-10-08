@@ -18,6 +18,8 @@ Para gerar o site estático: `npm run build`. Os arquivos de publicação ficam 
 
 O workflow `.github/workflows/pages.yml` valida e publica o site no GitHub Pages a cada envio à branch `main`, ou manualmente pela aba Actions. Em **Settings → Pages**, a origem deve ser **GitHub Actions**. GitHub Pages em repositórios privados depende do plano do proprietário; não é necessário tornar o código público quando o plano permite esse recurso.
 
+Se o Pages ainda estiver configurado para publicar uma branch, o workflow aguarda a publicação automática dessa branch antes de publicar `dist/`, evitando que os arquivos-fonte substituam a aplicação compilada. Selecionar GitHub Actions em Settings → Pages remove a publicação duplicada.
+
 A publicação do site é independente da publicação do ambiente de desenvolvimento do Codex.
 
 ## Fluxo
