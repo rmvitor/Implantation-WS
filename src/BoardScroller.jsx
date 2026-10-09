@@ -1,19 +1,27 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
-export function BoardScroller({ children }) {
+export function BoardScroller({ children, columns }) {
   const ref = useRef();
+  const mirror = useRef();
   const dragFrame = useRef();
   const dragSpeed = useRef(0);
-  const [scroll, setScroll] = useState({ left: 0, max: 0 });
+  const [scroll, setScroll] = useState({ left: 0, max: 0, mirrorWidth: 0 });
   const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   const update = () => {
     const el = ref.current;
-    if (el)
+    if (el) {
+      if (
+        mirror.current &&
+        Math.abs(mirror.current.scrollLeft - el.scrollLeft) > 1
+      )
+        mirror.current.scrollLeft = el.scrollLeft;
       setScroll({
         left: el.scrollLeft,
         max: Math.max(0, el.scrollWidth - el.clientWidth),
+        mirrorWidth: mirror.current?.clientWidth || 0,
       });
+    }
   };
   const stop = () => {
     cancelAnimationFrame(dragFrame.current);
@@ -23,6 +31,7 @@ export function BoardScroller({ children }) {
   useEffect(() => {
     const observer = new ResizeObserver(update);
     observer.observe(ref.current);
+    observer.observe(mirror.current);
     update();
     return () => {
       observer.disconnect();
@@ -61,17 +70,29 @@ export function BoardScroller({ children }) {
         >
           <ArrowLeft size={17} />
         </button>
-        <input
-          type="range"
+        <div
+          className="board-scroll-mirror"
+          ref={mirror}
+          role="region"
           aria-label="Rolar quadro horizontalmente"
-          min="0"
-          max={scroll.max}
-          value={Math.min(scroll.left, scroll.max)}
-          disabled={!scroll.max}
-          onChange={(e) => {
-            ref.current.scrollLeft = Number(e.target.value);
+          tabIndex={0}
+          onScroll={(e) => {
+            if (
+              Math.abs(ref.current.scrollLeft - e.currentTarget.scrollLeft) > 1
+            )
+              ref.current.scrollLeft = e.currentTarget.scrollLeft;
           }}
-        />
+          onKeyDown={(e) => {
+            if (["Home", "End", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+              e.preventDefault();
+              if (e.key === "Home" || e.key === "End")
+                ref.current.scrollLeft = e.key === "Home" ? 0 : scroll.max;
+              else step(e.key === "ArrowLeft" ? -1 : 1);
+            }
+          }}
+        >
+          <div style={{ width: scroll.max + scroll.mirrorWidth, height: 1 }} />
+        </div>
         <button
           className="icon-button"
           aria-label="Rolar quadro para a direita"
@@ -86,6 +107,7 @@ export function BoardScroller({ children }) {
         aria-label="Quadro de implantação"
         tabIndex={0}
         ref={ref}
+        style={columns ? { gridTemplateColumns: columns } : undefined}
         onScroll={update}
         onDragOver={onDragOver}
         onDrop={stop}

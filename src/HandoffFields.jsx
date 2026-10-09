@@ -164,7 +164,7 @@ export function HandoffFields({ draft, patch, Field, onBusy }) {
               placeholder="Informe exemplos, resultados conferidos e links para arquivos ou relatórios."
             />
           </Field>
-          {(draft.type === "chamado" || draft.ticket || draft.ticketUrl) && (
+          {draft.type === "chamado" && (
             <Field label="Link do chamado" full>
               <input
                 type="url"
@@ -176,7 +176,7 @@ export function HandoffFields({ draft, patch, Field, onBusy }) {
             </Field>
           )}
         </div>
-        {ticketUrl && (
+        {draft.type === "chamado" && ticketUrl && (
           <a
             className="ticket-reference"
             href={ticketUrl}

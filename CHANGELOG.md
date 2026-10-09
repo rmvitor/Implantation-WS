@@ -1,5 +1,15 @@
 # Histórico de versões
 
+## 1.5.0 — 09/10/2026
+
+- Fases do quadro podem ser recolhidas individualmente ou em conjunto, mantendo resumos de atividades, prioridades altas, atrasos, chamados e validações. Preferência salva por projeto e incluída no backup.
+- Barra superior de rolagem nativa com o mesmo visual da inferior e posição sincronizada nos dois sentidos.
+- Atalhos por botão direito nos cartões, lista, tabela e calendário; no quadro, botão de três pontos para toque e Shift+F10 para teclado. Situação e prioridade usam os mesmos registros de histórico e regras de validação.
+- Salvar/criar no cabeçalho fixo do formulário da atividade, mantendo a validação dos campos e a proteção durante leitura de anexos.
+- Checklists aparecem antes do contexto de continuidade. Campo Atividades executadas preservado na atividade, no histórico e no backup.
+- Número, situação na fábrica e link do chamado aparecem somente na categoria Chamado. Trocar a categoria preserva os valores para eventual retorno.
+- CPF com asteriscos na visualização e olhinho para revelar/ocultar; volta a ficar oculto ao sair da tela. Botão Excluir com texto no cabeçalho do município.
+
 ## 1.4.0 — 09/10/2026
 
 - Primeiro acesso sem projetos de demonstração, com cadastro e importação disponíveis na tela inicial.

@@ -195,7 +195,11 @@ test("prioridade ordena sem alterar ordem original, categorias e números sobrev
   );
   assert.equal(sortActivities(tasks), tasks);
   assert.equal(tasks[0].title, "Menor");
-  assert.equal(cardSummary(tasks[2]), "Primeira alta — #904321");
+  assert.equal(cardSummary(tasks[2]), "Primeira alta");
+  assert.equal(
+    cardSummary({ ...tasks[2], type: "chamado" }),
+    "Primeira alta — #904321",
+  );
   assert.equal(cardSummary(tasks[0]), "Menor");
   const backup = createDemo();
   backup.appearance = { theme: "dark", primary: "#7c3aed" };
@@ -421,4 +425,36 @@ test("limpeza remove todos os dados dos projetos e conserva apenas aparência", 
     appearance: data.appearance,
   });
   assert.equal(data.projects.length, 1);
+});
+
+test("atividades executadas preservam texto e versões no histórico, migração e backup", () => {
+  const initial = createDemo().projects[0];
+  const activity = initial.tasks[0];
+  const first = saveActivity(initial, {
+    ...activity,
+    executedWork:
+      "08/10: Conferidos os saldos.\nResultado: divergência identificada.",
+  });
+  const second = saveActivity(first, {
+    ...first.tasks[0],
+    executedWork: "09/10: Dados corrigidos e conferidos.",
+  });
+  assert.match(second.tasks[0].executedWork, /Dados corrigidos/);
+  assert.match(second.logs[0].executedWork, /Dados corrigidos/);
+  assert.match(second.logs[1].executedWork, /divergência identificada/);
+  const backup = {
+    version: 2,
+    selectedId: initial.id,
+    projects: [second],
+    boardCollapsed: { [initial.id]: ["todo", "waiting"] },
+  };
+  assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(backup))), backup);
+  const legacy = structuredClone(backup);
+  delete legacy.projects[0].tasks[0].executedWork;
+  assert.equal(validateBackup(legacy).projects[0].tasks[0].executedWork, "");
+  const invalid = structuredClone(backup);
+  invalid.projects[0].tasks[0].executedWork = {};
+  assert.throws(() => validateBackup(invalid), /contexto/);
+  const withoutProject = deleteProject(backup, initial.id);
+  assert.equal(withoutProject.boardCollapsed[initial.id], undefined);
 });

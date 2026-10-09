@@ -337,7 +337,13 @@ export function ViewSwitcher({ value, onChange }) {
   );
 }
 
-export function ActivitiesList({ tasks, onOpen, onMove, onAdd }) {
+export function ActivitiesList({
+  tasks,
+  onOpen,
+  onMove,
+  onAdd,
+  onContextMenu,
+}) {
   return (
     <section className="activities-list" aria-label="Lista de atividades">
       {STAGES.map((stage) => {
@@ -356,7 +362,11 @@ export function ActivitiesList({ tasks, onOpen, onMove, onAdd }) {
               </button>
             </header>
             {items.map((t) => (
-              <article className="activity-list-row" key={t.id}>
+              <article
+                className="activity-list-row"
+                key={t.id}
+                onContextMenu={(e) => onContextMenu?.(e, t)}
+              >
                 <button
                   className="list-activity-main"
                   onClick={() => onOpen(t)}
@@ -419,7 +429,13 @@ export function ActivitiesList({ tasks, onOpen, onMove, onAdd }) {
   );
 }
 
-export function ActivitiesTable({ tasks, onOpen, onMove, priorityOrder }) {
+export function ActivitiesTable({
+  tasks,
+  onOpen,
+  onMove,
+  priorityOrder,
+  onContextMenu,
+}) {
   const [sort, setSort] = useState("date");
   const sorted =
     priorityOrder || sort === "priority"
@@ -468,7 +484,7 @@ export function ActivitiesTable({ tasks, onOpen, onMove, priorityOrder }) {
             {sorted.map((t) => {
               const c = checklistProgress(t);
               return (
-                <tr key={t.id}>
+                <tr key={t.id} onContextMenu={(e) => onContextMenu?.(e, t)}>
                   <td>
                     <button onClick={() => onOpen(t)}>
                       <strong>{cardSummary(t)}</strong>
@@ -543,6 +559,7 @@ export function ActivitiesCalendar({
   onOpen,
   onTraining,
   onAdd,
+  onContextMenu,
 }) {
   const [month, setMonth] = useState(() => {
     const d = new Date();
@@ -645,6 +662,9 @@ export function ActivitiesCalendar({
                     key={t.id}
                     className={`calendar-event ${t.kind === "training" ? "training-event" : ""} ${t.stage === "concluido" ? "finished-event" : ""}`}
                     title={`${t.time || ""} ${cardSummary(t)}`}
+                    onContextMenu={(e) =>
+                      t.kind !== "training" && onContextMenu?.(e, t)
+                    }
                     onClick={() =>
                       t.kind === "training" ? onTraining(t) : onOpen(t)
                     }
@@ -672,7 +692,11 @@ export function ActivitiesCalendar({
         <summary>{undated.length} atividades sem data</summary>
         <div>
           {undated.map((t) => (
-            <button key={t.id} onClick={() => onOpen(t)}>
+            <button
+              key={t.id}
+              onClick={() => onOpen(t)}
+              onContextMenu={(e) => onContextMenu?.(e, t)}
+            >
               <Clock3 size={14} />
               <span>{cardSummary(t)}</span>
               <ModuleBadge task={t} />

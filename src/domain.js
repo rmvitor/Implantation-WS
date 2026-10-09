@@ -45,7 +45,7 @@ export function normalizeModule(module) {
   );
 }
 export function cardSummary(task) {
-  return `${task.title}${task.ticket ? ` — #${task.ticket}` : ""}`;
+  return `${task.title}${task.type === "chamado" && task.ticket ? ` — #${task.ticket}` : ""}`;
 }
 export const uid = () => globalThis.crypto.randomUUID();
 export const localDate = (date = new Date()) =>
@@ -114,6 +114,7 @@ export function saveActivity(
         ...(task.validation
           ? { validation: { ...task.validation }, criterion: task.criterion }
           : {}),
+        ...(task.executedWork ? { executedWork: task.executedWork } : {}),
       },
       ...project.logs,
     ],
@@ -142,6 +143,7 @@ export function newActivity(stage = "todo", date = "") {
     date,
     time: "",
     description: "",
+    executedWork: "",
     problem: "",
     impact: "",
     nextAction: "",
@@ -205,6 +207,7 @@ export function matchesTask(task, query, module, priority) {
           task.nextAction,
           task.nextOwner,
           task.problem,
+          task.executedWork,
           task.blockedBy,
           ...(task.checklists || []).map((c) => c.entity),
         ].join(" "),
@@ -287,6 +290,7 @@ export function validateBackup(value) {
         "evidence",
         "criterion",
         "description",
+        "executedWork",
         "ticket",
         "ticketStatus",
         "priority",
@@ -340,6 +344,8 @@ export function validateBackup(value) {
           typeof l.at === "string" &&
           !Number.isNaN(Date.parse(l.at)) &&
           (l.criterion === undefined || typeof l.criterion === "string") &&
+          (l.executedWork === undefined ||
+            typeof l.executedWork === "string") &&
           (l.validation == null ||
             (typeof l.validation.by === "string" &&
               typeof l.validation.evidence === "string" &&
@@ -719,14 +725,17 @@ export function deleteProject(workspace, id) {
   if (!workspace.projects.some((p) => p.id === id)) return workspace;
   const projects = workspace.projects.filter((p) => p.id !== id);
   const boardViews = { ...workspace.boardViews },
-    boardOrders = { ...workspace.boardOrders };
+    boardOrders = { ...workspace.boardOrders },
+    boardCollapsed = { ...workspace.boardCollapsed };
   delete boardViews[id];
   delete boardOrders[id];
+  delete boardCollapsed[id];
   return {
     ...workspace,
     projects,
     boardViews,
     boardOrders,
+    boardCollapsed,
     selectedId:
       workspace.selectedId === id
         ? projects.find((p) => !isProjectClosed(p))?.id || ""

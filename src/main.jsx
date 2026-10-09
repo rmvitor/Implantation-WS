@@ -20,6 +20,8 @@ import {
   CircleHelp,
   Clock3,
   Download,
+  Eye,
+  EyeOff,
   Ellipsis,
   ExternalLink,
   FileCheck2,
@@ -84,6 +86,8 @@ import "./appearance.css";
 import "./homologation.css";
 import "./pwa.css";
 import "./projects.css";
+import "./app-usability.css";
+import { CardMenu } from "./CardMenu";
 import { usePwa, PwaControls, InstallModal } from "./PwaControls";
 import { Homologation } from "./Homologation";
 import { BoardScroller } from "./BoardScroller";
@@ -135,6 +139,7 @@ function App() {
   const fileRef = useRef();
   const cardPositions = useRef(new Map());
   const [dropTarget, setDropTarget] = useState(null);
+  const [cardMenu, setCardMenu] = useState(null);
   useLayoutEffect(() => {
     applyAppearance(data.appearance);
   }, [data.appearance]);
@@ -175,6 +180,23 @@ function App() {
   const projectId = project?.id || "";
   const projectTasks = project?.tasks || [];
   const projectTrainings = project?.trainings || [];
+  const collapsedStages = Array.isArray(data.boardCollapsed?.[projectId])
+    ? data.boardCollapsed[projectId]
+    : [];
+  const setCollapsedStages = (stages) =>
+    setData((d) => ({
+      ...d,
+      boardCollapsed: { ...d.boardCollapsed, [projectId]: stages },
+    }));
+  const openCardMenu = (event, task) => {
+    event.preventDefault();
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setCardMenu({
+      taskId: task.id,
+      x: event.clientX || bounds.left + 20,
+      y: event.clientY || bounds.top + 25,
+    });
+  };
   const taskOrder = data.boardOrders?.[projectId] || "manual";
   const tasks = sortActivities(
     projectTasks.filter(
@@ -242,6 +264,7 @@ function App() {
       ),
     }));
   const changeView = (v) => {
+    setCardMenu(null);
     setView(v);
     setSearch("");
     setSidebar(false);
@@ -589,11 +612,11 @@ function App() {
                     </button>
                   )}
                   <button
-                    className="icon-button project-delete-button"
+                    className="button secondary project-delete-button"
                     aria-label="Excluir projeto"
                     onClick={() => setModal({ type: "deleteProject", project })}
                   >
-                    <Trash2 size={16} />
+                    Excluir
                   </button>
                   <button
                     className="button secondary"
@@ -853,100 +876,204 @@ function App() {
                     </div>
                   )}
                   {boardView === "kanban" && (
-                    <BoardScroller>
-                      {STAGES.map((stage) => {
-                        const items = tasks.filter((t) => t.stage === stage.id);
-                        const Icon = stageIcons[stage.id];
-                        return (
-                          <div
-                            id={`column-${stage.id}`}
-                            className={`kanban-column column-${stage.id} ${dragging && dropTarget === stage.id ? "drop-target" : ""}`}
-                            key={stage.id}
-                            onDragOver={(e) => {
-                              e.preventDefault();
-                              e.dataTransfer.dropEffect = "move";
-                              setDropTarget(stage.id);
-                            }}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              const id = e.dataTransfer.getData("text/plain");
-                              if (project.tasks.some((t) => t.id === id))
-                                move(id, stage.id);
-                              setDragging(null);
-                              setDropTarget(null);
-                            }}
-                          >
-                            <div className="column-heading">
-                              <span
-                                className="stage-dot"
-                                style={{ background: stage.color }}
-                              />
-                              <h3>{stage.label}</h3>
-                              <span className="column-count">
-                                {items.length}
-                              </span>
-                              <button
-                                aria-label={`Adicionar em ${stage.label}`}
-                                onClick={() => newTask(stage.id)}
-                              >
-                                <Plus size={16} />
-                              </button>
-                            </div>
-                            <p className="column-subtitle">
-                              {
-                                {
-                                  todo: "Identificado, ainda não iniciado",
-                                  progress: "Trabalho sendo executado",
-                                  waiting: "Dependências da IPM ou da equipe",
-                                  homologacao: "Correções e dados para validar",
-                                  concluido: "Validado e com evidência",
-                                }[stage.id]
-                              }
-                            </p>
-                            <div className="column-cards">
-                              {items.map((t) => (
-                                <TaskCard
-                                  task={t}
-                                  key={t.id}
-                                  dragging={dragging === t.id}
-                                  onDrag={() => setDragging(t.id)}
-                                  onDragEnd={() => {
-                                    setDragging(null);
-                                    setDropTarget(null);
-                                  }}
-                                  onOpen={() =>
-                                    setModal({
-                                      type: "task",
-                                      task: t,
-                                      isNew: false,
-                                    })
-                                  }
+                    <>
+                      <div className="board-compact-controls">
+                        <span>Visão das fases</span>
+                        <button
+                          className="button secondary"
+                          onClick={() =>
+                            setCollapsedStages(
+                              collapsedStages.length === STAGES.length
+                                ? []
+                                : STAGES.map((s) => s.id),
+                            )
+                          }
+                        >
+                          {collapsedStages.length === STAGES.length
+                            ? "Expandir fases"
+                            : "Recolher fases"}
+                        </button>
+                      </div>
+                      <BoardScroller
+                        columns={STAGES.map((s) =>
+                          collapsedStages.includes(s.id)
+                            ? "minmax(170px, .65fr)"
+                            : "minmax(255px, 1fr)",
+                        ).join(" ")}
+                      >
+                        {STAGES.map((stage) => {
+                          const items = tasks.filter(
+                            (t) => t.stage === stage.id,
+                          );
+                          const Icon = stageIcons[stage.id];
+                          const collapsed = collapsedStages.includes(stage.id);
+                          return (
+                            <div
+                              id={`column-${stage.id}`}
+                              className={`kanban-column column-${stage.id} ${collapsed ? "collapsed-column" : ""} ${dragging && dropTarget === stage.id ? "drop-target" : ""}`}
+                              key={stage.id}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = "move";
+                                setDropTarget(stage.id);
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                const id = e.dataTransfer.getData("text/plain");
+                                if (project.tasks.some((t) => t.id === id))
+                                  move(id, stage.id);
+                                setDragging(null);
+                                setDropTarget(null);
+                              }}
+                            >
+                              <div className="column-heading">
+                                <span
+                                  className="stage-dot"
+                                  style={{ background: stage.color }}
                                 />
-                              ))}
-                              {items.length === 0 && (
-                                <div className="empty-column">
-                                  <Icon size={23} />
-                                  <span>
-                                    {search || module || priority
-                                      ? "Nenhuma atividade com esses filtros"
-                                      : "Espaço para os próximos passos"}
-                                  </span>
+                                <h3>{stage.label}</h3>
+                                <span className="column-count">
+                                  {items.length}
+                                </span>
+                                <button
+                                  className="column-collapse"
+                                  aria-label={`${collapsed ? "Expandir" : "Recolher"} fase ${stage.label}`}
+                                  aria-expanded={!collapsed}
+                                  onClick={() =>
+                                    setCollapsedStages(
+                                      collapsed
+                                        ? collapsedStages.filter(
+                                            (s) => s !== stage.id,
+                                          )
+                                        : [...collapsedStages, stage.id],
+                                    )
+                                  }
+                                >
+                                  {collapsed ? (
+                                    <ChevronRight size={16} />
+                                  ) : (
+                                    <ChevronDown size={16} />
+                                  )}
+                                </button>
+                                <button
+                                  aria-label={`Adicionar em ${stage.label}`}
+                                  onClick={() => newTask(stage.id)}
+                                >
+                                  <Plus size={16} />
+                                </button>
+                              </div>
+                              {!collapsed && (
+                                <p className="column-subtitle">
+                                  {
+                                    {
+                                      todo: "Identificado, ainda não iniciado",
+                                      progress: "Trabalho sendo executado",
+                                      waiting:
+                                        "Dependências da IPM ou da equipe",
+                                      homologacao:
+                                        "Correções e dados para validar",
+                                      concluido: "Validado e com evidência",
+                                    }[stage.id]
+                                  }
+                                </p>
+                              )}
+                              {collapsed ? (
+                                <div className="column-overview">
+                                  <span>Resumo da fase</span>
+                                  <dl>
+                                    <div>
+                                      <dt>Atividades</dt>
+                                      <dd>{items.length}</dd>
+                                    </div>
+                                    <div>
+                                      <dt>Prioridade alta</dt>
+                                      <dd>
+                                        {
+                                          items.filter(
+                                            (t) => t.priority === "alta",
+                                          ).length
+                                        }
+                                      </dd>
+                                    </div>
+                                    <div>
+                                      <dt>
+                                        {stage.id === "concluido"
+                                          ? "Validadas"
+                                          : "Em atraso"}
+                                      </dt>
+                                      <dd>
+                                        {
+                                          items.filter((t) =>
+                                            stage.id === "concluido"
+                                              ? isValidated(t)
+                                              : t.date && t.date < today,
+                                          ).length
+                                        }
+                                      </dd>
+                                    </div>
+                                    <div>
+                                      <dt>Chamados</dt>
+                                      <dd>
+                                        {
+                                          items.filter(
+                                            (t) => t.type === "chamado",
+                                          ).length
+                                        }
+                                      </dd>
+                                    </div>
+                                  </dl>
+                                </div>
+                              ) : (
+                                <div className="column-cards">
+                                  {items.map((t) => (
+                                    <TaskCard
+                                      task={t}
+                                      key={t.id}
+                                      dragging={dragging === t.id}
+                                      onDrag={() => setDragging(t.id)}
+                                      onDragEnd={() => {
+                                        setDragging(null);
+                                        setDropTarget(null);
+                                      }}
+                                      onOpen={() =>
+                                        setModal({
+                                          type: "task",
+                                          task: t,
+                                          isNew: false,
+                                        })
+                                      }
+                                      onContextMenu={(e) => openCardMenu(e, t)}
+                                    />
+                                  ))}
+                                  {items.length === 0 && (
+                                    <div className="empty-column">
+                                      <Icon size={23} />
+                                      <span>
+                                        {search || module || priority
+                                          ? "Nenhuma atividade com esses filtros"
+                                          : "Espaço para os próximos passos"}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               )}
+                              {!collapsed && (
+                                <button
+                                  className="add-card"
+                                  onClick={() => newTask(stage.id)}
+                                >
+                                  <Plus size={15} /> Adicionar atividade
+                                </button>
+                              )}
                             </div>
-                            <button
-                              className="add-card"
-                              onClick={() => newTask(stage.id)}
-                            >
-                              <Plus size={15} /> Adicionar atividade
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </BoardScroller>
+                          );
+                        })}
+                      </BoardScroller>
+                    </>
                   )}
                   {boardView === "list" && (
                     <ActivitiesList
+                      onContextMenu={openCardMenu}
                       tasks={tasks}
                       onOpen={(task) =>
                         setModal({ type: "task", task, isNew: false })
@@ -957,6 +1084,7 @@ function App() {
                   )}
                   {boardView === "table" && (
                     <ActivitiesTable
+                      onContextMenu={openCardMenu}
                       priorityOrder={taskOrder === "priority"}
                       tasks={tasks}
                       onOpen={(task) =>
@@ -967,6 +1095,7 @@ function App() {
                   )}
                   {boardView === "calendar" && (
                     <ActivitiesCalendar
+                      onContextMenu={openCardMenu}
                       tasks={tasks}
                       trainings={project.trainings}
                       onOpen={(task) =>
@@ -1119,6 +1248,20 @@ function App() {
           }}
         />
       )}
+      {cardMenu &&
+        projectTasks.some((t) => t.id === cardMenu.taskId) &&
+        !modal && (
+          <CardMenu
+            anchor={cardMenu}
+            task={projectTasks.find((t) => t.id === cardMenu.taskId)}
+            onClose={() => setCardMenu(null)}
+            onEdit={(task) => setModal({ type: "task", task, isNew: false })}
+            onMove={move}
+            onPriority={(task, priority) =>
+              saveTask({ ...task, priority }, false)
+            }
+          />
+        )}
       {modal?.type === "task" && (
         <TaskModal
           task={modal.task}
@@ -1394,102 +1537,133 @@ function StatCard({
     </div>
   );
 }
-function TaskCard({ task, onOpen, onDrag, onDragEnd, dragging }) {
+function TaskCard({
+  task,
+  onOpen,
+  onDrag,
+  onDragEnd,
+  dragging,
+  onContextMenu,
+}) {
   const checklist = checklistProgress(task);
   const overdue =
     task.date && task.date < localDate() && task.stage !== "concluido";
   return (
-    <button
-      className={`task-card ${dragging ? "dragging" : ""} ${task.stage === "concluido" ? "completed-card" : ""}`}
-      data-task-id={task.id}
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData("text/plain", task.id);
-        e.dataTransfer.effectAllowed = "move";
-        onDrag();
-      }}
-      onDragEnd={onDragEnd}
-      onClick={onOpen}
-    >
-      <div className="task-tag-row">
-        <ModuleBadge task={task} />
-        {task.stage === "concluido" && (
-          <Check className="done-icon" size={15} />
-        )}
-      </div>
-      <h4>{cardSummary(task)}</h4>
-      <span className="ticket-type-label">
-        {CATEGORIES[task.type] || "Tarefa"}
-      </span>
-      {task.nextAction ? (
-        <p className="card-next-action">
-          <ArrowRight size={12} />
-          <span>{task.nextAction}</span>
-        </p>
-      ) : (
-        task.stage !== "concluido" && (
-          <p className="card-next-action context-missing">
-            Próxima ação não definida
-          </p>
-        )
-      )}
-      {task.stage === "waiting" && (
-        <span className="blocked-by">
-          Aguardando: {task.blockedBy || "a definir"}
-        </span>
-      )}
-      <ValidationBadge task={task} />
-      {task.type === "chamado" && (
-        <span className="ticket-status">
-          <span />
-          {task.ticketStatus || "Aguardando retorno"}
-        </span>
-      )}
-      {checklist.total > 0 && (
-        <div className="task-checklist">
-          <div>
-            <ListChecks size={14} />
-            <span>
-              {checklist.done}/{checklist.total}
-            </span>
-            <span>
-              {task.checklists.length}{" "}
-              {task.checklists.length === 1 ? "entidade" : "entidades"}
-            </span>
-          </div>
-          <div className="mini-progress">
-            <i
-              style={{ width: `${(checklist.done / checklist.total) * 100}%` }}
-            />
-          </div>
-        </div>
-      )}
-      <div className="task-bottom">
-        <span className={`task-date ${overdue ? "overdue" : ""}`}>
-          {task.stage === "concluido" ? (
-            <>
-              <CheckCheck size={13} />
-              {formatDate(task.completedAt)}
-            </>
-          ) : task.date ? (
-            <>
-              <CalendarDays size={13} />
-              {formatDate(task.date)}
-              {task.time && ` · ${task.time}`}
-            </>
-          ) : (
-            <>
-              <Clock3 size={13} />
-              Sem prazo
-            </>
+    <div className="task-card-shell">
+      <button
+        className={`task-card ${dragging ? "dragging" : ""} ${task.stage === "concluido" ? "completed-card" : ""}`}
+        data-task-id={task.id}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData("text/plain", task.id);
+          e.dataTransfer.effectAllowed = "move";
+          onDrag();
+        }}
+        onDragEnd={onDragEnd}
+        onClick={onOpen}
+        onContextMenu={onContextMenu}
+        onKeyDown={(e) => {
+          if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))
+            onContextMenu(e);
+        }}
+      >
+        <div className="task-tag-row">
+          <ModuleBadge task={task} />
+          {task.stage === "concluido" && (
+            <Check className="done-icon" size={15} />
           )}
+        </div>
+        <h4>{cardSummary(task)}</h4>
+        <span className="ticket-type-label">
+          {CATEGORIES[task.type] || "Tarefa"}
         </span>
-        <span className="card-owner">{task.owner || "Sem responsável"}</span>
-      </div>
-    </button>
+        {task.nextAction ? (
+          <p className="card-next-action">
+            <ArrowRight size={12} />
+            <span>{task.nextAction}</span>
+          </p>
+        ) : (
+          task.stage !== "concluido" && (
+            <p className="card-next-action context-missing">
+              Próxima ação não definida
+            </p>
+          )
+        )}
+        {task.stage === "waiting" && (
+          <span className="blocked-by">
+            Aguardando: {task.blockedBy || "a definir"}
+          </span>
+        )}
+        <ValidationBadge task={task} />
+        {task.type === "chamado" && (
+          <span className="ticket-status">
+            <span />
+            {task.ticketStatus || "Aguardando retorno"}
+          </span>
+        )}
+        {checklist.total > 0 && (
+          <div className="task-checklist">
+            <div>
+              <ListChecks size={14} />
+              <span>
+                {checklist.done}/{checklist.total}
+              </span>
+              <span>
+                {task.checklists.length}{" "}
+                {task.checklists.length === 1 ? "entidade" : "entidades"}
+              </span>
+            </div>
+            <div className="mini-progress">
+              <i
+                style={{
+                  width: `${(checklist.done / checklist.total) * 100}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
+        <div className="task-bottom">
+          <span className={`task-date ${overdue ? "overdue" : ""}`}>
+            {task.stage === "concluido" ? (
+              <>
+                <CheckCheck size={13} />
+                {formatDate(task.completedAt)}
+              </>
+            ) : task.date ? (
+              <>
+                <CalendarDays size={13} />
+                {formatDate(task.date)}
+                {task.time && ` · ${task.time}`}
+              </>
+            ) : (
+              <>
+                <Clock3 size={13} />
+                Sem prazo
+              </>
+            )}
+          </span>
+          <span className="card-owner">{task.owner || "Sem responsável"}</span>
+        </div>
+      </button>
+      <button
+        className="card-shortcuts icon-button"
+        aria-label="Atalhos da atividade"
+        aria-haspopup="menu"
+        onClick={onContextMenu}
+      >
+        <MoreHorizontal size={17} />
+      </button>
+    </div>
   );
 }
-function Modal({ title, subtitle, children, onClose, wide = false }) {
+function Modal({
+  title,
+  subtitle,
+  children,
+  onClose,
+  wide = false,
+  headerAction,
+}) {
   const ref = useRef();
   useEffect(() => {
     const previous = document.activeElement;
@@ -1549,6 +1723,7 @@ function Modal({ title, subtitle, children, onClose, wide = false }) {
             <h2 id="modal-title">{title}</h2>
             {subtitle && <p>{subtitle}</p>}
           </div>
+          {headerAction}
           <button className="icon-button" aria-label="Fechar" onClick={onClose}>
             <X size={21} />
           </button>
@@ -1576,6 +1751,7 @@ function Field({ label, children, hint, full }) {
   );
 }
 function TaskModal({ task, isNew, entities, onClose, onSave, onDelete }) {
+  const formId = useId();
   const [draft, setDraft] = useState(() => structuredClone(task));
   const [entity, setEntity] = useState(entities[0] || "");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -1607,9 +1783,23 @@ function TaskModal({ task, isNew, entities, onClose, onSave, onDelete }) {
       title={isNew ? "Nova atividade" : "Detalhes da atividade"}
       subtitle="Deixe o contexto pronto para quem vai continuar o trabalho."
       onClose={onClose}
+      headerAction={
+        <button
+          type="submit"
+          form={formId}
+          disabled={uploading}
+          className="button primary task-save-top"
+          aria-label={
+            isNew ? "Criar atividade no topo" : "Salvar atividade no topo"
+          }
+        >
+          <Check size={16} /> {isNew ? "Criar" : "Salvar"}
+        </button>
+      }
       wide
     >
       <form
+        id={formId}
         onSubmit={(e) => {
           e.preventDefault();
           onSave({ ...draft, title: draft.title.trim() });
@@ -1712,14 +1902,16 @@ function TaskModal({ task, isNew, entities, onClose, onSave, onDelete }) {
               </datalist>
             </Field>
           )}
-          <Field label="Número do chamado">
-            <input
-              value={draft.ticket}
-              onChange={(e) => patch("ticket", e.target.value)}
-              placeholder="Ex.: 872797"
-            />
-          </Field>
-          {(draft.type === "chamado" || draft.ticket) && (
+          {draft.type === "chamado" && (
+            <Field label="Número do chamado">
+              <input
+                value={draft.ticket}
+                onChange={(e) => patch("ticket", e.target.value)}
+                placeholder="Ex.: 872797"
+              />
+            </Field>
+          )}
+          {draft.type === "chamado" && (
             <Field label="Situação na fábrica">
               <select
                 value={draft.ticketStatus || "Aguardando retorno"}
@@ -1746,12 +1938,6 @@ function TaskModal({ task, isNew, entities, onClose, onSave, onDelete }) {
             />
           </Field>
         </div>
-        <HandoffFields
-          draft={draft}
-          patch={patch}
-          Field={Field}
-          onBusy={setUploading}
-        />
         <div className="checklist-section">
           <div className="section-heading">
             <h3>
@@ -1890,6 +2076,22 @@ function TaskModal({ task, isNew, entities, onClose, onSave, onDelete }) {
             </div>
           ))}
         </div>
+        <div className="executed-work-section">
+          <Field label="Atividades executadas" full>
+            <textarea
+              rows="4"
+              value={draft.executedWork || ""}
+              onChange={(e) => patch("executedWork", e.target.value)}
+              placeholder="Descreva o que foi feito, os resultados e as datas para aproveitar no boletim."
+            />
+          </Field>
+        </div>
+        <HandoffFields
+          draft={draft}
+          patch={patch}
+          Field={Field}
+          onBusy={setUploading}
+        />
         {deleteConfirm && (
           <div className="delete-confirm">
             <span>Excluir esta atividade? O histórico será preservado.</span>
@@ -2431,6 +2633,12 @@ function History({ project, onOpen }) {
                     <span>Evidência: {l.validation.evidence}</span>
                   </div>
                 )}
+                {l.executedWork && (
+                  <p className="history-executed-work">
+                    <strong>Atividades executadas</strong>
+                    {l.executedWork}
+                  </p>
+                )}
               </div>
               <time>
                 {formatDate(l.at)}
@@ -2466,6 +2674,8 @@ function History({ project, onOpen }) {
   );
 }
 function ProjectDetails({ project, onEdit }) {
+  const [showCpf, setShowCpf] = useState(false);
+  useEffect(() => setShowCpf(false), [project.id, project.cpf]);
   const info = (label, value, email = false) => (
     <div className="detail-field">
       <span>{label}</span>
@@ -2507,10 +2717,28 @@ function ProjectDetails({ project, onEdit }) {
             <ShieldCheck size={18} /> Fiscal do contrato
           </h3>
           {info("Nome", project.fiscal)}
-          {info(
-            "CPF",
-            project.cpf ? project.cpf.replace(/\d(?=.*\d{2})/g, "•") : "",
-          )}
+          <div className="detail-field">
+            <span>CPF</span>
+            {project.cpf ? (
+              <div className="cpf-display">
+                <strong>
+                  {showCpf ? project.cpf : project.cpf.replace(/\d/g, "*")}
+                </strong>
+                <button
+                  className="icon-button"
+                  aria-label={
+                    showCpf ? "Ocultar CPF do fiscal" : "Mostrar CPF do fiscal"
+                  }
+                  aria-pressed={showCpf}
+                  onClick={() => setShowCpf((s) => !s)}
+                >
+                  {showCpf ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            ) : (
+              <strong className="not-informed">Não informado</strong>
+            )}
+          </div>
           {info("E-mail", project.fiscalEmail, true)}
         </section>
         <section>

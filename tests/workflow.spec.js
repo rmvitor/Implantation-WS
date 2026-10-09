@@ -34,7 +34,9 @@ test("quadro permite editar checklists, concluir e recuperar os dados salvos", a
     .fill("Validar fluxo de requisição");
   await page.getByLabel("Categoria").selectOption("chamado");
   await page.getByLabel("Número do chamado").fill("123456");
-  await page.getByRole("button", { name: "Criar atividade" }).click();
+  await page
+    .getByRole("button", { name: "Criar atividade", exact: true })
+    .click();
   const card = page.getByRole("button", {
     name: /Validar fluxo de requisição/,
   });
@@ -259,7 +261,9 @@ test("lista, tabela e calendário compartilham atividades, filtros e datas", asy
   await page
     .getByLabel("Título da atividade")
     .fill("Conferência agendada pelo calendário");
-  await page.getByRole("button", { name: "Criar atividade" }).click();
+  await page
+    .getByRole("button", { name: "Criar atividade", exact: true })
+    .click();
   await expect(page.locator(".calendar-today")).toContainText(
     "Conferência agendada pelo calendário",
   );
@@ -408,7 +412,9 @@ test("falha de armazenamento mantém formulário e não declara salvamento", asy
       throw new DOMException("quota", "QuotaExceededError");
     };
   });
-  await page.getByRole("button", { name: "Criar atividade" }).click();
+  await page
+    .getByRole("button", { name: "Criar atividade", exact: true })
+    .click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByRole("status")).toContainText(
     "Não foi possível salvar",
@@ -461,7 +467,7 @@ test("perfil aplica cor principal e True Black, persiste e cancela a prévia", a
         .trim(),
     ),
   ).toBe("#7c3aed");
-  await expect(page.locator(".page-footer")).toContainText("v1.4.0");
+  await expect(page.locator(".page-footer")).toContainText("v1.5.0");
 });
 
 test("categorias, módulos e número aparecem nos cartões; prioridade ordena todas as fases", async ({
@@ -494,11 +500,21 @@ test("categorias, módulos e número aparecem nos cartões; prioridade ordena to
     await page.getByLabel("Categoria", { exact: true }).selectOption(category);
     await page.getByLabel("Prioridade", { exact: true }).selectOption(priority);
     await page.getByLabel("Módulo", { exact: true }).selectOption(module);
-    if (ticket) await page.getByLabel("Número do chamado").fill(ticket);
-    await page.getByRole("button", { name: "Criar atividade" }).click();
+    if (ticket) {
+      await page
+        .getByLabel("Categoria", { exact: true })
+        .selectOption("chamado");
+      await page.getByLabel("Número do chamado").fill(ticket);
+      await page
+        .getByLabel("Categoria", { exact: true })
+        .selectOption(category);
+    }
+    await page
+      .getByRole("button", { name: "Criar atividade", exact: true })
+      .click();
     const card = page.locator(".task-card").filter({ hasText: title });
     await expect(card.locator("h4")).toHaveText(
-      ticket ? `${title} — #${ticket}` : title,
+      category === "chamado" && ticket ? `${title} — #${ticket}` : title,
     );
     await expect(card.locator(".priority-tag")).toHaveText(
       priority === "alta" ? "Alta" : priority === "baixa" ? "Baixa" : "Normal",
@@ -524,7 +540,7 @@ test("categorias, módulos e número aparecem nos cartões; prioridade ordena to
     .selectOption("progress");
   await page.getByRole("button", { name: "Quadro", exact: true }).click();
   await expect(page.locator("#column-progress")).toContainText(
-    "Corrigir resultado — #904321",
+    "Corrigir resultado",
   );
   await page.locator(".task-card").click();
   await expect(page.getByLabel("Situação", { exact: true })).toHaveValue(
@@ -576,7 +592,7 @@ test("rolagem alcança todas as fases em telas menores e anima movimentação re
   });
   await page
     .getByLabel("Rolar quadro horizontalmente", { exact: true })
-    .fill("0");
+    .press("Home");
   const card = page
     .locator(".task-card")
     .filter({ hasText: "Homologação de Frotas" });
