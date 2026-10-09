@@ -69,6 +69,18 @@ import {
   isValidated,
   updateProjectEntities,
 } from "./domain";
+import {
+  APPOINTMENT_TYPES,
+  appointmentType,
+  appointmentLabel,
+  appointmentEnd,
+  appointmentOccursOn,
+  appointmentHasUpcomingDays,
+  appointmentTimeOn,
+  appointmentDuration,
+  appointmentRange,
+  validateAppointment,
+} from "./appointments";
 import "@fontsource-variable/dm-sans";
 import "@fontsource-variable/manrope";
 import {
@@ -251,9 +263,13 @@ function App() {
   const today = localDate();
   const todayEvents = [
     ...projectTasks.filter((t) => t.stage !== "concluido" && t.date === today),
-    ...projectTrainings.filter(
-      (t) => t.date === today && t.status !== "Realizado",
-    ),
+    ...projectTrainings
+      .filter((t) => appointmentOccursOn(t, today) && t.status !== "Realizado")
+      .map((t) => ({
+        ...t,
+        time: appointmentTimeOn(t, today),
+        ongoing: t.date < today,
+      })),
   ];
   const openTickets = projectTasks.filter(
     (t) => t.type === "chamado" && t.stage !== "concluido",
@@ -384,14 +400,14 @@ function App() {
     return selected;
   };
   const nextTraining = projectTrainings
-    .filter((t) => t.status !== "Realizado" && t.date >= today)
+    .filter((t) => appointmentHasUpcomingDays(t, today))
     .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))[0];
   const pageNames = {
     board: "Quadro do município",
     municipalities: "Projetos e municípios",
     homologation: "Homologação da migração",
     agenda: "Minha agenda",
-    trainings: "Treinamentos",
+    trainings: "Treinamento/Atendimento",
     history: "Histórico de execução",
     details: "Dados do município",
   };
@@ -458,7 +474,7 @@ function App() {
           />
           <NavItem
             icon={GraduationCap}
-            text="Treinamentos"
+            text="Treinamento/Atendimento"
             disabled={!project}
             active={view === "trainings"}
             onClick={() => changeView("trainings")}
@@ -643,9 +659,17 @@ function App() {
                   </div>
                   <div className="title-row">
                     <h1>
-                      {view === "board" || view === "details"
-                        ? project.name
-                        : pageNames[view]}
+                      {view === "board" || view === "details" ? (
+                        project.name
+                      ) : view === "trainings" ? (
+                        <>
+                          Treinamento/
+                          <wbr />
+                          Atendimento
+                        </>
+                      ) : (
+                        pageNames[view]
+                      )}
                     </h1>
                     {(view === "board" || view === "details") && (
                       <span className="state-tag">{project.state || "BR"}</span>
@@ -663,7 +687,7 @@ function App() {
                       ? "Tudo o que você precisa para fazer a implantação acontecer."
                       : view === "details"
                         ? "Informações e contatos sempre à mão."
-                        : `${project.name} · ${view === "trainings" ? "Capacitação em uma agenda própria, fora do quadro de execução." : view === "homologation" ? "Conferência e liberação dos dados migrados por módulo e entidade." : view === "history" ? "Um registro de tudo o que foi feito, sem trabalho extra." : "Seus próximos passos, organizados por data."}`}
+                        : `${project.name} · ${view === "trainings" ? "Capacitação e salas de atendimento remoto em uma agenda própria." : view === "homologation" ? "Conferência e liberação dos dados migrados por módulo e entidade." : view === "history" ? "Um registro de tudo o que foi feito, sem trabalho extra." : "Seus próximos passos, organizados por data."}`}
                   </p>
                 </div>
                 <div className="heading-actions">
@@ -726,7 +750,7 @@ function App() {
                     >
                       <Plus size={17} />
                       {view === "trainings"
-                        ? "Novo treinamento"
+                        ? "Novo treinamento/atendimento"
                         : "Nova atividade"}
                     </button>
                   )}
@@ -791,9 +815,11 @@ function App() {
                       value={todayEvents.length.toString().padStart(2, "0")}
                       tone="blue"
                       subtitle={
-                        todayEvents.length
-                          ? `Próximo: ${[...todayEvents].sort((a, b) => a.time.localeCompare(b.time))[0].time || "a definir"}`
-                          : "Seu dia está livre por aqui"
+                        todayEvents.some((t) => t.ongoing)
+                          ? "Há encontros em andamento"
+                          : todayEvents.length
+                            ? `Próximo: ${[...todayEvents].sort((a, b) => a.time.localeCompare(b.time))[0].time || "a definir"}`
+                            : "Seu dia está livre por aqui"
                       }
                       onClick={() => changeView("agenda")}
                     />
@@ -805,8 +831,8 @@ function App() {
                     <div>
                       <strong>
                         {nextTraining
-                          ? "Próximo treinamento"
-                          : "Treinamentos em um espaço próprio"}
+                          ? `${appointmentOccursOn(nextTraining, today) ? "Hoje" : "Próximo encontro"} · ${appointmentLabel(nextTraining)}`
+                          : "Treinamento/Atendimento em um espaço próprio"}
                       </strong>
                       <span>
                         {nextTraining ? (
@@ -815,16 +841,15 @@ function App() {
                             <i />
                             {nextTraining.entity}
                             <i />
-                            {formatDate(nextTraining.date)}
-                            {nextTraining.time && `, às ${nextTraining.time}`}
+                            {appointmentRange(nextTraining)}
                           </>
                         ) : (
-                          "Organize a capacitação sem misturar com a execução."
+                          "Organize capacitações e salas de atendimento por período."
                         )}
                       </span>
                     </div>
                     <button onClick={() => changeView("trainings")}>
-                      Ver treinamentos <ArrowRight size={16} />
+                      Ver agenda <ArrowRight size={16} />
                     </button>
                   </section>
                   <div className="board-toolbar">
@@ -1441,7 +1466,8 @@ function App() {
                 logs: [
                   {
                     id: uid(),
-                    title: `Treinamento: ${t.title}`,
+                    title: `${appointmentLabel(t)}: ${t.title}`,
+                    appointment: structuredClone(t),
                     action:
                       t.status === "Realizado"
                         ? "realizado"
@@ -1455,7 +1481,7 @@ function App() {
               }))
             ) {
               setModal(null);
-              setToast("Treinamento salvo.");
+              setToast("Treinamento/atendimento salvo.");
             }
           }}
           onDelete={async () => {
@@ -1468,7 +1494,8 @@ function App() {
                 logs: [
                   {
                     id: uid(),
-                    title: `Treinamento: ${modal.training.title}`,
+                    title: `${appointmentLabel(modal.training)}: ${modal.training.title}`,
+                    appointment: structuredClone(modal.training),
                     action: "excluído",
                     at: new Date().toISOString(),
                   },
@@ -1583,8 +1610,8 @@ function App() {
                 "Abra um município ou crie uma implantação. Dentro do projeto, escolha Quadro, Lista, Tabela ou Calendário; os dados são os mesmos.",
               ],
               [
-                "Treinamentos em separado",
-                "Cadastre a agenda que você recebeu por e-mail. Eles aparecem também na Minha agenda, sem ocupar o quadro.",
+                "Treinamento e atendimento em separado",
+                "Cadastre capacitações e salas de atendimento remoto com início e término, inclusive em vários dias. Aparecem na Minha agenda e no Calendário durante todo o período.",
               ],
               [
                 "Situação e tipo separados",
@@ -2435,42 +2462,88 @@ function TrainingModal({
   onSave,
   onDelete,
 }) {
-  const [draft, setDraft] = useState(
-    training || {
-      id: uid(),
-      title: "",
-      entity: entities[0] || "",
-      date: nextDate(1),
-      time: "09:00",
-      duration: "2h",
-      owner: "Você",
-      status: "Agendado",
-      notes: "",
-    },
+  const [draft, setDraft] = useState(() =>
+    training
+      ? {
+          ...training,
+          type: appointmentType(training),
+          ...appointmentEnd(training),
+          meetingUrl: training.meetingUrl || "",
+        }
+      : {
+          id: uid(),
+          type: "treinamento",
+          title: "",
+          entity: entities[0] || "",
+          date: nextDate(1),
+          time: "09:00",
+          endDate: nextDate(1),
+          endTime: "11:00",
+          owner: "Você",
+          status: "Agendado",
+          notes: "",
+          meetingUrl: "",
+        },
   );
   const [confirm, setConfirm] = useState(false);
-  const patch = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
+  const [error, setError] = useState("");
+  const patch = (key, value) => {
+    setError("");
+    setDraft((d) => ({ ...d, [key]: value }));
+  };
   return (
     <Modal
-      title={training ? "Editar treinamento" : "Novo treinamento"}
-      subtitle="Transfira as informações da agenda recebida por e-mail."
+      title={
+        training
+          ? "Editar treinamento/atendimento"
+          : "Novo treinamento/atendimento"
+      }
+      subtitle="Capacitações e salas remotas com data e hora de início e término."
       onClose={onClose}
     >
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          onSave({ ...draft, title: draft.title.trim() });
+          try {
+            const saved = validateAppointment(
+              {
+                ...draft,
+                title: draft.title.trim(),
+                meetingUrl: draft.meetingUrl.trim(),
+              },
+              true,
+            );
+            onSave({ ...saved, duration: appointmentDuration(saved) });
+          } catch (err) {
+            setError(err.message);
+          }
         }}
       >
         <fieldset disabled={readOnly} className="readonly-fields">
           <div className="form-grid">
+            <Field label="Tipo de encontro" full>
+              <select
+                value={draft.type}
+                onChange={(e) => patch("type", e.target.value)}
+              >
+                {Object.entries(APPOINTMENT_TYPES).map(([id, label]) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Field>
             <Field label="Tema / módulo *" full>
               <input
                 required
                 pattern=".*[^ ].*"
                 value={draft.title}
                 onChange={(e) => patch("title", e.target.value)}
-                placeholder="Ex.: Compras e contratos"
+                placeholder={
+                  draft.type === "atendimento"
+                    ? "Ex.: Sala de atendimento de Suprimentos"
+                    : "Ex.: Treinamento de Compras e contratos"
+                }
               />
             </Field>
             <Field label="Entidade">
@@ -2491,15 +2564,26 @@ function TrainingModal({
                 onChange={(e) => patch("owner", e.target.value)}
               />
             </Field>
-            <Field label="Data *">
+            <Field label="Data de início *">
               <input
                 type="date"
                 required
                 value={draft.date}
-                onChange={(e) => patch("date", e.target.value)}
+                onChange={(e) => {
+                  const date = e.target.value;
+                  setError("");
+                  setDraft((d) => ({
+                    ...d,
+                    date,
+                    endDate:
+                      d.endDate === d.date || d.endDate < date
+                        ? date
+                        : d.endDate,
+                  }));
+                }}
               />
             </Field>
-            <Field label="Horário *">
+            <Field label="Horário de início *">
               <input
                 type="time"
                 required
@@ -2507,11 +2591,21 @@ function TrainingModal({
                 onChange={(e) => patch("time", e.target.value)}
               />
             </Field>
-            <Field label="Duração">
+            <Field label="Data de término *">
               <input
-                value={draft.duration}
-                onChange={(e) => patch("duration", e.target.value)}
-                placeholder="Ex.: 2h"
+                type="date"
+                required
+                min={draft.date}
+                value={draft.endDate}
+                onChange={(e) => patch("endDate", e.target.value)}
+              />
+            </Field>
+            <Field label="Horário de término *">
+              <input
+                type="time"
+                required
+                value={draft.endTime}
+                onChange={(e) => patch("endTime", e.target.value)}
               />
             </Field>
             <Field label="Situação">
@@ -2524,18 +2618,62 @@ function TrainingModal({
                 <option>Reagendar</option>
               </select>
             </Field>
+            <Field label="Duração">
+              <output className="appointment-duration">
+                {appointmentDuration(draft)}
+              </output>
+            </Field>
+            <Field label="Link da sala / reunião" full>
+              <input
+                type="url"
+                value={draft.meetingUrl}
+                onChange={(e) => patch("meetingUrl", e.target.value)}
+                placeholder="https://teams.microsoft.com/..."
+              />
+              {draft.meetingUrl &&
+                (() => {
+                  try {
+                    validateAppointment({
+                      ...draft,
+                      endDate: undefined,
+                      endTime: undefined,
+                    });
+                    return (
+                      <a
+                        className="meeting-link"
+                        href={draft.meetingUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <ExternalLink size={14} /> Abrir sala
+                      </a>
+                    );
+                  } catch {
+                    return null;
+                  }
+                })()}
+            </Field>
             <Field label="Notas / link da reunião" full>
               <textarea
                 value={draft.notes}
                 rows="3"
                 onChange={(e) => patch("notes", e.target.value)}
-                placeholder="Participantes, link ou observações da agenda..."
+                placeholder="Participantes, pauta e orientações de atendimento..."
               />
             </Field>
           </div>
+          <p className="appointment-period-hint">
+            A sala fica agendada do início ao término e aparece em cada dia do
+            período no calendário.
+          </p>
+          {error && (
+            <p className="team-error" role="alert">
+              {error}
+            </p>
+          )}
           {confirm && (
             <div className="delete-confirm">
-              <span>Excluir este treinamento?</span>
+              <span>Excluir este treinamento/atendimento?</span>
               <button type="button" onClick={onDelete}>
                 Sim, excluir
               </button>
@@ -2563,7 +2701,7 @@ function TrainingModal({
               Cancelar
             </button>
             <button className="button primary" type="submit">
-              Salvar treinamento
+              Salvar treinamento/atendimento
             </button>
           </div>
         </fieldset>
@@ -2584,11 +2722,26 @@ function Agenda({ readOnly = false, project, onTask, onTraining, onAdd }) {
       (t) =>
         range === "all" ||
         (range === "today"
-          ? t.date === today
-          : t.date >= today && t.status !== "Realizado"),
+          ? t.kind === "training"
+            ? appointmentOccursOn(t, today)
+            : t.date === today
+          : t.kind === "training"
+            ? appointmentHasUpcomingDays(t, today)
+            : t.date >= today),
     )
-    .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
-  const dates = [...new Set(events.map((t) => t.date))];
+    .map((t) => ({
+      ...t,
+      agendaDate:
+        range !== "all" && t.kind === "training" && t.date < today
+          ? today
+          : t.date,
+    }))
+    .sort((a, b) =>
+      (a.agendaDate + appointmentTimeOn(a, a.agendaDate)).localeCompare(
+        b.agendaDate + appointmentTimeOn(b, b.agendaDate),
+      ),
+    );
+  const dates = [...new Set(events.map((t) => t.agendaDate))];
   return (
     <section className="content-panel">
       <div className="panel-heading">
@@ -2612,8 +2765,8 @@ function Agenda({ readOnly = false, project, onTask, onTraining, onAdd }) {
         </div>
       </div>
       <p className="panel-description">
-        Compromissos, prazos e treinamentos reunidos. Abra um item para
-        atualizar.
+        Compromissos, prazos, treinamentos e atendimentos reunidos. Abra um item
+        para atualizar.
       </p>
       {dates.map((date) => (
         <div className="agenda-group" key={date}>
@@ -2628,7 +2781,7 @@ function Agenda({ readOnly = false, project, onTask, onTraining, onAdd }) {
             <span>{formatDate(date)}</span>
           </h3>
           {events
-            .filter((t) => t.date === date)
+            .filter((t) => t.agendaDate === date)
             .map((t) => (
               <button
                 className="agenda-row"
@@ -2640,9 +2793,13 @@ function Agenda({ readOnly = false, project, onTask, onTraining, onAdd }) {
                 }
               >
                 <span className="event-time">
-                  {t.time || "Sem hora"}
+                  {t.kind === "training" && t.date < date
+                    ? "Em período"
+                    : t.time || "Sem hora"}
                   <small>
-                    {t.kind === "training" ? t.duration : "Atividade"}
+                    {t.kind === "training"
+                      ? appointmentDuration(t)
+                      : "Atividade"}
                   </small>
                 </span>
                 <span
@@ -2658,9 +2815,14 @@ function Agenda({ readOnly = false, project, onTask, onTraining, onAdd }) {
                   <strong>{t.title}</strong>
                   <p>
                     {t.kind === "training"
-                      ? `Treinamento · ${t.entity}`
+                      ? `${appointmentLabel(t)} · ${t.entity || "Todas as entidades"}`
                       : `${t.module} · ${STAGES.find((s) => s.id === t.stage).label}`}
                   </p>
+                  {t.kind === "training" && (
+                    <span className="appointment-range">
+                      {appointmentRange(t)}
+                    </span>
+                  )}
                 </div>
                 <span className="event-owner">
                   {t.owner || "Sem responsável"}
@@ -2691,10 +2853,10 @@ function Trainings({ readOnly = false, project, onOpen, onAdd }) {
     <section className="content-panel">
       <div className="panel-heading">
         <h2>
-          <GraduationCap size={21} /> Agenda de treinamentos
+          <GraduationCap size={21} /> Treinamento/Atendimento
         </h2>
         <select
-          aria-label="Filtrar treinamentos"
+          aria-label="Filtrar treinamentos/atendimentos"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         >
@@ -2707,8 +2869,9 @@ function Trainings({ readOnly = false, project, onOpen, onAdd }) {
       <div className="info-banner">
         <GraduationCap size={19} />
         <p>
-          Recebeu a programação por e-mail? Cadastre os encontros aqui. Eles
-          aparecerão também na sua agenda, separados das atividades do quadro.
+          Cadastre capacitações e salas de atendimento remoto. Defina início,
+          término e link da sala. O período aparece também na agenda e no
+          calendário.
         </p>
       </div>
       <div className="training-grid">
@@ -2726,6 +2889,7 @@ function Trainings({ readOnly = false, project, onOpen, onAdd }) {
               </span>
               <ArrowUpRight size={18} />
             </div>
+            <span className="appointment-type">{appointmentLabel(t)}</span>
             <h3>{t.title}</h3>
             <p>
               <Building2 size={14} />
@@ -2734,11 +2898,11 @@ function Trainings({ readOnly = false, project, onOpen, onAdd }) {
             <footer>
               <span>
                 <CalendarDays size={15} />
-                {formatDate(t.date)}
+                {appointmentRange(t)}
               </span>
               <span>
                 <Clock3 size={15} />
-                {t.time} · {t.duration || "Sem duração"}
+                {appointmentDuration(t)}
               </span>
             </footer>
           </button>
@@ -2747,9 +2911,9 @@ function Trainings({ readOnly = false, project, onOpen, onAdd }) {
       {!items.length && (
         <Empty
           icon={GraduationCap}
-          title="Treinamentos bem organizados"
-          description="Cadastre sua agenda de capacitação para acompanhar cada encontro."
-          button="Novo treinamento"
+          title="Treinamento e atendimento bem organizados"
+          description="Cadastre capacitações e salas de atendimento por período."
+          button="Novo treinamento/atendimento"
           onClick={readOnly ? undefined : onAdd}
         />
       )}
@@ -2795,6 +2959,11 @@ function History({ project, onOpen }) {
               <div>
                 <strong>{l.title}</strong>
                 <p>{l.action.charAt(0).toUpperCase() + l.action.slice(1)}</p>
+                {l.appointment && typeof l.appointment.date === "string" && (
+                  <p className="appointment-range">
+                    {appointmentRange(l.appointment)} · {l.appointment.status}
+                  </p>
+                )}
                 {l.validation && (
                   <div className="history-validation">
                     <strong>
@@ -3013,8 +3182,8 @@ function ProjectActionModal({
           {closing
             ? "O projeto sai dos ativos e fica em Encerrados, com tarefas, homologação e histórico preservados. Você poderá reabri-lo."
             : clearing
-              ? "Todos os projetos, tarefas, treinamentos, homologações e históricos deste aparelho serão excluídos. Suas preferências de aparência serão mantidas."
-              : "O projeto e todas as suas tarefas, homologações, treinamentos e históricos serão excluídos deste aparelho."}
+              ? "Todos os projetos, tarefas, treinamentos/atendimentos, homologações e históricos deste aparelho serão excluídos. Suas preferências de aparência serão mantidas."
+              : "O projeto e todas as suas tarefas, homologações, treinamentos/atendimentos e históricos serão excluídos deste aparelho."}
         </p>
         {!closing && (
           <>

@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 1.7.0 — 09/10/2026
+
+- Agenda Treinamento/Atendimento com tipo de encontro, início e término por data e horário, duração calculada e link da sala.
+- Salas de atendimento podem ocupar vários dias; calendário e agenda de hoje acompanham todo o período, incluindo encontros iniciados antes de hoje.
+- Histórico conserva os períodos de cada alteração; backups preservam os novos campos e os treinamentos anteriores.
+- Término precisa ser posterior ao início. Durações antigas reconhecidas ajudam a preencher o término ao editar, sem alterar cadastros automaticamente.
+- Verificada a existência da tabela de projetos e da função de acesso no Supabase, com acesso anônimo protegido.
+
 ## 1.6.1 — 09/10/2026
 
 - Conexão pública padrão do Supabase na publicação e login ao abrir o site.

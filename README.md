@@ -37,10 +37,10 @@ A publicação do site é independente da publicação do ambiente de desenvolvi
 - **Prioridade:** Alta, Normal ou Baixa, em tag junto ao módulo. Use “Ordenar cartões” para exibir primeiro as atividades de alta prioridade; essa preferência fica salva por município. A tabela também tem ordenação própria por prioridade.
 - **Aparência:** abra o perfil pelo avatar ou pelo rodapé da barra lateral para escolher a cor principal e o tema claro ou escuro True Black. A prévia pode ser cancelada; as escolhas salvas persistem neste navegador e entram no backup.
 - **Fases recolhidas:** use a seta no título de cada fase ou **Recolher fases / Expandir fases**. A fase recolhida mostra quantidades de atividades, prioridades altas, atrasos (validações em Concluídos) e chamados. Os resumos acompanham os filtros. Essa preferência é salva por município, entra no backup e não altera tarefas nem situações; as fases recolhidas continuam aceitando cartões arrastados.
-- **Telas menores:** use a rolagem horizontal, as barras nativas espelhadas acima e abaixo do quadro ou os botões de seta. Ambas acompanham a mesma posição. Quando o quadro ou a barra superior estiverem em foco, as setas do teclado permitem navegar; Home/End na barra superior vão ao início/fim.
+- **Telas menores:** use a rolagem horizontal e as barras nativas espelhadas acima e abaixo do quadro. Ambas acompanham a mesma posição. Quando o quadro ou a barra superior estiverem em foco, as setas do teclado permitem navegar; Home/End na barra superior vão ao início/fim.
 - **Atalhos:** clique com o botão direito em uma atividade do quadro, lista, tabela ou calendário para editar, mudar a situação ou a prioridade. No quadro, o botão de três pontos funciona por toque e Shift+F10 abre os atalhos pelo teclado. Setas navegam pelo menu e Escape fecha. Concluir pelos atalhos também exige registrar a validação.
-- **Agenda:** compromissos, prazos e treinamentos por data, independentemente da situação do cartão.
-- **Treinamentos:** agenda própria, cadastrada manualmente a partir da programação recebida por e-mail. Sem integração de e-mail nesta versão.
+- **Agenda:** compromissos, prazos, treinamentos e atendimentos por data, independentemente da situação do cartão. Salas em andamento aparecem na agenda de hoje até o término do período.
+- **Treinamento/Atendimento:** agenda própria com tipo de encontro, entidade, responsável, data/hora de início e término, duração calculada, situação, notas e link da sala. Um atendimento remoto pode ocupar vários dias e aparece em cada dia do período no calendário. O término deve ser posterior ao início; um período que termina à meia-noite não ocupa o dia seguinte. Cole o link da sala do Teams ou outro serviço e use **Abrir sala**; o cadastro não cria reuniões no serviço externo. Treinamentos anteriores e suas notas são preservados; ao editar, durações reconhecidas ajudam a preencher o término.
 
 O trabalho pode acontecer em paralelo. Arraste um cartão ou edite sua situação para movimentá-lo sem passagem obrigatória pelas outras colunas. A movimentação tem indicação de destino e animação, respeitando a configuração de movimento reduzido do sistema. Ao arrastar para Concluídos, o formulário de validação abre antes de aplicar a conclusão. O progresso exibido corresponde à proporção de atividades concluídas com validação registrada; cada checklist tem seu próprio progresso.
 
@@ -86,7 +86,7 @@ A versão exibida no rodapé vem de `package.json`. Veja as mudanças em [CHANGE
 
 Os cadastros e backups da versão anterior são migrados sem apagar atividades, notas, datas, checklists, números de chamados ou histórico. Pendências e agendas antigas passam para A fazer, mantendo as datas; antigos cartões de Chamados passam para Aguardando retorno com etiqueta Chamado. Conclusões antigas permanecem na coluna, com o aviso “Validação não registrada” se não houver aceite. A migração não inventa evidências ou nomes de validadores. A homologação começa sem escopo configurado nos projetos existentes; checklists e conclusões anteriores não são convertidos em OKs da migração. O novo escopo, os registros de conferência e a liberação também são incluídos no backup.
 
-Para uso compartilhado na empresa, uma etapa posterior precisa adicionar autenticação, banco de dados e controle de acesso. Não cadastre dados reais sensíveis em uma publicação aberta sem esse controle.
+O modo de equipe oferece autenticação, banco online e permissões por projeto. O primeiro administrador precisa ser liberado pelo responsável do Supabase conforme o guia de ativação.
 
 ## Validação
 
@@ -109,3 +109,7 @@ Barra de visualizações em uma linha, filtros compactos com recolhimento das fa
 ## Versão 1.6.1
 
 Conexão pública padrão do Supabase na publicação, para abrir o login diretamente. Conexões escolhidas no aparelho continuam tendo prioridade. Exportação dos dados locais anteriores disponível na tela de login, sem envio automático. Falta de migração do banco mostra orientação para executar o SQL. O workflow verifica a API pública sem criar contas, enviar e-mails ou consultar dados de projetos.
+
+## Versão 1.7.0
+
+Treinamento/Atendimento com períodos de vários dias, link de sala, duração calculada e visualização diária no calendário. Agenda e indicadores incluem atendimentos em andamento; histórico e backups preservam os períodos e os registros anteriores. Os campos ficam no documento JSON do projeto: esta versão não exige outra migração SQL. Os testes incluem datas intermediárias, virada de dia, período inválido, edição, exportação/restauração e uso em celular.

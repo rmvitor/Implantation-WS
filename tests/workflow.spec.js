@@ -95,14 +95,16 @@ test("município, agenda de treinamentos e backup funcionam de ponta a ponta", a
   ).toBeVisible();
   await page
     .locator("nav")
-    .getByRole("button", { name: "Treinamentos" })
+    .getByRole("button", { name: "Treinamento/Atendimento" })
     .click();
   await page
-    .getByRole("button", { name: "Novo treinamento", exact: true })
+    .getByRole("button", { name: "Novo treinamento/atendimento", exact: true })
     .first()
     .click();
   await page.getByLabel("Tema / módulo").fill("Treinamento de patrimônio");
-  await page.getByRole("button", { name: "Salvar treinamento" }).click();
+  await page
+    .getByRole("button", { name: "Salvar treinamento/atendimento" })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Treinamento de patrimônio" }),
   ).toBeVisible();
@@ -467,7 +469,7 @@ test("perfil aplica cor principal e True Black, persiste e cancela a prévia", a
         .trim(),
     ),
   ).toBe("#7c3aed");
-  await expect(page.locator(".page-footer")).toContainText("v1.6.1");
+  await expect(page.locator(".page-footer")).toContainText("v1.7.0");
 });
 
 test("categorias, módulos e número aparecem nos cartões; prioridade ordena todas as fases", async ({

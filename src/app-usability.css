@@ -283,3 +283,54 @@
     display: none;
   }
 }
+.appointment-type {
+  display: inline-block;
+  margin-top: 14px;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+.training-card footer {
+  align-items: flex-start;
+  flex-direction: column;
+}
+.training-card footer span {
+  align-items: flex-start;
+  line-height: 1.6;
+}
+.training-card footer svg {
+  flex-shrink: 0;
+}
+.appointment-range {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.appointment-duration {
+  padding: 11px 0;
+  font-size: 13px;
+}
+.appointment-period-hint {
+  margin: 18px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.meeting-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  color: var(--primary);
+  font-size: 12px;
+}
+.page-heading > div:first-child {
+  min-width: 0;
+  max-width: 100%;
+}
+.title-row h1 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

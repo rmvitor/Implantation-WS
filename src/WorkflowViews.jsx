@@ -31,6 +31,12 @@ import {
   checklistProgress,
   localDate,
 } from "./domain";
+import {
+  appointmentOccursOn,
+  appointmentTimeOn,
+  appointmentLabel,
+  appointmentRange,
+} from "./appointments";
 
 export const formatDate = (
   value,
@@ -653,7 +659,7 @@ export function ActivitiesCalendar({
         </span>
         <span>
           <i className="training-legend" />
-          Treinamento
+          Treinamento / atendimento
         </span>
         <small>Os mesmos cartões, organizados por data.</small>
       </div>
@@ -667,12 +673,21 @@ export function ActivitiesCalendar({
           {days.map((date) => {
             const iso = localDate(date);
             const items = events
-              .filter((e) => e.date === iso)
-              .sort((a, b) => a.time.localeCompare(b.time));
+              .filter((e) =>
+                e.kind === "training"
+                  ? appointmentOccursOn(e, iso)
+                  : e.date === iso,
+              )
+              .sort((a, b) =>
+                appointmentTimeOn(a, iso).localeCompare(
+                  appointmentTimeOn(b, iso),
+                ),
+              );
             return (
               <div
                 className={`calendar-day ${date.getMonth() !== month.getMonth() ? "outside-month" : ""} ${iso === localDate() ? "calendar-today" : ""}`}
                 key={iso}
+                data-date={iso}
               >
                 <header>
                   <time dateTime={iso}>{date.getDate()}</time>
@@ -688,7 +703,14 @@ export function ActivitiesCalendar({
                   <button
                     key={t.id}
                     className={`calendar-event ${t.kind === "training" ? "training-event" : ""} ${t.stage === "concluido" ? "finished-event" : ""}`}
-                    title={`${t.time || ""} ${cardSummary(t)}`}
+                    title={
+                      t.kind === "training"
+                        ? `${appointmentLabel(t)}: ${t.title} · ${appointmentRange(t)}`
+                        : `${t.time || ""} ${cardSummary(t)}`
+                    }
+                    data-appointment-id={
+                      t.kind === "training" ? t.id : undefined
+                    }
                     onContextMenu={(e) =>
                       t.kind !== "training" && onContextMenu?.(e, t)
                     }
@@ -705,8 +727,20 @@ export function ActivitiesCalendar({
                       />
                     )}
                     <span>
-                      {t.time && <small>{t.time} </small>}
-                      {cardSummary(t)}
+                      {t.kind === "training" ? (
+                        <>
+                          <small>
+                            {t.date === iso ? t.time : "Continua"} ·{" "}
+                            {appointmentLabel(t)}
+                          </small>
+                          {t.title}
+                        </>
+                      ) : (
+                        <>
+                          {t.time && <small>{t.time} </small>}
+                          {cardSummary(t)}
+                        </>
+                      )}
                     </span>
                   </button>
                 ))}

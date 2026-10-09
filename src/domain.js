@@ -1,3 +1,5 @@
+import { validateAppointment } from "./appointments.js";
+
 export const STAGES = [
   { id: "todo", label: "A fazer", color: "#dcab58" },
   { id: "progress", label: "Em andamento", color: "#6c9fcb" },
@@ -245,6 +247,7 @@ export function validateBackup(value) {
     )
       throw new Error("Backup inválido: data de encerramento do projeto.");
     if (p.homologation !== undefined) validateHomologation(p.homologation);
+    for (const event of p.trainings) validateAppointment(event);
     ids.add(p.id);
     const taskIds = new Set();
     for (const t of p.tasks) {
