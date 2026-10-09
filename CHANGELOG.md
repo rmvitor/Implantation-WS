@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 1.10.1 — 09/10/2026
+
+- Agenda geral posicionada após as ações dos projetos, com separador próprio e antes de Gerenciamento.
+- Lista aparece primeiro e abre por padrão; calendário continua disponível na segunda opção.
+- Botão de exclusão do compromisso usa o texto compacto Excluir, mantendo a confirmação.
+
 ## 1.10.0 — 09/10/2026
 
 - Agenda geral pessoal, disponível sem municípios, com calendário e lista de novos projetos, viagens, feriados municipais e compromissos pessoais.

@@ -27,7 +27,7 @@ const icons = {
   personal: Clock3,
 };
 export function PersonalAgenda({ events = [], saving, onAdd, onEdit }) {
-  const [view, setView] = useState("calendar");
+  const [view, setView] = useState("list");
   const [month, setMonth] = useState(() => localDate().slice(0, 7));
   const [kind, setKind] = useState("");
   const [query, setQuery] = useState("");
@@ -95,18 +95,18 @@ export function PersonalAgenda({ events = [], saving, onAdd, onEdit }) {
           aria-label="Visualização da agenda geral"
         >
           <button
-            aria-pressed={view === "calendar"}
-            className={view === "calendar" ? "active" : ""}
-            onClick={() => setView("calendar")}
-          >
-            <CalendarDays size={16} /> Calendário
-          </button>
-          <button
             aria-pressed={view === "list"}
             className={view === "list" ? "active" : ""}
             onClick={() => setView("list")}
           >
             <List size={16} /> Lista
+          </button>
+          <button
+            aria-pressed={view === "calendar"}
+            className={view === "calendar" ? "active" : ""}
+            onClick={() => setView("calendar")}
+          >
+            <CalendarDays size={16} /> Calendário
           </button>
         </div>
         <input
@@ -502,7 +502,7 @@ export function PersonalEventModal({
                 className="button secondary text-danger"
                 onClick={() => setDeleting(true)}
               >
-                Excluir compromisso
+                Excluir
               </button>
             )}
             <button

@@ -1,3 +1,8 @@
+.sidebar-personal-separator {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 12px 12px 7px;
+}
 .personal-agenda-tools {
   display: flex;
   flex-wrap: wrap;

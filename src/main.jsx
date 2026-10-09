@@ -494,12 +494,6 @@ function App() {
             onClick={() => changeView("board")}
           />
           <NavItem
-            icon={CalendarDays}
-            text="Agenda geral"
-            active={view === "personalAgenda"}
-            onClick={() => changeView("personalAgenda")}
-          />
-          <NavItem
             icon={FileCheck2}
             text="Homologação"
             disabled={!project}
@@ -527,6 +521,13 @@ function App() {
             disabled={!project}
             active={view === "history"}
             onClick={() => changeView("history")}
+          />
+          <hr className="sidebar-personal-separator" />
+          <NavItem
+            icon={CalendarDays}
+            text="Agenda geral"
+            active={view === "personalAgenda"}
+            onClick={() => changeView("personalAgenda")}
           />
         </nav>
         <div className="sidebar-bottom">

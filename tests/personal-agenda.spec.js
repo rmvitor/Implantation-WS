@@ -88,6 +88,7 @@ test("celular acompanha viagem por período, edita e filtra; datas inválidas e 
   await page
     .getByRole("button", { name: "Salvar compromisso", exact: true })
     .click();
+  await page.getByRole("button", { name: "Calendário", exact: true }).click();
   await page.getByLabel("Mês da agenda geral", { exact: true }).fill("2026-10");
   for (const day of ["13", "14", "15", "16"])
     await expect(
@@ -125,16 +126,12 @@ test("celular acompanha viagem por período, edita e filtra; datas inválidas e 
     .click();
   await expect(page.getByRole("alert")).toContainText("anterior ao início");
   await page.getByLabel("Data de término", { exact: true }).fill("2026-10-16");
-  await page
-    .getByRole("button", { name: "Excluir compromisso", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Excluir", exact: true }).click();
   await page
     .getByRole("button", { name: "Manter compromisso", exact: true })
     .click();
   expect((await saved(page)).personalAgenda).toHaveLength(1);
-  await page
-    .getByRole("button", { name: "Excluir compromisso", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Excluir", exact: true }).click();
   await page.evaluate(() => {
     window.originalAgendaSetItem = Storage.prototype.setItem;
     Storage.prototype.setItem = () => {
