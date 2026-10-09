@@ -138,6 +138,11 @@
   min-width: 0;
   font-size: 12px;
 }
+.personal-event-form > label > small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
 .personal-all-day {
   display: flex;
   align-items: center;

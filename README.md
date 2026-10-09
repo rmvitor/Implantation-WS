@@ -149,3 +149,7 @@ Use **Agenda geral** no menu lateral para organizar datas prováveis de novos pr
 A agenda é independente dos municípios e funciona mesmo sem projetos. Seus registros não criam atividades nem alteram indicadores ou histórico dos projetos. No modo de equipe, ficam nas preferências privadas da conta, protegidas pelas políticas existentes do Supabase, inclusive contra consulta por outros administradores. No modo local, ficam neste navegador. Não exige migração SQL.
 
 Backups incluem a agenda geral. Importar um backup antigo sem agenda pessoal conserva os compromissos atuais; um backup com agenda pessoal restaura seu conteúdo. Encerrar, excluir ou limpar municípios mantém a agenda geral. Exclusões de compromissos exigem confirmação, e falhas de salvamento preservam o formulário.
+
+## Versão 1.10.2
+
+A data de término da Agenda geral é opcional e inicia em branco. Sem término, o compromisso mostra **Término a definir**, permanece na lista de próximos e em andamento e marca apenas sua data inicial no calendário. Você pode informar ou retirar o término depois; o horário de término só é solicitado quando há uma data final. Compromissos existentes mantêm seus períodos e a alteração não exige migração SQL.

@@ -33,9 +33,12 @@ export function validatePersonalEvent(event) {
     typeof event.allDay !== "boolean"
   )
     throw new Error("Tipo ou situação do compromisso inválidos.");
-  if (!validDate(event.date) || !validDate(event.endDate))
+  if (
+    !validDate(event.date) ||
+    (event.endDate !== "" && !validDate(event.endDate))
+  )
     throw new Error("Informe datas válidas para início e término.");
-  if (event.endDate < event.date)
+  if (event.endDate && event.endDate < event.date)
     throw new Error("O término não pode ser anterior ao início.");
   if (
     typeof event.time !== "string" ||
@@ -47,8 +50,11 @@ export function validatePersonalEvent(event) {
   )
     throw new Error("Horários, local ou observações inválidos.");
   if (!event.allDay) {
-    if (!validTime(event.time) || !validTime(event.endTime))
+    if (!validTime(event.time)) throw new Error("Informe o horário de início.");
+    if (event.endDate && !validTime(event.endTime))
       throw new Error("Informe os horários de início e término.");
+    if (!event.endDate && event.endTime !== "")
+      throw new Error("Informe a data de término antes do horário de término.");
     if (event.date === event.endDate && event.endTime <= event.time)
       throw new Error("O horário de término precisa ser posterior ao início.");
   }
@@ -67,6 +73,7 @@ export function validatePersonalAgenda(events) {
   }
 }
 export function personalEventOccursOn(event, day) {
+  if (!event.endDate) return event.date === day;
   return (
     event.date <= day &&
     event.endDate >= day &&
@@ -79,9 +86,13 @@ export function personalEventOccursOn(event, day) {
   );
 }
 export const personalEventUpcoming = (event, today) =>
-  event.endDate > today || personalEventOccursOn(event, today);
+  !event.endDate ||
+  event.endDate > today ||
+  personalEventOccursOn(event, today);
 export function personalEventRange(event) {
   const format = (date) => date.split("-").reverse().join("/");
+  if (!event.endDate)
+    return `${format(event.date)}${event.allDay ? "" : ` · ${event.time}`} · Término a definir`;
   const start = format(event.date),
     end = format(event.endDate);
   if (event.allDay)

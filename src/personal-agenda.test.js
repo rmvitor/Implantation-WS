@@ -5,6 +5,7 @@ import {
   validatePersonalAgenda,
   personalEventOccursOn,
   personalEventUpcoming,
+  personalEventRange,
 } from "./personal-agenda.js";
 import {
   validateBackup,
@@ -53,6 +54,50 @@ test("agenda rejeita datas impossíveis, períodos invertidos, horários e regis
     assert.throws(() => validatePersonalEvent({ ...event(), ...change }));
   assert.throws(() => validatePersonalAgenda([event(), event()]), /duplicados/);
   assert.throws(() => validatePersonalAgenda({}), /agenda geral/);
+});
+test("término desconhecido preserva a data de início no calendário, fica na lista e sobrevive ao backup", () => {
+  const open = validatePersonalEvent({
+    ...event(),
+    kind: "project",
+    endDate: "",
+  });
+  assert.equal(personalEventOccursOn(open, open.date), true);
+  assert.equal(personalEventOccursOn(open, "2026-12-31"), false);
+  assert.equal(personalEventUpcoming(open, "2027-02-01"), true);
+  assert.equal(personalEventRange(open), "30/12/2026 · Término a definir");
+  const timed = validatePersonalEvent({
+    ...open,
+    allDay: false,
+    time: "08:00",
+  });
+  assert.equal(
+    personalEventRange(timed),
+    "30/12/2026 · 08:00 · Término a definir",
+  );
+  assert.throws(
+    () => validatePersonalEvent({ ...timed, endTime: "10:00" }),
+    /data de término/,
+  );
+  assert.throws(
+    () => validatePersonalEvent({ ...timed, time: "" }),
+    /horário de início/,
+  );
+  assert.throws(
+    () => validatePersonalEvent({ ...open, endDate: "2026-02-30" }),
+    /datas válidas/,
+  );
+  assert.throws(
+    () => validatePersonalEvent({ ...open, endDate: null }),
+    /datas válidas/,
+  );
+  const data = validateBackup({ ...createDemo(), personalAgenda: [open] });
+  assert.deepEqual(
+    validateBackup(JSON.parse(JSON.stringify(data))).personalAgenda,
+    [open],
+  );
+  const ended = validatePersonalEvent({ ...open, endDate: "2027-01-02" });
+  assert.equal(personalEventOccursOn(ended, "2026-12-31"), true);
+  assert.equal(personalEventUpcoming(ended, "2027-02-01"), false);
 });
 test("agenda fica nas preferências pessoais, sobrevive ao backup e ao ciclo dos projetos, inclusive à limpeza", () => {
   const original = createDemo();

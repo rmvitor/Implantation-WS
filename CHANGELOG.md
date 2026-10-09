@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 1.10.2 — 09/10/2026
+
+- Data de término opcional na agenda geral, vazia por padrão. Projetos e outros compromissos podem registrar apenas o início e completar o período depois.
+- Sem término, o registro aparece como Término a definir, permanece na lista de próximos/em andamento e ocupa somente o dia inicial no calendário.
+- Horário de término solicitado somente quando há uma data final; remover a data final limpa esse horário. Períodos existentes e backups continuam compatíveis.
+
 ## 1.10.1 — 09/10/2026
 
 - Agenda geral posicionada após as ações dos projetos, com separador próprio e antes de Gerenciamento.

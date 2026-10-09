@@ -30,7 +30,7 @@ async function showList(page) {
     .getByLabel("Período da lista", { exact: true })
     .selectOption("all");
 }
-async function add(page, kind, title) {
+async function add(page, kind, title, endDate = "2026-10-16") {
   await page
     .getByRole("button", { name: "Novo compromisso", exact: true })
     .click();
@@ -39,7 +39,9 @@ async function add(page, kind, title) {
     .getByRole("combobox", { name: "Tipo", exact: true })
     .selectOption(kind);
   await page.getByLabel("Data de início", { exact: true }).fill("2026-10-13");
-  await page.getByLabel("Data de término", { exact: true }).fill("2026-10-16");
+  await page
+    .getByLabel("Data de término (opcional)", { exact: true })
+    .fill(endDate);
 }
 const saved = (page) =>
   page.evaluate(() =>
@@ -52,7 +54,7 @@ test("agenda geral funciona sem projetos e salva datas prováveis sem criar muni
   await setup(page);
   await expect(page.locator("h1")).toHaveText("Agenda geral");
   await expect(page).toHaveTitle("Agenda geral · Implanta");
-  await add(page, "project", "Implantação provável em Pinhais");
+  await add(page, "project", "Implantação provável em Pinhais", "");
   await expect(
     page.getByRole("combobox", { name: "Situação", exact: true }),
   ).toHaveValue("tentative");
@@ -65,6 +67,7 @@ test("agenda geral funciona sem projetos e salva datas prováveis sem criar muni
   expect((await saved(page)).projects).toEqual([]);
   expect((await saved(page)).personalAgenda[0]).toMatchObject({
     kind: "project",
+    endDate: "",
     tentative: true,
     place: "Pinhais",
   });
@@ -74,6 +77,54 @@ test("agenda geral funciona sem projetos e salva datas prováveis sem criar muni
   await expect(page.locator(".personal-agenda-row")).toContainText(
     "Implantação provável em Pinhais",
   );
+  await expect(page.locator(".personal-agenda-row")).toContainText(
+    "Término a definir",
+  );
+  await page.getByRole("button", { name: "Calendário", exact: true }).click();
+  await page.getByLabel("Mês da agenda geral", { exact: true }).fill("2026-10");
+  await expect(
+    page.locator('.personal-calendar [data-date="2026-10-13"] .personal-event'),
+  ).toHaveCount(1);
+  await expect(
+    page.locator('.personal-calendar [data-date="2026-10-14"] .personal-event'),
+  ).toHaveCount(0);
+  await showList(page);
+  await page.locator(".personal-agenda-row").click();
+  await expect(
+    page.getByLabel("Data de término (opcional)", { exact: true }),
+  ).toHaveValue("");
+  await page.getByLabel("Dia inteiro", { exact: true }).uncheck();
+  await page.getByLabel("Horário de início", { exact: true }).fill("08:00");
+  await page
+    .getByRole("button", { name: "Salvar compromisso", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator(".personal-agenda-row")).toContainText(
+    "08:00 · Término a definir",
+  );
+  await page.locator(".personal-agenda-row").click();
+  await page
+    .getByLabel("Data de término (opcional)", { exact: true })
+    .fill("2026-10-16");
+  await page.getByLabel("Horário de término", { exact: true }).fill("17:00");
+  await page
+    .getByRole("button", { name: "Salvar compromisso", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect((await saved(page)).personalAgenda[0]).toMatchObject({
+    endDate: "2026-10-16",
+    endTime: "17:00",
+  });
+  await page.locator(".personal-agenda-row").click();
+  await page.getByLabel("Data de término (opcional)", { exact: true }).fill("");
+  await page
+    .getByRole("button", { name: "Salvar compromisso", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect((await saved(page)).personalAgenda[0]).toMatchObject({
+    endDate: "",
+    endTime: "",
+  });
 });
 
 test("celular acompanha viagem por período, edita e filtra; datas inválidas e falha ao excluir preservam registro", async ({
@@ -120,12 +171,16 @@ test("celular acompanha viagem por período, edita e filtra; datas inválidas e 
   await expect(
     page.getByRole("textbox", { name: "Observações", exact: true }),
   ).toHaveValue("Reservar hotel");
-  await page.getByLabel("Data de término", { exact: true }).fill("2026-10-12");
+  await page
+    .getByLabel("Data de término (opcional)", { exact: true })
+    .fill("2026-10-12");
   await page
     .getByRole("button", { name: "Salvar compromisso", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText("anterior ao início");
-  await page.getByLabel("Data de término", { exact: true }).fill("2026-10-16");
+  await page
+    .getByLabel("Data de término (opcional)", { exact: true })
+    .fill("2026-10-16");
   await page.getByRole("button", { name: "Excluir", exact: true }).click();
   await page
     .getByRole("button", { name: "Manter compromisso", exact: true })

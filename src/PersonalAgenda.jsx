@@ -312,7 +312,7 @@ export function PersonalEventModal({
           title: "",
           kind: "personal",
           date: date || localDate(),
-          endDate: date || localDate(),
+          endDate: "",
           allDay: true,
           time: "",
           endTime: "",
@@ -415,13 +415,23 @@ export function PersonalEventModal({
             />
           </label>
           <label>
-            Data de término
+            Data de término (opcional)
             <input
-              required
               type="date"
+              aria-label="Data de término (opcional)"
+              aria-describedby="personal-end-date-hint"
               value={draft.endDate}
-              onChange={(change) => patch("endDate", change.target.value)}
+              onChange={(change) =>
+                setDraft((current) => ({
+                  ...current,
+                  endDate: change.target.value,
+                  ...(!change.target.value ? { endTime: "" } : {}),
+                }))
+              }
             />
+            <small id="personal-end-date-hint">
+              Deixe em branco quando o término ainda não estiver definido.
+            </small>
           </label>
           <label className="personal-all-day full-field">
             <input
@@ -442,15 +452,17 @@ export function PersonalEventModal({
                   onChange={(change) => patch("time", change.target.value)}
                 />
               </label>
-              <label>
-                Horário de término
-                <input
-                  required
-                  type="time"
-                  value={draft.endTime}
-                  onChange={(change) => patch("endTime", change.target.value)}
-                />
-              </label>
+              {draft.endDate && (
+                <label>
+                  Horário de término
+                  <input
+                    required
+                    type="time"
+                    value={draft.endTime}
+                    onChange={(change) => patch("endTime", change.target.value)}
+                  />
+                </label>
+              )}
             </>
           )}
           <label className="full-field">
