@@ -21,6 +21,7 @@ export default defineConfig({
     },
     {
       command: "npm run test:pwa:serve",
+      env: { VITE_TEAM_MODE: "local" },
       url: "http://127.0.0.1:5176/Implantation-WS/",
       reuseExistingServer: !process.env.CI,
       timeout: 120000,

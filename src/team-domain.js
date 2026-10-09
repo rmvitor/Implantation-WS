@@ -110,3 +110,26 @@ export function workspacePreferences(data) {
   const { projects, version, ...preferences } = data;
   return preferences;
 }
+
+// Saved connections explicitly chosen on this device take precedence. The
+// published public connection supplies the team default, without changing
+// local development or the ability to run the local-only build for PWA tests.
+export function resolveConnection({
+  stored,
+  environment = {},
+  production = false,
+  defaults,
+}) {
+  if (stored) {
+    try {
+      return validateConnection(JSON.parse(stored));
+    } catch {
+      /* Ignore obsolete/invalid device settings. */
+    }
+  }
+  if (environment.url && environment.key)
+    return validateConnection(environment);
+  if (production && environment.mode !== "local")
+    return validateConnection(defaults);
+  return null;
+}

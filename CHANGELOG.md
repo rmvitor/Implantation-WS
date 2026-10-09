@@ -1,5 +1,19 @@
 # Histórico de versões
 
+## 1.6.1 — 09/10/2026
+
+- Conexão pública padrão do Supabase na publicação e login ao abrir o site.
+- Exportação de dados locais anteriores na tela de login, para importação explícita pelo administrador.
+- Guia de ativação acessível quando falta a estrutura do banco.
+- Verificação da conexão pública durante a publicação, sem criar contas ou enviar e-mails.
+
+## 1.6.0 — 09/10/2026
+
+- Controles compactos do quadro, visualizações em uma linha e recolhimento pelo nome da fase.
+- Integração Supabase com login, aprovação de usuários, administração e acesso de leitura/edição por projeto.
+- Gravação confirmada, controle de versão, combinação de alterações independentes e conflitos preservando o formulário.
+- Estrutura do banco e testes de permissões PostgreSQL; projetos começam vazios.
+
 ## 1.5.0 — 09/10/2026
 
 - Fases do quadro podem ser recolhidas individualmente ou em conjunto, mantendo resumos de atividades, prioridades altas, atrasos, chamados e validações. Preferência salva por projeto e incluída no backup.

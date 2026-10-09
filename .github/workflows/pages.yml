@@ -38,6 +38,14 @@ jobs:
       - run: npm run test:db
         env:
           IMPLANTA_TEST_DATABASE_URL: postgres://postgres:implanta-test-only@127.0.0.1:5432/postgres
+      - name: Verificar conexão pública Supabase
+        id: supabase
+        run: node scripts/check-supabase.mjs
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+      - name: "Supabase: conexão ${{ steps.supabase.outputs.connection }}; estrutura ${{ steps.supabase.outputs.schema }}"
+        run: echo 'Verificação pública concluída; consulte o guia para ativar a estrutura e o primeiro administrador.'
       - run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}

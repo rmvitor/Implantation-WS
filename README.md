@@ -62,7 +62,7 @@ Novas versões exibem **Atualizar app**. A atualização aguarda o fechamento de
 
 ## Dados e equipe
 
-Sem conexão configurada, os dados ficam em `localStorage` no navegador, vinculados ao endereço/origem. Para trabalhar com colegas, conecte um projeto Supabase em **Trabalho em equipe** e siga o [guia de ativação](supabase/README.md). A integração oferece login, cadastro pendente de aprovação, recuperação de senha, administração e permissões de leitura/edição por projeto. Publicar o site não cria esse banco: é necessário criar o projeto Supabase, aplicar a migração e liberar o primeiro administrador.
+A publicação abre o login usando a conexão pública da equipe. A estrutura do banco e a liberação do primeiro administrador continuam dependendo da ativação no painel Supabase. No modo local de desenvolvimento, os dados ficam em `localStorage` no navegador, vinculados ao endereço/origem. Para ativar a equipe ou usar outro Supabase, siga o [guia de ativação](supabase/README.md). A integração oferece login, cadastro pendente de aprovação, recuperação de senha, administração e permissões de leitura/edição por projeto. Publicar o site não cria esse banco: é necessário criar o projeto Supabase, aplicar a migração e liberar o primeiro administrador.
 
 Use **Dados e backup** para exportar ou restaurar um arquivo JSON. A restauração pede confirmação. No modo local, substitui os dados atuais; no modo online, acrescenta/atualiza os projetos importados sem remover os demais, e exige administrador. O backup pode conter contatos e CPF; conserve-o em um local com acesso restrito. O CPF aparece com asteriscos nos dados do município. Use o olhinho para revelar ou ocultar quando precisar fechar o boletim; ao sair dessa tela ele volta a ficar oculto. O valor original continua no cadastro e no backup.
 
@@ -105,3 +105,7 @@ Se não houver Chromium instalado, instale o navegador do Playwright com `npx pl
 Barra de visualizações em uma linha, filtros compactos com recolhimento das fases, barras horizontais espelhadas sem setas e cabeçalho inteiro da fase clicável. Integração Supabase com login, gestão de usuários, liberação por projeto, gravação confirmada e proteção contra sobrescrita concorrente. O banco começa vazio; ativação em [supabase/README.md](supabase/README.md).
 
 `npm run test:db` valida as políticas em um PostgreSQL descartável (veja o guia). O workflow executa esses testes antes da publicação. Os testes de navegador de equipe simulam o contrato HTTP do Supabase; e-mails e autenticação do serviço real dependem da ativação do projeto.
+
+## Versão 1.6.1
+
+Conexão pública padrão do Supabase na publicação, para abrir o login diretamente. Conexões escolhidas no aparelho continuam tendo prioridade. Exportação dos dados locais anteriores disponível na tela de login, sem envio automático. Falta de migração do banco mostra orientação para executar o SQL. O workflow verifica a API pública sem criar contas, enviar e-mails ou consultar dados de projetos.

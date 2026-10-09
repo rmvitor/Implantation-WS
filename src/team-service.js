@@ -6,6 +6,8 @@ function check(result) {
   return result.data;
 }
 export function friendlyTeamError(error) {
+  if (["PGRST202", "PGRST205", "42P01"].includes(error?.code))
+    return "A estrutura do banco ainda não foi aplicada. Execute o SQL do guia de ativação no painel Supabase e verifique o acesso novamente.";
   if (error?.code === "42501")
     return "Seu acesso a esta operação não está liberado. Confira as permissões com o administrador.";
   if (error?.code === "23505")

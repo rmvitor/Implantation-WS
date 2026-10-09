@@ -9,7 +9,9 @@ import React, {
 import { createClient } from "@supabase/supabase-js";
 import { LogIn, Users, LogOut, LoaderCircle, RefreshCw } from "lucide-react";
 import { createTeamService, friendlyTeamError } from "./team-service";
-import { validateConnection, same } from "./team-domain";
+import { validateConnection, resolveConnection, same } from "./team-domain";
+import defaultConnection from "./team-config.json";
+import { version as appVersion } from "../package.json";
 import { validateBackup } from "./domain";
 import "./team.css";
 
@@ -18,13 +20,16 @@ const TeamContext = createContext({ online: false });
 export const useTeam = () => useContext(TeamContext);
 function connection() {
   try {
-    const env = {
-      url: import.meta.env.VITE_SUPABASE_URL,
-      key: import.meta.env.VITE_SUPABASE_ANON_KEY,
-    };
-    return validateConnection(
-      env.url && env.key ? env : JSON.parse(localStorage.getItem(CONNECTION)),
-    );
+    return resolveConnection({
+      stored: localStorage.getItem(CONNECTION),
+      environment: {
+        url: import.meta.env.VITE_SUPABASE_URL,
+        key: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        mode: import.meta.env.VITE_TEAM_MODE,
+      },
+      production: import.meta.env.PROD,
+      defaults: defaultConnection,
+    });
   } catch {
     return null;
   }
@@ -276,6 +281,45 @@ export function TeamHost({ children }) {
   );
 }
 
+function LocalBackup() {
+  const [backup] = useState(() => {
+    try {
+      const data = validateBackup(
+        JSON.parse(localStorage.getItem("implanta.workspace.v1")),
+      );
+      return data.projects.length ? data : null;
+    } catch {
+      return null;
+    }
+  });
+  if (!backup) return null;
+  return (
+    <div className="team-note">
+      <p>
+        Já usava este aparelho? Exporte seus dados locais e importe-os depois de
+        liberar sua conta de administrador.
+      </p>
+      <button
+        className="button secondary"
+        onClick={() => {
+          const url = URL.createObjectURL(
+            new Blob([JSON.stringify(backup, null, 2)], {
+              type: "application/json",
+            }),
+          );
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = "implanta-dados-locais.json";
+          link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }}
+      >
+        Exportar dados deste aparelho
+      </button>
+    </div>
+  );
+}
+
 function AuthScreen({
   client,
   session,
@@ -375,9 +419,18 @@ function AuthScreen({
                 : "Não foi possível carregar o espaço da equipe."}
             </p>
             {error && (
-              <p className="team-error" role="alert">
-                {error}
-              </p>
+              <>
+                <p className="team-error" role="alert">
+                  {error}
+                </p>
+                <a
+                  href="https://github.com/rmvitor/Implantation-WS/blob/main/supabase/README.md"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Abrir guia de ativação do banco
+                </a>
+              </>
             )}
             <button className="button primary" onClick={onRetry}>
               <RefreshCw size={16} /> Verificar acesso
@@ -484,6 +537,8 @@ function AuthScreen({
         <button className="auth-connection" onClick={() => setSetup(!setup)}>
           Configurar conexão da equipe
         </button>
+        <LocalBackup />
+        <footer className="auth-version">Implanta · v{appVersion}</footer>
       </section>
     </main>
   );
