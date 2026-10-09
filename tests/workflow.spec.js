@@ -467,7 +467,7 @@ test("perfil aplica cor principal e True Black, persiste e cancela a prévia", a
         .trim(),
     ),
   ).toBe("#7c3aed");
-  await expect(page.locator(".page-footer")).toContainText("v1.5.0");
+  await expect(page.locator(".page-footer")).toContainText("v1.6.0");
 });
 
 test("categorias, módulos e número aparecem nos cartões; prioridade ordena todas as fases", async ({
@@ -567,15 +567,21 @@ test("rolagem alcança todas as fases em telas menores e anima movimentação re
   await page
     .getByLabel("Rolar quadro horizontalmente", { exact: true })
     .press("End");
-  await expect(
-    page.getByRole("button", { name: "Rolar quadro para a direita" }),
-  ).toBeDisabled();
+  await expect
+    .poll(() =>
+      board.evaluate((el) =>
+        Math.abs(el.scrollWidth - el.clientWidth - el.scrollLeft),
+      ),
+    )
+    .toBeLessThan(2);
   await expect(page.locator("#column-concluido h3")).toBeInViewport();
   await board.focus();
   await page.keyboard.press("ArrowLeft");
-  await expect(
-    page.getByRole("button", { name: "Rolar quadro para a direita" }),
-  ).toBeEnabled();
+  await expect
+    .poll(() =>
+      board.evaluate((el) => el.scrollWidth - el.clientWidth - el.scrollLeft),
+    )
+    .toBeGreaterThan(10);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
 
 export function BoardScroller({ children, columns }) {
   const ref = useRef();
@@ -61,15 +60,6 @@ export function BoardScroller({ children, columns }) {
   return (
     <div className="board-scroller">
       <div className="board-scroll-toolbar">
-        <span>Deslize para ver todas as fases</span>
-        <button
-          className="icon-button"
-          aria-label="Rolar quadro para a esquerda"
-          disabled={scroll.left <= 1}
-          onClick={() => step(-1)}
-        >
-          <ArrowLeft size={17} />
-        </button>
         <div
           className="board-scroll-mirror"
           ref={mirror}
@@ -93,14 +83,6 @@ export function BoardScroller({ children, columns }) {
         >
           <div style={{ width: scroll.max + scroll.mirrorWidth, height: 1 }} />
         </div>
-        <button
-          className="icon-button"
-          aria-label="Rolar quadro para a direita"
-          disabled={scroll.left >= scroll.max - 1}
-          onClick={() => step(1)}
-        >
-          <ArrowRight size={17} />
-        </button>
       </div>
       <section
         className="kanban"

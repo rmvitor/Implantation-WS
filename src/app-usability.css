@@ -202,3 +202,84 @@
     justify-content: center;
   }
 }
+/* Keep the controls compact while every view remains reachable on a phone. */
+.view-toolbar {
+  margin: 10px 0 8px;
+}
+.view-switcher {
+  display: flex;
+  flex-wrap: nowrap;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 3px;
+  gap: 2px;
+}
+.view-switcher button {
+  flex: 1 0 auto;
+  white-space: nowrap;
+  padding: 8px 10px;
+  font-size: 11px;
+}
+.filters-bar {
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.filters-bar .filter-actions {
+  gap: 8px;
+}
+.board-scroll-toolbar {
+  display: block;
+  margin: 0 0 7px;
+  padding: 0;
+}
+.board-scroll-mirror {
+  min-height: 14px;
+  width: 100%;
+}
+.column-title-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  font: inherit;
+}
+.column-title-toggle > span:nth-child(2) {
+  flex: 1;
+}
+.column-title-toggle > svg,
+.column-title-toggle > .column-count {
+  flex-shrink: 0;
+}
+@media (max-width: 600px) {
+  .view-switcher {
+    display: flex;
+    width: 100%;
+  }
+  .view-switcher button {
+    padding: 8px 6px;
+    gap: 5px;
+  }
+  .view-switcher svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+  }
+  .filters-bar {
+    margin-top: 0;
+    gap: 8px;
+  }
+  .filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .filter-actions select {
+    flex: 1;
+    min-width: 115px;
+  }
+  .filters-bar .avatar-stack {
+    display: none;
+  }
+}

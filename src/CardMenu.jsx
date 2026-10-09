@@ -3,6 +3,7 @@ import { Check, Pencil } from "lucide-react";
 import { STAGES, PRIORITIES } from "./domain";
 
 export function CardMenu({
+  readOnly = false,
   anchor,
   task,
   onClose,
@@ -86,6 +87,7 @@ export function CardMenu({
         {STAGES.map((stage) => (
           <button
             key={stage.id}
+            disabled={readOnly}
             role="menuitemradio"
             aria-checked={task.stage === stage.id}
             onClick={() => act(() => onMove(task.id, stage.id))}
@@ -104,6 +106,7 @@ export function CardMenu({
         {Object.entries(PRIORITIES).map(([id, label]) => (
           <button
             key={id}
+            disabled={readOnly}
             role="menuitemradio"
             aria-checked={task.priority === id}
             onClick={() => act(() => onPriority(task, id))}

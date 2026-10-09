@@ -89,6 +89,7 @@ export function ValidationBadge({ task }) {
 }
 
 export function ProjectsHome({
+  canManage = true,
   data,
   onOpen,
   onAdd,
@@ -130,10 +131,18 @@ export function ProjectsHome({
           </p>
         </div>
         <div className="home-heading-actions">
-          <button className="button secondary" onClick={onImport}>
+          <button
+            className="button secondary"
+            disabled={!canManage}
+            onClick={onImport}
+          >
             Importar dados
           </button>
-          <button className="button primary" onClick={onAdd}>
+          <button
+            className="button primary"
+            disabled={!canManage}
+            onClick={onAdd}
+          >
             <Plus size={17} /> Novo município
           </button>
         </div>
@@ -254,17 +263,24 @@ export function ProjectsHome({
               </button>
               <div className="project-card-actions">
                 {isProjectClosed(p) ? (
-                  <button onClick={() => onReopenProject(p.id)}>
+                  <button
+                    disabled={!canManage}
+                    onClick={() => onReopenProject(p.id)}
+                  >
                     Reabrir projeto
                   </button>
                 ) : (
-                  <button onClick={() => onCloseProject(p.id)}>
+                  <button
+                    disabled={!canManage}
+                    onClick={() => onCloseProject(p.id)}
+                  >
                     Encerrar projeto
                   </button>
                 )}
                 <button
                   className="text-danger"
                   aria-label={`Excluir projeto ${p.name}`}
+                  disabled={!canManage}
                   onClick={() => onDeleteProject(p.id)}
                 >
                   Excluir
@@ -274,7 +290,11 @@ export function ProjectsHome({
           );
         })}
         {filter !== "closed" && (
-          <button className="new-project-tile" onClick={onAdd}>
+          <button
+            className="new-project-tile"
+            disabled={!canManage}
+            onClick={onAdd}
+          >
             <span>
               <Plus size={26} />
             </span>
@@ -338,6 +358,7 @@ export function ViewSwitcher({ value, onChange }) {
 }
 
 export function ActivitiesList({
+  readOnly = false,
   tasks,
   onOpen,
   onMove,
@@ -356,6 +377,7 @@ export function ActivitiesList({
               <span className="count-badge">{items.length}</span>
               <button
                 aria-label={`Adicionar em ${stage.label}`}
+                disabled={readOnly}
                 onClick={() => onAdd(stage.id)}
               >
                 <Plus size={16} />
@@ -400,6 +422,7 @@ export function ActivitiesList({
                 <select
                   aria-label={`Situação de ${t.title}`}
                   value={t.stage}
+                  disabled={readOnly}
                   onChange={(e) => onMove(t.id, e.target.value)}
                 >
                   {STAGES.map((s) => (
@@ -430,6 +453,7 @@ export function ActivitiesList({
 }
 
 export function ActivitiesTable({
+  readOnly = false,
   tasks,
   onOpen,
   onMove,
@@ -498,6 +522,7 @@ export function ActivitiesTable({
                     <select
                       aria-label={`Situação de ${t.title}`}
                       value={t.stage}
+                      disabled={readOnly}
                       onChange={(e) => onMove(t.id, e.target.value)}
                     >
                       {STAGES.map((s) => (
@@ -554,6 +579,7 @@ export function ActivitiesTable({
 }
 
 export function ActivitiesCalendar({
+  readOnly = false,
   tasks,
   trainings,
   onOpen,
@@ -652,6 +678,7 @@ export function ActivitiesCalendar({
                   <time dateTime={iso}>{date.getDate()}</time>
                   <button
                     aria-label={`Adicionar atividade em ${iso}`}
+                    disabled={readOnly}
                     onClick={() => onAdd("todo", iso)}
                   >
                     <Plus size={13} />

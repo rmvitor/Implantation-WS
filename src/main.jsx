@@ -29,6 +29,7 @@ import {
   Grip,
   LayoutDashboard,
   ListChecks,
+  LoaderCircle,
   MapPin,
   MessageSquare,
   MoreHorizontal,
@@ -88,6 +89,9 @@ import "./pwa.css";
 import "./projects.css";
 import "./app-usability.css";
 import { CardMenu } from "./CardMenu";
+import { TeamHost, TeamSettings, useTeam } from "./Team";
+import { same } from "./team-domain";
+import { friendlyTeamError } from "./team-service";
 import { usePwa, PwaControls, InstallModal } from "./PwaControls";
 import { Homologation } from "./Homologation";
 import { BoardScroller } from "./BoardScroller";
@@ -122,7 +126,12 @@ function loadState() {
   }
 }
 function App() {
-  const [data, applyData] = useState(loadState);
+  const team = useTeam();
+  const [data, applyData] = useState(() =>
+    team.online ? team.workspace : loadState(),
+  );
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const pwa = usePwa();
   const [homologationEditing, setHomologationEditing] = useState(false);
   const [view, setView] = useState("municipalities");
@@ -140,6 +149,21 @@ function App() {
   const cardPositions = useRef(new Map());
   const [dropTarget, setDropTarget] = useState(null);
   const [cardMenu, setCardMenu] = useState(null);
+  useEffect(() => {
+    team.setEditing?.(!!modal || homologationEditing || saving);
+  }, [modal, homologationEditing, saving]);
+  useEffect(() => {
+    if (!team.online || !team.workspace) return;
+    if (
+      data.selectedId &&
+      !team.workspace.projects.some((p) => p.id === data.selectedId)
+    ) {
+      setModal(null);
+      setView("municipalities");
+      setHomologationEditing(false);
+    }
+    applyData(team.workspace);
+  }, [team.workspace]);
   useLayoutEffect(() => {
     applyAppearance(data.appearance);
   }, [data.appearance]);
@@ -180,6 +204,8 @@ function App() {
   const projectId = project?.id || "";
   const projectTasks = project?.tasks || [];
   const projectTrainings = project?.trainings || [];
+  const canManage = !team.online || !!team.profile?.admin;
+  const canEdit = !team.online || team.canEdit(projectId);
   const collapsedStages = Array.isArray(data.boardCollapsed?.[projectId])
     ? data.boardCollapsed[projectId]
     : [];
@@ -232,19 +258,44 @@ function App() {
   const openTickets = projectTasks.filter(
     (t) => t.type === "chamado" && t.stage !== "concluido",
   ).length;
-  const setData = (update) => {
+  const setData = async (update) => {
+    if (savingRef.current) {
+      setToast("Aguarde a confirmação do salvamento em andamento.");
+      return false;
+    }
     const next = typeof update === "function" ? update(data) : update;
     try {
       const serialized = JSON.stringify(next);
       if (serialized.length > 4 * 1024 * 1024) throw new Error("quota");
-      localStorage.setItem(STORAGE, serialized);
-      applyData(next);
+      if (team.online) {
+        for (const p of next.projects) {
+          const original = data.projects.find((old) => old.id === p.id);
+          if (
+            !same(original, p) &&
+            !(original ? team.canEdit(p.id) : canManage)
+          )
+            throw new Error(
+              "Você tem acesso somente de leitura a este projeto.",
+            );
+        }
+        savingRef.current = true;
+        setSaving(true);
+        applyData(await team.commit(data, next));
+      } else {
+        localStorage.setItem(STORAGE, serialized);
+        applyData(next);
+      }
       return true;
-    } catch {
+    } catch (error) {
       setToast(
-        "Não foi possível salvar. O formulário foi preservado. Reduza os anexos ou exporte um backup antes de liberar espaço no navegador.",
+        team.online
+          ? friendlyTeamError(error)
+          : "Não foi possível salvar. O formulário foi preservado. Reduza os anexos ou exporte um backup antes de liberar espaço no navegador.",
       );
       return false;
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
   useEffect(() => {
@@ -269,7 +320,11 @@ function App() {
     setSearch("");
     setSidebar(false);
   };
-  const move = (id, stage) => {
+  const move = async (id, stage) => {
+    if (!canEdit) {
+      setToast("Este projeto está liberado somente para leitura.");
+      return;
+    }
     const task = projectTasks.find((t) => t.id === id);
     if (!task || task.stage === stage) return;
     if (stage === "concluido") {
@@ -277,15 +332,20 @@ function App() {
       return;
     }
     captureCards();
-    if (updateProject((p) => moveTask(p, id, stage)))
+    if (await updateProject((p) => moveTask(p, id, stage)))
       setToast("Situação atualizada. Histórico preservado.");
   };
-  const newTask = (stage = "todo", date = "") =>
+  const newTask = (stage = "todo", date = "") => {
+    if (!canEdit) {
+      setToast("Este projeto está liberado somente para leitura.");
+      return;
+    }
     setModal({ type: "task", task: newActivity(stage, date), isNew: true });
-  const saveTask = (task, isNew) => {
+  };
+  const saveTask = async (task, isNew) => {
     try {
       captureCards();
-      if (updateProject((p) => saveActivity(p, task))) {
+      if (await updateProject((p) => saveActivity(p, task))) {
         setModal(null);
         setToast(isNew ? "Atividade criada." : "Alterações salvas.");
       }
@@ -315,12 +375,13 @@ function App() {
     }
     event.target.value = "";
   };
-  const selectProject = (id) => {
-    setData((d) => ({ ...d, selectedId: id }));
+  const selectProject = async (id) => {
+    const selected = await setData((d) => ({ ...d, selectedId: id }));
     setSearch("");
     setModule("");
     setPriority("");
     setTypeFilter("");
+    return selected;
   };
   const nextTraining = projectTrainings
     .filter((t) => t.status !== "Realizado" && t.date >= today)
@@ -335,7 +396,7 @@ function App() {
     details: "Dados do município",
   };
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${saving ? "app-saving" : ""}`}>
       {sidebar && (
         <div className="nav-scrim" onClick={() => setSidebar(false)} />
       )}
@@ -360,7 +421,7 @@ function App() {
             <Building2 size={18} />
           </span>
           <div>
-            <strong>Meu workspace</strong>
+            <strong>{team.online ? "Equipe online" : "Meu workspace"}</strong>
             <small>Gestão de implantação</small>
           </div>
           <ChevronDown size={15} />
@@ -413,6 +474,7 @@ function App() {
         <div className="nav-label project-label">
           <span>MEUS MUNICÍPIOS</span>
           <button
+            disabled={!canManage}
             aria-label="Adicionar município"
             onClick={() => setModal({ type: "project", isNew: true })}
           >
@@ -426,9 +488,8 @@ function App() {
               <button
                 key={p.id}
                 className={p.id === projectId ? "selected" : ""}
-                onClick={() => {
-                  selectProject(p.id);
-                  changeView("board");
+                onClick={async () => {
+                  if (await selectProject(p.id)) changeView("board");
                 }}
               >
                 <span className={`project-dot dot-${i % 3}`} />
@@ -459,9 +520,16 @@ function App() {
           >
             <CircleHelp size={18} /> Ajuda e fluxo de trabalho
           </button>
+          <button
+            className="subtle-nav"
+            onClick={() => setModal({ type: "team" })}
+          >
+            <Users size={18} />{" "}
+            {team.online ? "Equipe e acessos" : "Trabalho em equipe"}
+          </button>
           <PwaControls
             pwa={pwa}
-            editing={!!modal || homologationEditing}
+            editing={!!modal || homologationEditing || saving}
             onInstall={() => setModal({ type: "install" })}
           />
           <button
@@ -471,8 +539,10 @@ function App() {
           >
             <span className="avatar">VC</span>
             <div>
-              <strong>Seu workspace</strong>
-              <small>Armazenamento local</small>
+              <strong>{team.profile?.name || "Seu workspace"}</strong>
+              <small>
+                {team.online ? "Banco da equipe" : "Armazenamento local"}
+              </small>
             </div>
             <Settings2 size={17} />
           </button>
@@ -519,9 +589,20 @@ function App() {
           </div>
         </header>
         <div className="page-content">
+          {team.online &&
+            (team.stale || team.error || (project && !canEdit)) && (
+              <div className="team-sync-bar">
+                <Users size={15} />{" "}
+                {team.error ||
+                  (team.stale
+                    ? "Há uma atualização da equipe. Feche a edição para carregá-la; seu rascunho foi mantido."
+                    : "Este projeto está liberado somente para leitura.")}
+              </div>
+            )}
           {view === "municipalities" || !project ? (
             <>
               <ProjectsHome
+                canManage={canManage}
                 data={data}
                 filter={projectFilter}
                 onFilter={setProjectFilter}
@@ -532,8 +613,8 @@ function App() {
                     project: data.projects.find((p) => p.id === id),
                   })
                 }
-                onReopenProject={(id) => {
-                  if (setData((d) => setProjectClosed(d, id, false))) {
+                onReopenProject={async (id) => {
+                  if (await setData((d) => setProjectClosed(d, id, false))) {
                     setProjectFilter("active");
                     setToast("Projeto reaberto.");
                   }
@@ -544,9 +625,8 @@ function App() {
                     project: data.projects.find((p) => p.id === id),
                   })
                 }
-                onOpen={(id) => {
-                  selectProject(id);
-                  changeView("board");
+                onOpen={async (id) => {
+                  if (await selectProject(id)) changeView("board");
                 }}
                 onAdd={() => setModal({ type: "project", isNew: true })}
               />
@@ -589,10 +669,13 @@ function App() {
                 <div className="heading-actions">
                   {isProjectClosed(project) ? (
                     <button
+                      disabled={!canManage}
                       className="button secondary"
-                      onClick={() => {
+                      onClick={async () => {
                         if (
-                          setData((d) => setProjectClosed(d, project.id, false))
+                          await setData((d) =>
+                            setProjectClosed(d, project.id, false),
+                          )
                         ) {
                           setProjectFilter("active");
                           setToast("Projeto reaberto.");
@@ -603,6 +686,7 @@ function App() {
                     </button>
                   ) : (
                     <button
+                      disabled={!canManage}
                       className="button secondary"
                       onClick={() =>
                         setModal({ type: "closeProject", project })
@@ -612,6 +696,7 @@ function App() {
                     </button>
                   )}
                   <button
+                    disabled={!canManage}
                     className="button secondary project-delete-button"
                     aria-label="Excluir projeto"
                     onClick={() => setModal({ type: "deleteProject", project })}
@@ -631,6 +716,7 @@ function App() {
                   </button>
                   {view !== "homologation" && (
                     <button
+                      disabled={!canEdit}
                       className="button primary"
                       onClick={() =>
                         view === "trainings"
@@ -762,7 +848,6 @@ function App() {
                   </div>
                   <div className="view-toolbar">
                     <ViewSwitcher value={boardView} onChange={setBoardView} />
-                    <span>Mesmo projeto. Diferentes formas de enxergar.</span>
                   </div>
                   <div className="filters-bar">
                     <label className="search-input">
@@ -828,6 +913,22 @@ function App() {
                           Prioridade: alta primeiro
                         </option>
                       </select>
+                      {boardView === "kanban" && (
+                        <button
+                          className="button secondary"
+                          onClick={() =>
+                            setCollapsedStages(
+                              collapsedStages.length === STAGES.length
+                                ? []
+                                : STAGES.map((s) => s.id),
+                            )
+                          }
+                        >
+                          {collapsedStages.length === STAGES.length
+                            ? "Expandir fases"
+                            : "Recolher fases"}
+                        </button>
+                      )}
                       <span className="avatar-stack">
                         <span>VC</span>
                         <span>
@@ -877,23 +978,6 @@ function App() {
                   )}
                   {boardView === "kanban" && (
                     <>
-                      <div className="board-compact-controls">
-                        <span>Visão das fases</span>
-                        <button
-                          className="button secondary"
-                          onClick={() =>
-                            setCollapsedStages(
-                              collapsedStages.length === STAGES.length
-                                ? []
-                                : STAGES.map((s) => s.id),
-                            )
-                          }
-                        >
-                          {collapsedStages.length === STAGES.length
-                            ? "Expandir fases"
-                            : "Recolher fases"}
-                        </button>
-                      </div>
                       <BoardScroller
                         columns={STAGES.map((s) =>
                           collapsedStages.includes(s.id)
@@ -927,35 +1011,38 @@ function App() {
                               }}
                             >
                               <div className="column-heading">
-                                <span
-                                  className="stage-dot"
-                                  style={{ background: stage.color }}
-                                />
-                                <h3>{stage.label}</h3>
-                                <span className="column-count">
-                                  {items.length}
-                                </span>
+                                <h3>
+                                  <button
+                                    className="column-collapse column-title-toggle"
+                                    aria-label={`${collapsed ? "Expandir" : "Recolher"} fase ${stage.label}`}
+                                    aria-expanded={!collapsed}
+                                    onClick={() =>
+                                      setCollapsedStages(
+                                        collapsed
+                                          ? collapsedStages.filter(
+                                              (s) => s !== stage.id,
+                                            )
+                                          : [...collapsedStages, stage.id],
+                                      )
+                                    }
+                                  >
+                                    <span
+                                      className="stage-dot"
+                                      style={{ background: stage.color }}
+                                    />
+                                    <span>{stage.label}</span>
+                                    <span className="column-count">
+                                      {items.length}
+                                    </span>
+                                    {collapsed ? (
+                                      <ChevronRight size={16} />
+                                    ) : (
+                                      <ChevronDown size={16} />
+                                    )}
+                                  </button>
+                                </h3>
                                 <button
-                                  className="column-collapse"
-                                  aria-label={`${collapsed ? "Expandir" : "Recolher"} fase ${stage.label}`}
-                                  aria-expanded={!collapsed}
-                                  onClick={() =>
-                                    setCollapsedStages(
-                                      collapsed
-                                        ? collapsedStages.filter(
-                                            (s) => s !== stage.id,
-                                          )
-                                        : [...collapsedStages, stage.id],
-                                    )
-                                  }
-                                >
-                                  {collapsed ? (
-                                    <ChevronRight size={16} />
-                                  ) : (
-                                    <ChevronDown size={16} />
-                                  )}
-                                </button>
-                                <button
+                                  disabled={!canEdit}
                                   aria-label={`Adicionar em ${stage.label}`}
                                   onClick={() => newTask(stage.id)}
                                 >
@@ -1027,6 +1114,7 @@ function App() {
                                 <div className="column-cards">
                                   {items.map((t) => (
                                     <TaskCard
+                                      readOnly={!canEdit}
                                       task={t}
                                       key={t.id}
                                       dragging={dragging === t.id}
@@ -1059,6 +1147,7 @@ function App() {
                               )}
                               {!collapsed && (
                                 <button
+                                  disabled={!canEdit}
                                   className="add-card"
                                   onClick={() => newTask(stage.id)}
                                 >
@@ -1073,6 +1162,7 @@ function App() {
                   )}
                   {boardView === "list" && (
                     <ActivitiesList
+                      readOnly={!canEdit}
                       onContextMenu={openCardMenu}
                       tasks={tasks}
                       onOpen={(task) =>
@@ -1084,6 +1174,7 @@ function App() {
                   )}
                   {boardView === "table" && (
                     <ActivitiesTable
+                      readOnly={!canEdit}
                       onContextMenu={openCardMenu}
                       priorityOrder={taskOrder === "priority"}
                       tasks={tasks}
@@ -1095,6 +1186,7 @@ function App() {
                   )}
                   {boardView === "calendar" && (
                     <ActivitiesCalendar
+                      readOnly={!canEdit}
                       onContextMenu={openCardMenu}
                       tasks={tasks}
                       trainings={project.trainings}
@@ -1120,6 +1212,7 @@ function App() {
               )}
               {view === "homologation" && (
                 <Homologation
+                  readOnly={!canEdit}
                   key={project.id}
                   project={project}
                   Modal={Modal}
@@ -1138,6 +1231,7 @@ function App() {
               )}
               {view === "agenda" && (
                 <Agenda
+                  readOnly={!canEdit}
                   project={project}
                   onTask={(task) =>
                     setModal({ type: "task", task, isNew: false })
@@ -1150,6 +1244,7 @@ function App() {
               )}
               {view === "trainings" && (
                 <Trainings
+                  readOnly={!canEdit}
                   project={project}
                   onOpen={(training) =>
                     setModal({ type: "training", training, isNew: false })
@@ -1167,6 +1262,7 @@ function App() {
               )}
               {view === "details" && (
                 <ProjectDetails
+                  readOnly={!canEdit}
                   project={project}
                   onEdit={() => setModal({ type: "project", isNew: false })}
                 />
@@ -1176,7 +1272,10 @@ function App() {
           <footer className="page-footer">
             <span>Implanta · v{appVersion}</span>
             <span>
-              <ShieldCheck size={13} /> Dados salvos neste navegador
+              <ShieldCheck size={13} />{" "}
+              {team.online
+                ? "Dados salvos no banco da equipe"
+                : "Dados salvos neste navegador"}
             </span>
           </footer>
         </div>
@@ -1207,10 +1306,10 @@ function App() {
           project={modal.project}
           onClose={() => setModal(null)}
           onExport={exportData}
-          onConfirm={() => {
+          onConfirm={async () => {
             const action = modal.type;
             if (
-              setData((d) =>
+              await setData((d) =>
                 action === "closeProject"
                   ? setProjectClosed(d, modal.project.id, true)
                   : action === "deleteProject"
@@ -1232,6 +1331,18 @@ function App() {
           }}
         />
       )}
+      {modal?.type === "team" && (
+        <TeamSettings
+          Modal={Modal}
+          onClose={() => setModal(null)}
+          projects={data.projects}
+        />
+      )}
+      {saving && (
+        <div className="team-saving" role="status">
+          <LoaderCircle size={17} className="spin" /> Salvando no banco…
+        </div>
+      )}
       {modal?.type === "install" && (
         <InstallModal Modal={Modal} pwa={pwa} onClose={() => setModal(null)} />
       )}
@@ -1240,8 +1351,8 @@ function App() {
           Modal={Modal}
           appearance={data.appearance}
           onClose={() => setModal(null)}
-          onSave={(appearance) => {
-            if (setData((d) => ({ ...d, appearance }))) {
+          onSave={async (appearance) => {
+            if (await setData((d) => ({ ...d, appearance }))) {
               setModal(null);
               setToast("Aparência salva.");
             }
@@ -1252,6 +1363,7 @@ function App() {
         projectTasks.some((t) => t.id === cardMenu.taskId) &&
         !modal && (
           <CardMenu
+            readOnly={!canEdit}
             anchor={cardMenu}
             task={projectTasks.find((t) => t.id === cardMenu.taskId)}
             onClose={() => setCardMenu(null)}
@@ -1264,14 +1376,15 @@ function App() {
         )}
       {modal?.type === "task" && (
         <TaskModal
+          readOnly={!canEdit}
           task={modal.task}
           isNew={modal.isNew}
           entities={project.entities}
           onClose={() => setModal(null)}
           onSave={(t) => saveTask(t, modal.isNew)}
-          onDelete={() => {
+          onDelete={async () => {
             if (
-              updateProject((p) => ({
+              await updateProject((p) => ({
                 ...p,
                 tasks: p.tasks.filter((t) => t.id !== modal.task.id),
                 logs: [
@@ -1293,16 +1406,17 @@ function App() {
       )}
       {modal?.type === "project" && (
         <ProjectModal
+          readOnly={modal.isNew ? !canManage : !canEdit}
           project={modal.isNew ? null : project}
           onClose={() => setModal(null)}
-          onSave={(p) => {
+          onSave={async (p) => {
             const saved = modal.isNew
-              ? setData((d) => ({
+              ? await setData((d) => ({
                   ...d,
                   selectedId: p.id,
                   projects: [...d.projects, p],
                 }))
-              : updateProject(updateProjectEntities(project, p));
+              : await updateProject(updateProjectEntities(project, p));
             if (saved) {
               if (modal.isNew) setView("board");
               setModal(null);
@@ -1313,12 +1427,13 @@ function App() {
       )}
       {modal?.type === "training" && (
         <TrainingModal
+          readOnly={!canEdit}
           training={modal.training}
           entities={project.entities}
           onClose={() => setModal(null)}
-          onSave={(t) => {
+          onSave={async (t) => {
             if (
-              updateProject((p) => ({
+              await updateProject((p) => ({
                 ...p,
                 trainings: modal.isNew
                   ? [...p.trainings, t]
@@ -1343,9 +1458,9 @@ function App() {
               setToast("Treinamento salvo.");
             }
           }}
-          onDelete={() => {
+          onDelete={async () => {
             if (
-              updateProject((p) => ({
+              await updateProject((p) => ({
                 ...p,
                 trainings: p.trainings.filter(
                   (t) => t.id !== modal.training.id,
@@ -1374,9 +1489,10 @@ function App() {
           <div className="info-box">
             <ShieldCheck size={22} />
             <p>
-              Os dados ficam neste navegador. Para usar em outro computador ou
-              evitar perda ao limpar o navegador, exporte um backup. O arquivo
-              inclui contatos e CPF, se cadastrados.
+              {team.online
+                ? "Os dados ficam no banco da equipe e são compartilhados conforme as permissões de cada projeto. Você também pode exportar um backup."
+                : "Os dados ficam neste navegador. Para usar em outro computador ou evitar perda ao limpar o navegador, exporte um backup."}{" "}
+              O arquivo inclui contatos e CPF, se cadastrados.
             </p>
           </div>
           <div className="backup-options">
@@ -1386,7 +1502,10 @@ function App() {
               <span>Baixar todos os dados em JSON</span>
               <ArrowUpRight size={17} />
             </button>
-            <button onClick={() => fileRef.current.click()}>
+            <button
+              disabled={!canManage}
+              onClick={() => fileRef.current.click()}
+            >
               <Upload size={24} />
               <strong>Restaurar backup</strong>
               <span>Importar um arquivo do Implanta</span>
@@ -1395,15 +1514,16 @@ function App() {
           </div>
           <button
             className="text-danger workspace-clear-button"
-            disabled={!data.projects.length}
+            disabled={team.online || !data.projects.length}
             onClick={() => setModal({ type: "clearWorkspace" })}
           >
             <Trash2 size={16} />
             Limpar workspace
           </button>
           <p className="muted modal-note">
-            Esta versão ainda não tem contas, sincronização entre pessoas ou
-            integração automática com e-mail.
+            {team.online
+              ? "O backup inclui os projetos aos quais você tem acesso. A limpeza local fica desativada no banco compartilhado."
+              : "Conecte sua equipe para usar login e banco online. Os dados locais continuam neste aparelho."}
           </p>
         </Modal>
       )}
@@ -1414,8 +1534,9 @@ function App() {
           onClose={() => setModal(null)}
         >
           <p className="dialog-copy">
-            A restauração substitui os dados atuais deste navegador. Exporte os
-            dados atuais antes de continuar, caso queira preservá-los.
+            {team.online
+              ? "A importação cria ou atualiza estes projetos no banco da equipe, sem excluir os outros. Exporte um backup antes se precisar preservar a versão anterior."
+              : "A restauração substitui os dados atuais deste navegador. Exporte os dados atuais antes de continuar, caso queira preservá-los."}
           </p>
           <div className="modal-actions">
             <button className="button secondary" onClick={exportData}>
@@ -1423,8 +1544,21 @@ function App() {
             </button>
             <button
               className="button primary"
-              onClick={() => {
-                if (setData(modal.data)) {
+              onClick={async () => {
+                const imported = team.online
+                  ? {
+                      ...data,
+                      ...modal.data,
+                      projects: [
+                        ...data.projects.filter(
+                          (p) =>
+                            !modal.data.projects.some((n) => n.id === p.id),
+                        ),
+                        ...modal.data.projects,
+                      ],
+                    }
+                  : modal.data;
+                if (await setData(imported)) {
                   setModal(null);
                   changeView("municipalities");
                   setToast("Backup restaurado.");
@@ -1544,6 +1678,7 @@ function TaskCard({
   onDragEnd,
   dragging,
   onContextMenu,
+  readOnly = false,
 }) {
   const checklist = checklistProgress(task);
   const overdue =
@@ -1553,7 +1688,7 @@ function TaskCard({
       <button
         className={`task-card ${dragging ? "dragging" : ""} ${task.stage === "concluido" ? "completed-card" : ""}`}
         data-task-id={task.id}
-        draggable
+        draggable={!readOnly}
         onDragStart={(e) => {
           e.dataTransfer.setData("text/plain", task.id);
           e.dataTransfer.effectAllowed = "move";
@@ -1750,7 +1885,15 @@ function Field({ label, children, hint, full }) {
     </div>
   );
 }
-function TaskModal({ task, isNew, entities, onClose, onSave, onDelete }) {
+function TaskModal({
+  readOnly = false,
+  task,
+  isNew,
+  entities,
+  onClose,
+  onSave,
+  onDelete,
+}) {
   const formId = useId();
   const [draft, setDraft] = useState(() => structuredClone(task));
   const [entity, setEntity] = useState(entities[0] || "");
@@ -1787,7 +1930,7 @@ function TaskModal({ task, isNew, entities, onClose, onSave, onDelete }) {
         <button
           type="submit"
           form={formId}
-          disabled={uploading}
+          disabled={uploading || readOnly}
           className="button primary task-save-top"
           aria-label={
             isNew ? "Criar atividade no topo" : "Salvar atividade no topo"
@@ -1805,234 +1948,256 @@ function TaskModal({ task, isNew, entities, onClose, onSave, onDelete }) {
           onSave({ ...draft, title: draft.title.trim() });
         }}
       >
-        <div className="form-grid">
-          <Field label="Título da atividade *" full>
-            <input
-              required
-              pattern=".*[^ ].*"
-              maxLength={180}
-              value={draft.title}
-              onChange={(e) => patch("title", e.target.value)}
-              placeholder="O que precisa ser feito?"
-            />
-          </Field>
-          <Field label="Situação">
-            <select
-              value={draft.stage}
-              onChange={(e) => patch("stage", e.target.value)}
-            >
-              {STAGES.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Módulo">
-            <select
-              value={draft.module}
-              onChange={(e) => patch("module", e.target.value)}
-            >
-              <option value="">Selecione o módulo</option>
-              {draft.module && !MODULES.includes(draft.module) && (
-                <option>{draft.module}</option>
-              )}
-              {MODULES.map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Responsável">
-            <input
-              value={draft.owner}
-              onChange={(e) => patch("owner", e.target.value)}
-              placeholder="Nome do responsável"
-            />
-          </Field>
-          <Field label="Prioridade">
-            <select
-              value={draft.priority}
-              onChange={(e) => patch("priority", e.target.value)}
-            >
-              {Object.entries(priorityLabel).map(([id, text]) => (
-                <option key={id} value={id}>
-                  {text}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Prazo / data">
-            <input
-              type="date"
-              value={draft.date}
-              onChange={(e) => patch("date", e.target.value)}
-            />
-          </Field>
-          <Field label="Horário">
-            <input
-              type="time"
-              value={draft.time}
-              onChange={(e) => patch("time", e.target.value)}
-            />
-          </Field>
-          <Field label="Categoria">
-            <select
-              value={draft.type}
-              onChange={(e) => patch("type", e.target.value)}
-            >
-              {Object.entries(CATEGORIES).map(([id, label]) => (
-                <option key={id} value={id}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          {draft.stage === "waiting" && (
-            <Field label="Aguardando retorno de">
+        <fieldset disabled={readOnly} className="readonly-fields">
+          <div className="form-grid">
+            <Field label="Título da atividade *" full>
               <input
-                list="dependencies"
-                value={draft.blockedBy}
-                onChange={(e) => patch("blockedBy", e.target.value)}
-                placeholder="IPM, prefeitura ou colega"
-              />
-              <datalist id="dependencies">
-                <option>IPM</option>
-                <option>Prefeitura</option>
-                <option>Equipe interna</option>
-              </datalist>
-            </Field>
-          )}
-          {draft.type === "chamado" && (
-            <Field label="Número do chamado">
-              <input
-                value={draft.ticket}
-                onChange={(e) => patch("ticket", e.target.value)}
-                placeholder="Ex.: 872797"
+                required
+                pattern=".*[^ ].*"
+                maxLength={180}
+                value={draft.title}
+                onChange={(e) => patch("title", e.target.value)}
+                placeholder="O que precisa ser feito?"
               />
             </Field>
-          )}
-          {draft.type === "chamado" && (
-            <Field label="Situação na fábrica">
+            <Field label="Situação">
               <select
-                value={draft.ticketStatus || "Aguardando retorno"}
-                onChange={(e) => patch("ticketStatus", e.target.value)}
+                value={draft.stage}
+                onChange={(e) => patch("stage", e.target.value)}
               >
-                {[
-                  "Não informado",
-                  "Aguardando retorno",
-                  "Em análise",
-                  "Em desenvolvimento",
-                  "Disponível para validar",
-                ].map((s) => (
-                  <option key={s}>{s}</option>
+                {STAGES.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
                 ))}
               </select>
             </Field>
-          )}
-          <Field label="Descrição / notas adicionais" full>
-            <textarea
-              rows="3"
-              value={draft.description}
-              onChange={(e) => patch("description", e.target.value)}
-              placeholder="Contexto, resultado esperado ou informações úteis..."
-            />
-          </Field>
-        </div>
-        <div className="checklist-section">
-          <div className="section-heading">
-            <h3>
-              <ListChecks size={18} /> Checklists por entidade
-            </h3>
-            <span>Sem limite de entidades</span>
-          </div>
-          <div className="checklist-add">
-            <input
-              list="project-entities"
-              value={entity}
-              onChange={(e) => setEntity(e.target.value)}
-              aria-label="Entidade do checklist"
-              placeholder="Selecione ou escreva uma entidade"
-            />
-            <datalist id="project-entities">
-              {entities.map((e) => (
-                <option key={e} value={e} />
-              ))}
-            </datalist>
-            <button
-              type="button"
-              className="button secondary"
-              onClick={addChecklist}
-            >
-              <Plus size={15} /> Adicionar
-            </button>
-          </div>
-          {draft.checklists.map((c, ci) => (
-            <div className="entity-checklist" key={c.entity}>
-              <header>
-                <Building2 size={16} />
-                <strong>{c.entity}</strong>
-                <span>
-                  {c.items.filter((i) => i.done).length}/{c.items.length}
-                </span>
-                <button
-                  type="button"
-                  aria-label={`Remover checklist de ${c.entity}`}
-                  onClick={() =>
-                    patch(
-                      "checklists",
-                      draft.checklists.filter((_, i) => i !== ci),
-                    )
-                  }
+            <Field label="Módulo">
+              <select
+                value={draft.module}
+                onChange={(e) => patch("module", e.target.value)}
+              >
+                <option value="">Selecione o módulo</option>
+                {draft.module && !MODULES.includes(draft.module) && (
+                  <option>{draft.module}</option>
+                )}
+                {MODULES.map((m) => (
+                  <option key={m}>{m}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Responsável">
+              <input
+                value={draft.owner}
+                onChange={(e) => patch("owner", e.target.value)}
+                placeholder="Nome do responsável"
+              />
+            </Field>
+            <Field label="Prioridade">
+              <select
+                value={draft.priority}
+                onChange={(e) => patch("priority", e.target.value)}
+              >
+                {Object.entries(priorityLabel).map(([id, text]) => (
+                  <option key={id} value={id}>
+                    {text}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Prazo / data">
+              <input
+                type="date"
+                value={draft.date}
+                onChange={(e) => patch("date", e.target.value)}
+              />
+            </Field>
+            <Field label="Horário">
+              <input
+                type="time"
+                value={draft.time}
+                onChange={(e) => patch("time", e.target.value)}
+              />
+            </Field>
+            <Field label="Categoria">
+              <select
+                value={draft.type}
+                onChange={(e) => patch("type", e.target.value)}
+              >
+                {Object.entries(CATEGORIES).map(([id, label]) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {draft.stage === "waiting" && (
+              <Field label="Aguardando retorno de">
+                <input
+                  list="dependencies"
+                  value={draft.blockedBy}
+                  onChange={(e) => patch("blockedBy", e.target.value)}
+                  placeholder="IPM, prefeitura ou colega"
+                />
+                <datalist id="dependencies">
+                  <option>IPM</option>
+                  <option>Prefeitura</option>
+                  <option>Equipe interna</option>
+                </datalist>
+              </Field>
+            )}
+            {draft.type === "chamado" && (
+              <Field label="Número do chamado">
+                <input
+                  value={draft.ticket}
+                  onChange={(e) => patch("ticket", e.target.value)}
+                  placeholder="Ex.: 872797"
+                />
+              </Field>
+            )}
+            {draft.type === "chamado" && (
+              <Field label="Situação na fábrica">
+                <select
+                  value={draft.ticketStatus || "Aguardando retorno"}
+                  onChange={(e) => patch("ticketStatus", e.target.value)}
                 >
-                  <X size={15} />
-                </button>
-              </header>
-              {c.items.map((item) => (
-                <div className="checklist-item" key={item.id}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={item.done}
-                      onChange={(e) =>
-                        updateList(ci, (list) => ({
-                          ...list,
-                          items: list.items.map((i) =>
-                            i.id === item.id
-                              ? { ...i, done: e.target.checked }
-                              : i,
-                          ),
-                        }))
-                      }
-                    />
-                    <span className={item.done ? "checked" : ""}>
-                      {item.text}
-                    </span>
-                  </label>
+                  {[
+                    "Não informado",
+                    "Aguardando retorno",
+                    "Em análise",
+                    "Em desenvolvimento",
+                    "Disponível para validar",
+                  ].map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
+              </Field>
+            )}
+            <Field label="Descrição / notas adicionais" full>
+              <textarea
+                rows="3"
+                value={draft.description}
+                onChange={(e) => patch("description", e.target.value)}
+                placeholder="Contexto, resultado esperado ou informações úteis..."
+              />
+            </Field>
+          </div>
+          <div className="checklist-section">
+            <div className="section-heading">
+              <h3>
+                <ListChecks size={18} /> Checklists por entidade
+              </h3>
+              <span>Sem limite de entidades</span>
+            </div>
+            <div className="checklist-add">
+              <input
+                list="project-entities"
+                value={entity}
+                onChange={(e) => setEntity(e.target.value)}
+                aria-label="Entidade do checklist"
+                placeholder="Selecione ou escreva uma entidade"
+              />
+              <datalist id="project-entities">
+                {entities.map((e) => (
+                  <option key={e} value={e} />
+                ))}
+              </datalist>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={addChecklist}
+              >
+                <Plus size={15} /> Adicionar
+              </button>
+            </div>
+            {draft.checklists.map((c, ci) => (
+              <div className="entity-checklist" key={c.entity}>
+                <header>
+                  <Building2 size={16} />
+                  <strong>{c.entity}</strong>
+                  <span>
+                    {c.items.filter((i) => i.done).length}/{c.items.length}
+                  </span>
                   <button
                     type="button"
-                    aria-label="Remover item"
+                    aria-label={`Remover checklist de ${c.entity}`}
                     onClick={() =>
-                      updateList(ci, (list) => ({
-                        ...list,
-                        items: list.items.filter((i) => i.id !== item.id),
-                      }))
+                      patch(
+                        "checklists",
+                        draft.checklists.filter((_, i) => i !== ci),
+                      )
                     }
                   >
-                    <X size={13} />
+                    <X size={15} />
                   </button>
-                </div>
-              ))}
-              <div className="new-checklist-item">
-                <input
-                  aria-label={`Novo item em ${c.entity}`}
-                  placeholder="Adicionar item ao checklist..."
-                  value={checkText[ci] || ""}
-                  onChange={(e) =>
-                    setCheckText((v) => ({ ...v, [ci]: e.target.value }))
-                  }
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
+                </header>
+                {c.items.map((item) => (
+                  <div className="checklist-item" key={item.id}>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={item.done}
+                        onChange={(e) =>
+                          updateList(ci, (list) => ({
+                            ...list,
+                            items: list.items.map((i) =>
+                              i.id === item.id
+                                ? { ...i, done: e.target.checked }
+                                : i,
+                            ),
+                          }))
+                        }
+                      />
+                      <span className={item.done ? "checked" : ""}>
+                        {item.text}
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      aria-label="Remover item"
+                      onClick={() =>
+                        updateList(ci, (list) => ({
+                          ...list,
+                          items: list.items.filter((i) => i.id !== item.id),
+                        }))
+                      }
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+                <div className="new-checklist-item">
+                  <input
+                    aria-label={`Novo item em ${c.entity}`}
+                    placeholder="Adicionar item ao checklist..."
+                    value={checkText[ci] || ""}
+                    onChange={(e) =>
+                      setCheckText((v) => ({ ...v, [ci]: e.target.value }))
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (checkText[ci]?.trim()) {
+                          updateList(ci, (list) => ({
+                            ...list,
+                            items: [
+                              ...list.items,
+                              {
+                                id: uid(),
+                                text: checkText[ci].trim(),
+                                done: false,
+                              },
+                            ],
+                          }));
+                          setCheckText((v) => ({ ...v, [ci]: "" }));
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Adicionar item"
+                    onClick={() => {
                       if (checkText[ci]?.trim()) {
                         updateList(ci, (list) => ({
                           ...list,
@@ -2047,86 +2212,74 @@ function TaskModal({ task, isNew, entities, onClose, onSave, onDelete }) {
                         }));
                         setCheckText((v) => ({ ...v, [ci]: "" }));
                       }
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  aria-label="Adicionar item"
-                  onClick={() => {
-                    if (checkText[ci]?.trim()) {
-                      updateList(ci, (list) => ({
-                        ...list,
-                        items: [
-                          ...list.items,
-                          {
-                            id: uid(),
-                            text: checkText[ci].trim(),
-                            done: false,
-                          },
-                        ],
-                      }));
-                      setCheckText((v) => ({ ...v, [ci]: "" }));
-                    }
-                  }}
-                >
-                  <Plus size={16} />
-                </button>
+                    }}
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-        <div className="executed-work-section">
-          <Field label="Atividades executadas" full>
-            <textarea
-              rows="4"
-              value={draft.executedWork || ""}
-              onChange={(e) => patch("executedWork", e.target.value)}
-              placeholder="Descreva o que foi feito, os resultados e as datas para aproveitar no boletim."
-            />
-          </Field>
-        </div>
-        <HandoffFields
-          draft={draft}
-          patch={patch}
-          Field={Field}
-          onBusy={setUploading}
-        />
-        {deleteConfirm && (
-          <div className="delete-confirm">
-            <span>Excluir esta atividade? O histórico será preservado.</span>
-            <button type="button" onClick={onDelete}>
-              Sim, excluir
-            </button>
-            <button type="button" onClick={() => setDeleteConfirm(false)}>
-              Cancelar
-            </button>
+            ))}
           </div>
-        )}
-        <div className="modal-actions">
-          {!isNew && (
+          <div className="executed-work-section">
+            <Field label="Atividades executadas" full>
+              <textarea
+                rows="4"
+                value={draft.executedWork || ""}
+                onChange={(e) => patch("executedWork", e.target.value)}
+                placeholder="Descreva o que foi feito, os resultados e as datas para aproveitar no boletim."
+              />
+            </Field>
+          </div>
+          <HandoffFields
+            draft={draft}
+            patch={patch}
+            Field={Field}
+            onBusy={setUploading}
+          />
+          {deleteConfirm && (
+            <div className="delete-confirm">
+              <span>Excluir esta atividade? O histórico será preservado.</span>
+              <button type="button" onClick={onDelete}>
+                Sim, excluir
+              </button>
+              <button type="button" onClick={() => setDeleteConfirm(false)}>
+                Cancelar
+              </button>
+            </div>
+          )}
+          <div className="modal-actions">
+            {!isNew && (
+              <button
+                type="button"
+                className="text-danger"
+                onClick={() => setDeleteConfirm(true)}
+              >
+                <Trash2 size={15} /> Excluir
+              </button>
+            )}
+            <div className="action-spacer" />
             <button
               type="button"
-              className="text-danger"
-              onClick={() => setDeleteConfirm(true)}
+              className="button secondary"
+              onClick={onClose}
             >
-              <Trash2 size={15} /> Excluir
+              Cancelar
             </button>
-          )}
-          <div className="action-spacer" />
-          <button type="button" className="button secondary" onClick={onClose}>
-            Cancelar
-          </button>
-          <button type="submit" disabled={uploading} className="button primary">
-            <Check size={16} />
-            {isNew ? "Criar atividade" : "Salvar alterações"}
-          </button>
-        </div>
+            <button
+              type="submit"
+              disabled={uploading || readOnly}
+              className="button primary"
+            >
+              <Check size={16} />
+              {isNew ? "Criar atividade" : "Salvar alterações"}
+            </button>
+          </div>
+        </fieldset>
       </form>
     </Modal>
   );
 }
-function ProjectModal({ project, onClose, onSave }) {
+function ProjectModal({ readOnly = false, project, onClose, onSave }) {
   const [draft, setDraft] = useState(
     project || {
       id: uid(),
@@ -2175,100 +2328,113 @@ function ProjectModal({ project, onClose, onSave }) {
           });
         }}
       >
-        <div className="form-grid">
-          <Field label="Nome do município *" full>
-            <input
-              required
-              pattern=".*[^ ].*"
-              maxLength={80}
-              value={draft.name}
-              onChange={(e) => patch("name", e.target.value)}
-              placeholder="Ex.: Quatro Barras"
-            />
-          </Field>
-          <Field label="UF">
-            <select
-              value={draft.state}
-              onChange={(e) => patch("state", e.target.value)}
+        <fieldset disabled={readOnly} className="readonly-fields">
+          <div className="form-grid">
+            <Field label="Nome do município *" full>
+              <input
+                required
+                pattern=".*[^ ].*"
+                maxLength={80}
+                value={draft.name}
+                onChange={(e) => patch("name", e.target.value)}
+                placeholder="Ex.: Quatro Barras"
+              />
+            </Field>
+            <Field label="UF">
+              <select
+                value={draft.state}
+                onChange={(e) => patch("state", e.target.value)}
+              >
+                <option value="">Selecione</option>
+                {"AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO"
+                  .split(" ")
+                  .map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+              </select>
+            </Field>
+            <Field label="Código no Dream">
+              <input
+                value={draft.dream}
+                onChange={(e) => patch("dream", e.target.value)}
+                placeholder="Código do município"
+              />
+            </Field>
+            <div className="form-divider full-field">Fiscal do contrato</div>
+            <Field label="Nome do fiscal">
+              <input
+                value={draft.fiscal}
+                onChange={(e) => patch("fiscal", e.target.value)}
+              />
+            </Field>
+            <Field label="CPF do fiscal">
+              <input
+                value={draft.cpf}
+                onChange={(e) => patch("cpf", e.target.value)}
+                placeholder="000.000.000-00"
+                maxLength={14}
+                inputMode="numeric"
+              />
+            </Field>
+            <Field label="E-mail do fiscal" full>
+              <input
+                type="email"
+                value={draft.fiscalEmail}
+                onChange={(e) => patch("fiscalEmail", e.target.value)}
+              />
+            </Field>
+            <div className="form-divider full-field">Contato para chamados</div>
+            <Field label="Responsável para chamados">
+              <input
+                value={draft.contact}
+                onChange={(e) => patch("contact", e.target.value)}
+              />
+            </Field>
+            <Field label="E-mail do responsável">
+              <input
+                type="email"
+                value={draft.contactEmail}
+                onChange={(e) => patch("contactEmail", e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Entidades do projeto"
+              full
+              hint="Uma entidade por linha. Você poderá criar um checklist específico para cada uma."
             >
-              <option value="">Selecione</option>
-              {"AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO"
-                .split(" ")
-                .map((s) => (
-                  <option key={s}>{s}</option>
-                ))}
-            </select>
-          </Field>
-          <Field label="Código no Dream">
-            <input
-              value={draft.dream}
-              onChange={(e) => patch("dream", e.target.value)}
-              placeholder="Código do município"
-            />
-          </Field>
-          <div className="form-divider full-field">Fiscal do contrato</div>
-          <Field label="Nome do fiscal">
-            <input
-              value={draft.fiscal}
-              onChange={(e) => patch("fiscal", e.target.value)}
-            />
-          </Field>
-          <Field label="CPF do fiscal">
-            <input
-              value={draft.cpf}
-              onChange={(e) => patch("cpf", e.target.value)}
-              placeholder="000.000.000-00"
-              maxLength={14}
-              inputMode="numeric"
-            />
-          </Field>
-          <Field label="E-mail do fiscal" full>
-            <input
-              type="email"
-              value={draft.fiscalEmail}
-              onChange={(e) => patch("fiscalEmail", e.target.value)}
-            />
-          </Field>
-          <div className="form-divider full-field">Contato para chamados</div>
-          <Field label="Responsável para chamados">
-            <input
-              value={draft.contact}
-              onChange={(e) => patch("contact", e.target.value)}
-            />
-          </Field>
-          <Field label="E-mail do responsável">
-            <input
-              type="email"
-              value={draft.contactEmail}
-              onChange={(e) => patch("contactEmail", e.target.value)}
-            />
-          </Field>
-          <Field
-            label="Entidades do projeto"
-            full
-            hint="Uma entidade por linha. Você poderá criar um checklist específico para cada uma."
-          >
-            <textarea
-              rows="3"
-              value={entitiesText}
-              onChange={(e) => setEntitiesText(e.target.value)}
-              placeholder="Prefeitura\nFundo de Saúde\nCâmara Municipal"
-            />
-          </Field>
-        </div>
-        <div className="modal-actions">
-          <button type="button" className="button secondary" onClick={onClose}>
-            Cancelar
-          </button>
-          <button className="button primary" type="submit">
-            <Check size={16} /> Salvar município
-          </button>
-        </div>
+              <textarea
+                rows="3"
+                value={entitiesText}
+                onChange={(e) => setEntitiesText(e.target.value)}
+                placeholder="Prefeitura\nFundo de Saúde\nCâmara Municipal"
+              />
+            </Field>
+          </div>
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="button secondary"
+              onClick={onClose}
+            >
+              Cancelar
+            </button>
+            <button className="button primary" type="submit">
+              <Check size={16} /> Salvar município
+            </button>
+          </div>
+        </fieldset>
       </form>
     </Modal>
   );
 }
-function TrainingModal({ training, entities, onClose, onSave, onDelete }) {
+function TrainingModal({
+  readOnly = false,
+  training,
+  entities,
+  onClose,
+  onSave,
+  onDelete,
+}) {
   const [draft, setDraft] = useState(
     training || {
       id: uid(),
@@ -2296,110 +2462,116 @@ function TrainingModal({ training, entities, onClose, onSave, onDelete }) {
           onSave({ ...draft, title: draft.title.trim() });
         }}
       >
-        <div className="form-grid">
-          <Field label="Tema / módulo *" full>
-            <input
-              required
-              pattern=".*[^ ].*"
-              value={draft.title}
-              onChange={(e) => patch("title", e.target.value)}
-              placeholder="Ex.: Compras e contratos"
-            />
-          </Field>
-          <Field label="Entidade">
-            <input
-              list="training-entities"
-              value={draft.entity}
-              onChange={(e) => patch("entity", e.target.value)}
-            />
-            <datalist id="training-entities">
-              {entities.map((e) => (
-                <option key={e}>{e}</option>
-              ))}
-            </datalist>
-          </Field>
-          <Field label="Instrutor / responsável">
-            <input
-              value={draft.owner}
-              onChange={(e) => patch("owner", e.target.value)}
-            />
-          </Field>
-          <Field label="Data *">
-            <input
-              type="date"
-              required
-              value={draft.date}
-              onChange={(e) => patch("date", e.target.value)}
-            />
-          </Field>
-          <Field label="Horário *">
-            <input
-              type="time"
-              required
-              value={draft.time}
-              onChange={(e) => patch("time", e.target.value)}
-            />
-          </Field>
-          <Field label="Duração">
-            <input
-              value={draft.duration}
-              onChange={(e) => patch("duration", e.target.value)}
-              placeholder="Ex.: 2h"
-            />
-          </Field>
-          <Field label="Situação">
-            <select
-              value={draft.status}
-              onChange={(e) => patch("status", e.target.value)}
-            >
-              <option>Agendado</option>
-              <option>Realizado</option>
-              <option>Reagendar</option>
-            </select>
-          </Field>
-          <Field label="Notas / link da reunião" full>
-            <textarea
-              value={draft.notes}
-              rows="3"
-              onChange={(e) => patch("notes", e.target.value)}
-              placeholder="Participantes, link ou observações da agenda..."
-            />
-          </Field>
-        </div>
-        {confirm && (
-          <div className="delete-confirm">
-            <span>Excluir este treinamento?</span>
-            <button type="button" onClick={onDelete}>
-              Sim, excluir
-            </button>
-            <button type="button" onClick={() => setConfirm(false)}>
-              Cancelar
-            </button>
+        <fieldset disabled={readOnly} className="readonly-fields">
+          <div className="form-grid">
+            <Field label="Tema / módulo *" full>
+              <input
+                required
+                pattern=".*[^ ].*"
+                value={draft.title}
+                onChange={(e) => patch("title", e.target.value)}
+                placeholder="Ex.: Compras e contratos"
+              />
+            </Field>
+            <Field label="Entidade">
+              <input
+                list="training-entities"
+                value={draft.entity}
+                onChange={(e) => patch("entity", e.target.value)}
+              />
+              <datalist id="training-entities">
+                {entities.map((e) => (
+                  <option key={e}>{e}</option>
+                ))}
+              </datalist>
+            </Field>
+            <Field label="Instrutor / responsável">
+              <input
+                value={draft.owner}
+                onChange={(e) => patch("owner", e.target.value)}
+              />
+            </Field>
+            <Field label="Data *">
+              <input
+                type="date"
+                required
+                value={draft.date}
+                onChange={(e) => patch("date", e.target.value)}
+              />
+            </Field>
+            <Field label="Horário *">
+              <input
+                type="time"
+                required
+                value={draft.time}
+                onChange={(e) => patch("time", e.target.value)}
+              />
+            </Field>
+            <Field label="Duração">
+              <input
+                value={draft.duration}
+                onChange={(e) => patch("duration", e.target.value)}
+                placeholder="Ex.: 2h"
+              />
+            </Field>
+            <Field label="Situação">
+              <select
+                value={draft.status}
+                onChange={(e) => patch("status", e.target.value)}
+              >
+                <option>Agendado</option>
+                <option>Realizado</option>
+                <option>Reagendar</option>
+              </select>
+            </Field>
+            <Field label="Notas / link da reunião" full>
+              <textarea
+                value={draft.notes}
+                rows="3"
+                onChange={(e) => patch("notes", e.target.value)}
+                placeholder="Participantes, link ou observações da agenda..."
+              />
+            </Field>
           </div>
-        )}
-        <div className="modal-actions">
-          {training && (
+          {confirm && (
+            <div className="delete-confirm">
+              <span>Excluir este treinamento?</span>
+              <button type="button" onClick={onDelete}>
+                Sim, excluir
+              </button>
+              <button type="button" onClick={() => setConfirm(false)}>
+                Cancelar
+              </button>
+            </div>
+          )}
+          <div className="modal-actions">
+            {training && (
+              <button
+                type="button"
+                className="text-danger"
+                onClick={() => setConfirm(true)}
+              >
+                <Trash2 size={15} /> Excluir
+              </button>
+            )}
+            <div className="action-spacer" />
             <button
               type="button"
-              className="text-danger"
-              onClick={() => setConfirm(true)}
+              className="button secondary"
+              onClick={onClose}
             >
-              <Trash2 size={15} /> Excluir
+              Cancelar
             </button>
-          )}
-          <div className="action-spacer" />
-          <button type="button" className="button secondary" onClick={onClose}>
-            Cancelar
-          </button>
-          <button className="button primary" type="submit">
-            Salvar treinamento
-          </button>
-        </div>
+            <button className="button primary" type="submit">
+              Salvar treinamento
+            </button>
+          </div>
+        </fieldset>
       </form>
     </Modal>
   );
 }
-function Agenda({ project, onTask, onTraining, onAdd }) {
+function Agenda({ readOnly = false, project, onTask, onTraining, onAdd }) {
   const [range, setRange] = useState("upcoming");
   const today = localDate();
   const events = [
@@ -2504,13 +2676,13 @@ function Agenda({ project, onTask, onTraining, onAdd }) {
           title="Espaço livre na agenda"
           description="Marque um compromisso ou adicione uma data às atividades."
           button="Agendar atividade"
-          onClick={onAdd}
+          onClick={readOnly ? undefined : onAdd}
         />
       )}
     </section>
   );
 }
-function Trainings({ project, onOpen, onAdd }) {
+function Trainings({ readOnly = false, project, onOpen, onAdd }) {
   const [filter, setFilter] = useState("all");
   const items = project.trainings
     .filter((t) => filter === "all" || t.status === filter)
@@ -2578,7 +2750,7 @@ function Trainings({ project, onOpen, onAdd }) {
           title="Treinamentos bem organizados"
           description="Cadastre sua agenda de capacitação para acompanhar cada encontro."
           button="Novo treinamento"
-          onClick={onAdd}
+          onClick={readOnly ? undefined : onAdd}
         />
       )}
     </section>
@@ -2673,7 +2845,7 @@ function History({ project, onOpen }) {
     </section>
   );
 }
-function ProjectDetails({ project, onEdit }) {
+function ProjectDetails({ readOnly = false, project, onEdit }) {
   const [showCpf, setShowCpf] = useState(false);
   useEffect(() => setShowCpf(false), [project.id, project.cpf]);
   const info = (label, value, email = false) => (
@@ -2699,7 +2871,11 @@ function ProjectDetails({ project, onEdit }) {
         <h2>
           <Building2 size={21} /> Informações do município
         </h2>
-        <button className="button secondary" onClick={onEdit}>
+        <button
+          className="button secondary"
+          disabled={readOnly}
+          onClick={onEdit}
+        >
           <Settings2 size={16} /> Editar dados
         </button>
       </div>
@@ -2792,7 +2968,11 @@ function Empty({ icon: Icon, title, description, button, onClick }) {
   );
 }
 
-createRoot(document.getElementById("root")).render(<App />);
+createRoot(document.getElementById("root")).render(
+  <TeamHost>
+    <App />
+  </TeamHost>,
+);
 
 function ProjectActionModal({
   Modal,

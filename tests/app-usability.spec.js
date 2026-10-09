@@ -23,6 +23,35 @@ async function home(page) {
     .click();
 }
 
+test("controles compactos mantêm as visualizações em uma linha e o nome da fase recolhe os cartões", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await openProject(page);
+  const buttons = page.locator(".view-switcher button");
+  const tops = await buttons.evaluateAll((items) =>
+    items.map((el) => el.getBoundingClientRect().top),
+  );
+  expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(2);
+  await expect(
+    page
+      .locator(".filter-actions")
+      .getByRole("button", { name: "Recolher fases", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Rolar quadro para/ }),
+  ).toHaveCount(0);
+  await expect(page.getByText("Visão das fases", { exact: true })).toHaveCount(
+    0,
+  );
+  const title = page.locator("#column-todo .column-title-toggle span").nth(1);
+  await title.click();
+  await expect(page.locator("#column-todo .task-card")).toHaveCount(0);
+  await title.click();
+  await expect(page.locator("#column-todo .task-card").first()).toBeVisible();
+  await page.screenshot({ path: ".local/compact-mobile.png", fullPage: true });
+});
+
 test("recolher fases no celular mantém resumo, dados e preferência por projeto no backup", async ({
   page,
 }) => {

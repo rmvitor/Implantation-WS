@@ -1,0 +1,235 @@
+.team-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.team-form p,
+.team-note,
+.team-management > p {
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--muted);
+}
+.team-form a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.team-form label,
+.team-user > label:first-child,
+.team-project-select {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12px;
+}
+.team-form input,
+.team-user input:not([type="checkbox"]),
+.team-project-select select,
+.team-project-member select {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--palette-bg-ffffff);
+  color: inherit;
+  font: inherit;
+}
+.team-actions,
+.team-account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.team-actions {
+  justify-content: flex-end;
+}
+.team-error {
+  color: #c76155 !important;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.team-message {
+  color: var(--primary);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.auth-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: var(--background);
+  padding: 24px;
+}
+.auth-box {
+  width: min(430px, 100%);
+  padding: 32px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--palette-bg-ffffff);
+}
+.auth-brand {
+  display: block;
+  font-family: Manrope, sans-serif;
+  font-size: 33px;
+  font-weight: 800;
+  letter-spacing: -2px;
+  margin-bottom: 30px;
+}
+.auth-brand span {
+  color: var(--primary);
+}
+.auth-box h1 {
+  font-size: 22px;
+  margin-bottom: 20px;
+}
+.auth-options {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+}
+.auth-options button,
+.auth-connection {
+  color: var(--muted);
+  text-decoration: underline;
+}
+.auth-connection {
+  display: block;
+  font-size: 11px;
+  margin-top: 24px;
+}
+.team-account {
+  margin-bottom: 25px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.team-account > div {
+  flex: 1;
+  min-width: 0;
+}
+.team-account p {
+  font-size: 11px;
+  margin-top: 5px;
+  color: var(--muted);
+}
+.team-management {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.team-management h3 {
+  margin: 25px 0 12px;
+  font-size: 15px;
+}
+.team-user {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.team-user > small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.team-user > label:first-child {
+  grid-column: 1 / -1;
+}
+.team-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.team-user button {
+  grid-column: 1 / -1;
+  justify-self: end;
+}
+.team-project-member {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  font-size: 12px;
+}
+.team-project-member > div {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.team-project-member small {
+  display: block;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.team-project-member select {
+  width: 120px;
+  flex-shrink: 0;
+}
+.team-sync-bar {
+  padding: 9px 12px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--background);
+}
+.team-saving {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  z-index: 150;
+  padding: 12px 18px;
+  background: var(--palette-bg-ffffff);
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 5px 25px #0003;
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+}
+.app-saving .modal-actions button,
+.app-saving .modal-header button,
+.app-saving .heading-actions button {
+  pointer-events: none;
+}
+.readonly-fields {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.read-only-notice {
+  margin-bottom: 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.spin {
+  animation: team-spin 1s linear infinite;
+}
+@keyframes team-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 600px) {
+  .auth-page {
+    padding: 16px;
+  }
+  .auth-box {
+    padding: 25px 20px;
+  }
+  .team-account {
+    flex-wrap: wrap;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}

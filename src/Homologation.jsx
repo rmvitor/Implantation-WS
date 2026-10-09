@@ -25,6 +25,7 @@ const dateTime = (value) =>
     timeStyle: "short",
   });
 export function Homologation({
+  readOnly = false,
   project,
   onUpdate,
   onEditing,
@@ -42,9 +43,9 @@ export function Homologation({
   const matrix = homologationMatrix(project);
   const progress = homologationProgress(project);
   const entities = [...new Set(project.entities)];
-  const perform = (action) => {
+  const perform = async (action) => {
     try {
-      if (onUpdate(action)) {
+      if (!readOnly && (await onUpdate(action))) {
         setDialog(null);
         return true;
       }
@@ -66,6 +67,7 @@ export function Homologation({
         </div>
         <button
           className="button secondary"
+          disabled={readOnly}
           onClick={() => setDialog({ type: "scope" })}
         >
           <Settings2 size={16} />
@@ -112,7 +114,11 @@ export function Homologation({
             Prefeitura, fundos, câmara ou outras entidades que receberão os
             dados.
           </p>
-          <button className="button primary" onClick={onEditProject}>
+          <button
+            className="button primary"
+            disabled={readOnly}
+            onClick={onEditProject}
+          >
             Cadastrar entidades
           </button>
         </div>
@@ -219,7 +225,7 @@ export function Homologation({
             </p>
             <button
               className="button primary"
-              disabled={!progress.ready || progress.released}
+              disabled={readOnly || !progress.ready || progress.released}
               onClick={() => setDialog({ type: "release" })}
             >
               <CheckCheck size={16} />
@@ -240,6 +246,7 @@ export function Homologation({
       )}
       {dialog?.type === "entry" && (
         <EntryModal
+          readOnly={readOnly}
           entry={dialog.entry}
           project={project}
           Modal={Modal}
@@ -349,7 +356,16 @@ function ScopeModal({ project, Modal, onClose, onSave }) {
     </Modal>
   );
 }
-function EntryModal({ entry, project, Modal, Field, onClose, onSave, onTask }) {
+function EntryModal({
+  readOnly = false,
+  entry,
+  project,
+  Modal,
+  Field,
+  onClose,
+  onSave,
+  onTask,
+}) {
   const [draft, setDraft] = useState(() => structuredClone(entry));
   const [newCheck, setNewCheck] = useState("");
   const [issue, setIssue] = useState(false);
@@ -371,146 +387,152 @@ function EntryModal({ entry, project, Modal, Field, onClose, onSave, onTask }) {
       onClose={onClose}
       wide
     >
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          onSave(draft, issue);
-        }}
-      >
-        <div className="migration-checks">
-          <h3>Rotina de conferência</h3>
-          <p className="muted">
-            Compare com o sistema anterior. Ajuste a lista ao que foi migrado
-            neste projeto.
-          </p>
-          {draft.checks.map((check) => (
-            <div className="migration-check" key={check.id}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={check.done}
-                  onChange={(e) =>
+      <fieldset disabled={readOnly} className="readonly-fields">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSave(draft, issue);
+          }}
+        >
+          <div className="migration-checks">
+            <h3>Rotina de conferência</h3>
+            <p className="muted">
+              Compare com o sistema anterior. Ajuste a lista ao que foi migrado
+              neste projeto.
+            </p>
+            {draft.checks.map((check) => (
+              <div className="migration-check" key={check.id}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={check.done}
+                    onChange={(e) =>
+                      patch(
+                        "checks",
+                        draft.checks.map((c) =>
+                          c.id === check.id
+                            ? { ...c, done: e.target.checked }
+                            : c,
+                        ),
+                      )
+                    }
+                  />
+                  {check.text}
+                </label>
+                <button
+                  type="button"
+                  aria-label={`Remover conferência: ${check.text}`}
+                  onClick={() =>
                     patch(
                       "checks",
-                      draft.checks.map((c) =>
-                        c.id === check.id
-                          ? { ...c, done: e.target.checked }
-                          : c,
-                      ),
+                      draft.checks.filter((c) => c.id !== check.id),
                     )
                   }
-                />
-                {check.text}
-              </label>
-              <button
-                type="button"
-                aria-label={`Remover conferência: ${check.text}`}
-                onClick={() =>
-                  patch(
-                    "checks",
-                    draft.checks.filter((c) => c.id !== check.id),
-                  )
-                }
-              >
-                <X size={15} />
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            ))}
+            <div className="checklist-add">
+              <input
+                aria-label="Nova conferência"
+                placeholder="Adicionar uma conferência específica..."
+                value={newCheck}
+                onChange={(e) => setNewCheck(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    add();
+                  }
+                }}
+              />
+              <button type="button" className="button secondary" onClick={add}>
+                <Plus size={15} />
+                Adicionar
               </button>
             </div>
-          ))}
-          <div className="checklist-add">
-            <input
-              aria-label="Nova conferência"
-              placeholder="Adicionar uma conferência específica..."
-              value={newCheck}
-              onChange={(e) => setNewCheck(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  add();
-                }
-              }}
-            />
-            <button type="button" className="button secondary" onClick={add}>
-              <Plus size={15} />
-              Adicionar
-            </button>
           </div>
-        </div>
-        <div className="form-grid">
-          <Field label="Resultado da conferência">
-            <select
-              value={draft.status}
-              onChange={(e) => patch("status", e.target.value)}
+          <div className="form-grid">
+            <Field label="Resultado da conferência">
+              <select
+                value={draft.status}
+                onChange={(e) => patch("status", e.target.value)}
+              >
+                {Object.entries(HOMOLOGATION_STATUS).map(([id, label]) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Validado por" hint="Obrigatório para registrar o OK.">
+              <input
+                value={draft.validatedBy}
+                required={draft.status === "ok"}
+                onChange={(e) => patch("validatedBy", e.target.value)}
+                placeholder="Quem conferiu os dados"
+              />
+            </Field>
+            <Field
+              label="Referência / evidência da conferência"
+              full
+              hint="Ex.: relatórios comparados, saldos conferidos ou link da evidência."
             >
-              {Object.entries(HOMOLOGATION_STATUS).map(([id, label]) => (
-                <option key={id} value={id}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Validado por" hint="Obrigatório para registrar o OK.">
-            <input
-              value={draft.validatedBy}
-              required={draft.status === "ok"}
-              onChange={(e) => patch("validatedBy", e.target.value)}
-              placeholder="Quem conferiu os dados"
-            />
-          </Field>
-          <Field
-            label="Referência / evidência da conferência"
-            full
-            hint="Ex.: relatórios comparados, saldos conferidos ou link da evidência."
-          >
-            <textarea
-              rows={2}
-              value={draft.evidence}
-              required={draft.status === "ok"}
-              onChange={(e) => patch("evidence", e.target.value)}
-            />
-          </Field>
-          <Field label="Observações / divergências" full>
-            <textarea
-              rows={3}
-              value={draft.notes}
-              onChange={(e) => patch("notes", e.target.value)}
-              placeholder="O que foi conferido ou o que precisa ser corrigido"
-            />
-          </Field>
-        </div>
-        {entry.validatedAt && (
-          <p className="muted">
-            Último OK: {entry.validatedBy} · {dateTime(entry.validatedAt)}. Uma
-            nova conferência reabre a liberação.
-          </p>
-        )}
-        {draft.status === "issue" &&
-          (linked ? (
+              <textarea
+                rows={2}
+                value={draft.evidence}
+                required={draft.status === "ok"}
+                onChange={(e) => patch("evidence", e.target.value)}
+              />
+            </Field>
+            <Field label="Observações / divergências" full>
+              <textarea
+                rows={3}
+                value={draft.notes}
+                onChange={(e) => patch("notes", e.target.value)}
+                placeholder="O que foi conferido ou o que precisa ser corrigido"
+              />
+            </Field>
+          </div>
+          {entry.validatedAt && (
+            <p className="muted">
+              Último OK: {entry.validatedBy} · {dateTime(entry.validatedAt)}.
+              Uma nova conferência reabre a liberação.
+            </p>
+          )}
+          {draft.status === "issue" &&
+            (linked ? (
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => onTask(linked.id)}
+              >
+                Abrir pendência vinculada <ArrowUpRight size={15} />
+              </button>
+            ) : (
+              <label className="create-migration-issue">
+                <input
+                  type="checkbox"
+                  checked={issue}
+                  onChange={(e) => setIssue(e.target.checked)}
+                />
+                Criar pendência no quadro para esta divergência
+              </label>
+            ))}
+          <div className="modal-actions">
             <button
               type="button"
               className="button secondary"
-              onClick={() => onTask(linked.id)}
+              onClick={onClose}
             >
-              Abrir pendência vinculada <ArrowUpRight size={15} />
+              Cancelar
             </button>
-          ) : (
-            <label className="create-migration-issue">
-              <input
-                type="checkbox"
-                checked={issue}
-                onChange={(e) => setIssue(e.target.checked)}
-              />
-              Criar pendência no quadro para esta divergência
-            </label>
-          ))}
-        <div className="modal-actions">
-          <button type="button" className="button secondary" onClick={onClose}>
-            Cancelar
-          </button>
-          <button type="submit" className="button primary">
-            {draft.status === "ok" ? "Registrar OK" : "Salvar conferência"}
-          </button>
-        </div>
-      </form>
+            <button type="submit" className="button primary">
+              {draft.status === "ok" ? "Registrar OK" : "Salvar conferência"}
+            </button>
+          </div>
+        </form>
+      </fieldset>
     </Modal>
   );
 }

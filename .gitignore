@@ -2,3 +2,5 @@ node_modules/
 dist/
 .local/
 *.log
+.env*
+!.env.example
