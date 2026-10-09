@@ -41,7 +41,9 @@ A publicação do site é independente da publicação do ambiente de desenvolvi
 
 O trabalho pode acontecer em paralelo. Arraste um cartão ou edite sua situação para movimentá-lo sem passagem obrigatória pelas outras colunas. A movimentação tem indicação de destino e animação, respeitando a configuração de movimento reduzido do sistema. Ao arrastar para Concluídos, o formulário de validação abre antes de aplicar a conclusão. O progresso exibido corresponde à proporção de atividades concluídas com validação registrada; cada checklist tem seu próprio progresso.
 
-O projeto inicial de Quatro Barras é uma demonstração baseada no fluxo fornecido. Crie seu município para começar com um quadro vazio. Os dados ficam separados por município.
+O primeiro acesso começa sem projetos de demonstração. Crie um município ou use **Importar dados** na tela inicial. Os dados ficam separados por município; os exemplos usados pelos testes não são incluídos no site.
+
+Use **Encerrar projeto** quando terminar a implantação. Ele sai dos ativos e do menu lateral, fica na aba **Encerrados** e conserva tarefas, homologações e histórico. **Reabrir projeto** devolve-o aos ativos. **Excluir projeto** remove os seus dados deste navegador e exige digitar o nome para confirmar; é possível exportar um backup antes.
 
 ## Instalar como app (PWA)
 
@@ -61,6 +63,22 @@ Os dados ficam em `localStorage` no navegador que acessa o site, vinculados ao e
 
 Use **Dados e backup** para exportar ou restaurar um arquivo JSON. A restauração pede confirmação e substitui os dados atuais. O backup pode conter contatos e CPF; conserve-o em um local com acesso restrito. O CPF fica mascarado na visualização e pode ser editado no formulário.
 
+Para remover todos os projetos cadastrados neste aparelho, use **Dados e backup → Limpar workspace** e digite `LIMPAR`. Essa limpeza mantém somente as preferências de aparência. Uma atualização do site preserva cadastros existentes; ela não consegue apagar dados de outros navegadores ou aparelhos. Backups incluem também os projetos encerrados e podem representar um workspace vazio.
+
+### Converter uma exportação do Trello
+
+O conversor gera um JSON compatível com a importação existente e um relatório de conversão. Execute com os arquivos de dados fora do repositório público:
+
+```sh
+node scripts/convert-trello.mjs /caminho/trello.json /caminho/implanta.json
+```
+
+Selecione o arquivo gerado em **Importar dados** na tela inicial ou em **Dados e backup → Restaurar backup**. Confira o resumo antes de confirmar: restaurar substitui o workspace atual.
+
+Listas de pendências passam para A fazer, chamados para Aguardando retorno e concluídos continuam em Concluídos. Números de chamados, prioridades, checklists, datas reconhecidas e histórico são preservados. Módulos identificados pelo título são sugestões para revisão; títulos ambíguos ficam sem módulo. Código Dream e contatos ausentes na origem ficam em branco. A situação na fábrica fica como Não informado quando não consta no Trello.
+
+Cartões de módulos da lista de Homologação com checklist de entidades viram conferências por módulo × entidade na tela de homologação. As marcações existentes são mantidas na rotina, mas não geram OK formal, validador ou liberação. Cartões arquivados ficam preservados nos metadados do backup, sem retornar ao quadro ativo. O histórico é limitado às ações presentes no arquivo exportado pelo Trello.
+
 A versão exibida no rodapé vem de `package.json`. Veja as mudanças em [CHANGELOG.md](CHANGELOG.md).
 
 Os cadastros e backups da versão anterior são migrados sem apagar atividades, notas, datas, checklists, números de chamados ou histórico. Pendências e agendas antigas passam para A fazer, mantendo as datas; antigos cartões de Chamados passam para Aguardando retorno com etiqueta Chamado. Conclusões antigas permanecem na coluna, com o aviso “Validação não registrada” se não houver aceite. A migração não inventa evidências ou nomes de validadores. A homologação começa sem escopo configurado nos projetos existentes; checklists e conclusões anteriores não são convertidos em OKs da migração. O novo escopo, os registros de conferência e a liberação também são incluídos no backup.
@@ -75,6 +93,6 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium npm run test:e2e
 npm run build
 ```
 
-Os testes de domínio cobrem movimentação livre, validação obrigatória na conclusão, reabertura, histórico, checklists, migração de versões, filtros e integridade do backup. Os testes no navegador cobrem tela inicial, cadastro, edição, persistência, treinamentos, exportação/restauração, anexos, migração, troca de visualização, calendário, navegação móvel, rolagem, animação, prioridades, categorias, preferências de aparência e falhas de armazenamento.
+Os testes de domínio cobrem movimentação livre, validação obrigatória na conclusão, reabertura, histórico, checklists, migração de versões, filtros, integridade do backup, ciclo dos projetos, workspace vazio e conversão do Trello. Os testes no navegador cobrem tela inicial vazia, cadastro, encerramento, reabertura, exclusão e limpeza com confirmação, edição, persistência, treinamentos, exportação/restauração, anexos, migração, troca de visualização, calendário, navegação móvel, rolagem, animação, prioridades, categorias, preferências de aparência e falhas de armazenamento.
 
 Se não houver Chromium instalado, instale o navegador do Playwright com `npx playwright install chromium` e execute `npm run test:e2e` sem a variável acima. O arquivo de configuração inicia o servidor de desenvolvimento e um servidor de teste do build PWA sob `/Implantation-WS/` automaticamente quando necessário. O segundo usa uma cópia em `.local/pwa-site`, permitindo simular a troca do service worker sem alterar `dist`. As verificações de PWA cobrem instalação reconhecida pelo Chromium com perfil normal, metadados/ícones/escopo, gravação offline, atualização com formulário aberto e preservação dos dados. Os testes de homologação cobrem escopo, validação, liberação, reabertura, pendência vinculada, backup e falha de armazenamento.

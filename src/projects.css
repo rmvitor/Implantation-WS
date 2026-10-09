@@ -1,0 +1,83 @@
+.home-heading-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.project-status-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 25px 0 20px;
+}
+.project-status-tabs button {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.project-status-tabs [aria-pressed="true"] {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary);
+}
+.project-status-tabs span {
+  opacity: 0.75;
+  font-size: 11px;
+}
+.project-home-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--palette-bg-ffffff);
+  overflow: hidden;
+}
+.project-home-card .municipality-card {
+  border: 0;
+  border-radius: 0;
+  width: 100%;
+  flex: 1;
+}
+.project-card-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 13px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+}
+.project-card-actions button:hover {
+  text-decoration: underline;
+}
+.project-closed-badge {
+  display: block;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.project-delete-button {
+  color: #b76356;
+}
+.workspace-clear-button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 20px;
+}
+.button.danger {
+  background: #ac4035;
+  color: #fff;
+}
+.button.danger:hover {
+  background: #91352d;
+}
+.modal-body .field:has(input[autocomplete="off"]) {
+  margin-top: 20px;
+}
+@media (max-width: 760px) {
+  .heading-actions {
+    flex-wrap: wrap;
+  }
+}

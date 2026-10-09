@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 1.4.0 — 09/10/2026
+
+- Primeiro acesso sem projetos de demonstração, com cadastro e importação disponíveis na tela inicial.
+- Encerramento de projetos com preservação de tarefas, homologação e histórico; aba Encerrados e opção de reabertura.
+- Exclusão de projeto e limpeza do workspace local com confirmação explícita e opção de exportar backup antes.
+- Backups aceitam workspace vazio e incluem os projetos encerrados. Atualizações preservam cadastros anteriores.
+- Conversor de JSON do Trello para o formato de importação existente, com números, prioridades, checklists, datas, histórico e homologação por módulo e entidade. Marcações antigas não inventam aceites formais.
+
 ## 1.3.0 — 09/10/2026
 
 - Instalação como PWA no celular e no PC, com manifesto, ícones de app/maskable/Apple e instruções para Android, iOS e desktop.

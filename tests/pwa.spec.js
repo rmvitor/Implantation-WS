@@ -1,4 +1,5 @@
-import { test, expect, chromium } from "@playwright/test";
+import { test, expect } from "./fixtures/test.js";
+import { chromium } from "@playwright/test";
 import { readFile, writeFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -75,7 +76,7 @@ test("PWA tem identidade, ícones válidos, escopo do Pages e abre offline prese
   await page.getByRole("button", { name: "Salvar escopo" }).click();
   await context.setOffline(true);
   await page.reload();
-  await expect(page.locator(".page-footer")).toContainText("v1.3.0");
+  await expect(page.locator(".page-footer")).toContainText("v1.4.0");
   await page.locator(".municipality-card").click();
   await page
     .locator("nav")

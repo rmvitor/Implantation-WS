@@ -1,7 +1,12 @@
+import { createDemo } from "../tests/fixtures/workspace.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createDemo,
+  createEmptyWorkspace,
+  isProjectClosed,
+  setProjectClosed,
+  deleteProject,
+  clearWorkspace,
   homologationId,
   homologationMatrix,
   homologationProgress,
@@ -138,6 +143,10 @@ test("backup válido preserva dados e rejeita estrutura incompatível", () => {
   const backup = createDemo();
   assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(backup))), backup);
   assert.throws(() => validateBackup({ projects: [] }));
+  assert.deepEqual(
+    validateBackup(createEmptyWorkspace()),
+    createEmptyWorkspace(),
+  );
   const invalid = structuredClone(backup);
   invalid.projects[0].tasks[0].checklists = null;
   assert.throws(() => validateBackup(invalid));
@@ -349,4 +358,67 @@ test("backup de homologação preserva escopo, rotinas e liberação e rejeita a
     duplicate.projects[0].homologation.entries[0],
   );
   assert.throws(() => validateBackup(duplicate), /homologação/);
+});
+
+test("workspace vazio é válido e projetos antigos continuam ativos", () => {
+  const empty = createEmptyWorkspace();
+  assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(empty))), empty);
+  assert.equal(isProjectClosed(createDemo().projects[0]), false);
+  const invalid = createDemo();
+  invalid.projects[0].status = "desconhecido";
+  assert.throws(() => validateBackup(invalid), /situação do projeto/);
+});
+test("encerrar e reabrir preserva tarefas, homologação e histórico e seleciona outro ativo", () => {
+  const workspace = createDemo();
+  const first = workspace.projects[0];
+  workspace.projects.push({
+    ...structuredClone(first),
+    id: "p2",
+    name: "Outro município",
+  });
+  const closed = setProjectClosed(
+    workspace,
+    first.id,
+    true,
+    "2026-10-09T12:00:00Z",
+  );
+  assert.equal(closed.selectedId, "p2");
+  assert.equal(isProjectClosed(closed.projects[0]), true);
+  assert.deepEqual(closed.projects[0].tasks, first.tasks);
+  assert.deepEqual(closed.projects[0].trainings, first.trainings);
+  assert.equal(closed.projects[0].logs[0].action, "projeto encerrado");
+  assert.equal(isProjectClosed(workspace.projects[0]), false);
+  const reopened = setProjectClosed(
+    closed,
+    first.id,
+    false,
+    "2026-10-09T13:00:00Z",
+  );
+  assert.equal(isProjectClosed(reopened.projects[0]), false);
+  assert.equal(reopened.projects[0].closedAt, null);
+  assert.equal(reopened.projects[0].logs[1].action, "projeto encerrado");
+  assert.deepEqual(validateBackup(reopened), reopened);
+});
+test("excluir último projeto gera workspace vazio válido e remove preferências do projeto", () => {
+  const workspace = createDemo();
+  workspace.boardViews = { "quatro-barras": "table" };
+  workspace.boardOrders = { "quatro-barras": "priority" };
+  const deleted = deleteProject(workspace, "quatro-barras");
+  assert.equal(deleted.projects.length, 0);
+  assert.equal(deleted.selectedId, "");
+  assert.deepEqual(deleted.boardViews, {});
+  assert.deepEqual(deleted.boardOrders, {});
+  assert.deepEqual(validateBackup(deleted), deleted);
+  assert.equal(workspace.projects.length, 1);
+});
+test("limpeza remove todos os dados dos projetos e conserva apenas aparência", () => {
+  const data = createDemo();
+  data.appearance = { theme: "dark", primary: "#7c3aed" };
+  data.boardViews = { "quatro-barras": "kanban" };
+  const empty = clearWorkspace(data);
+  assert.deepEqual(empty, {
+    ...createEmptyWorkspace(),
+    appearance: data.appearance,
+  });
+  assert.equal(data.projects.length, 1);
 });

@@ -24,6 +24,7 @@ import {
   PRIORITIES,
   sortActivities,
   cardSummary,
+  isProjectClosed,
   STAGES,
   MODULES,
   isValidated,
@@ -87,9 +88,21 @@ export function ValidationBadge({ task }) {
   ) : null;
 }
 
-export function ProjectsHome({ data, onOpen, onAdd }) {
+export function ProjectsHome({
+  data,
+  onOpen,
+  onAdd,
+  onImport,
+  filter,
+  onFilter,
+  onCloseProject,
+  onReopenProject,
+  onDeleteProject,
+}) {
   const [query, setQuery] = useState("");
-  const projects = data.projects.filter((p) =>
+  const active = data.projects.filter((p) => !isProjectClosed(p));
+  const closed = data.projects.filter(isProjectClosed);
+  const projects = (filter === "closed" ? closed : active).filter((p) =>
     `${p.name} ${p.dream} ${p.state}`
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
@@ -101,7 +114,7 @@ export function ProjectsHome({ data, onOpen, onAdd }) {
           .toLowerCase(),
       ),
   );
-  const allTasks = data.projects.flatMap((p) => p.tasks);
+  const allTasks = active.flatMap((p) => p.tasks);
   const completed = allTasks.filter(
     (t) => t.stage === "concluido" && isValidated(t),
   ).length;
@@ -116,15 +129,20 @@ export function ProjectsHome({ data, onOpen, onAdd }) {
             parou.
           </p>
         </div>
-        <button className="button primary" onClick={onAdd}>
-          <Plus size={17} /> Novo município
-        </button>
+        <div className="home-heading-actions">
+          <button className="button secondary" onClick={onImport}>
+            Importar dados
+          </button>
+          <button className="button primary" onClick={onAdd}>
+            <Plus size={17} /> Novo município
+          </button>
+        </div>
       </div>
       <section className="home-summary">
         <div>
           <Building2 size={20} />
-          <strong>{data.projects.length}</strong>
-          <span>projetos</span>
+          <strong>{active.length}</strong>
+          <span>projetos ativos</span>
         </div>
         <div>
           <Clock3 size={20} />
@@ -146,6 +164,24 @@ export function ProjectsHome({ data, onOpen, onAdd }) {
           <span>conclusões validadas</span>
         </div>
       </section>
+      <div
+        className="project-status-tabs"
+        role="group"
+        aria-label="Situação dos projetos"
+      >
+        <button
+          aria-pressed={filter !== "closed"}
+          onClick={() => onFilter("active")}
+        >
+          Ativos <span>{active.length}</span>
+        </button>
+        <button
+          aria-pressed={filter === "closed"}
+          onClick={() => onFilter("closed")}
+        >
+          Encerrados <span>{closed.length}</span>
+        </button>
+      </div>
       <div className="home-project-toolbar">
         <h2>
           Suas implantações{" "}
@@ -171,61 +207,94 @@ export function ProjectsHome({ data, onOpen, onAdd }) {
             : 0;
           const waiting = p.tasks.filter((t) => t.stage === "waiting").length;
           return (
-            <button
-              className="municipality-card"
-              key={p.id}
-              onClick={() => onOpen(p.id)}
-            >
-              <div className="municipality-icon">
-                <Building2 size={25} />
-              </div>
-              <ArrowUpRight className="card-arrow" size={20} />
-              <h2>{p.name}</h2>
-              <p>
-                {p.state || "UF não informada"} · Dream{" "}
-                {p.dream || "não informado"}
-              </p>
-              <div className="municipality-meta">
-                <span>{p.entities.length} entidades</span>
-                <span>
-                  {p.tasks.length -
-                    p.tasks.filter((t) => t.stage === "concluido").length}{" "}
-                  em aberto
+            <article className="project-home-card" key={p.id}>
+              <button
+                className="municipality-card"
+                onClick={() => onOpen(p.id)}
+              >
+                <div className="municipality-icon">
+                  <Building2 size={25} />
+                </div>
+                <ArrowUpRight className="card-arrow" size={20} />
+                <h2>{p.name}</h2>
+                <p>
+                  {p.state || "UF não informada"} · Dream{" "}
+                  {p.dream || "não informado"}
+                </p>
+                <div className="municipality-meta">
+                  <span>{p.entities.length} entidades</span>
+                  <span>
+                    {p.tasks.length -
+                      p.tasks.filter((t) => t.stage === "concluido")
+                        .length}{" "}
+                    em aberto
+                  </span>
+                  {waiting > 0 && <span>{waiting} aguardando</span>}
+                </div>
+                <div className="progress-track">
+                  <i style={{ width: `${percent}%` }} />
+                </div>
+                <footer>
+                  <span>Atividades validadas</span>
+                  <strong>{percent}%</strong>
+                </footer>
+                <span className="project-last-action">
+                  {p.logs[0]
+                    ? `Última atualização: ${formatDate(p.logs[0].at)}`
+                    : "Pronto para começar"}
                 </span>
-                {waiting > 0 && <span>{waiting} aguardando</span>}
+                {isProjectClosed(p) && (
+                  <span className="project-closed-badge">
+                    Encerrado{p.closedAt ? ` em ${formatDate(p.closedAt)}` : ""}
+                  </span>
+                )}
+                {p.demo && (
+                  <span className="demo-label">Projeto de demonstração</span>
+                )}
+              </button>
+              <div className="project-card-actions">
+                {isProjectClosed(p) ? (
+                  <button onClick={() => onReopenProject(p.id)}>
+                    Reabrir projeto
+                  </button>
+                ) : (
+                  <button onClick={() => onCloseProject(p.id)}>
+                    Encerrar projeto
+                  </button>
+                )}
+                <button
+                  className="text-danger"
+                  aria-label={`Excluir projeto ${p.name}`}
+                  onClick={() => onDeleteProject(p.id)}
+                >
+                  Excluir
+                </button>
               </div>
-              <div className="progress-track">
-                <i style={{ width: `${percent}%` }} />
-              </div>
-              <footer>
-                <span>Atividades validadas</span>
-                <strong>{percent}%</strong>
-              </footer>
-              <span className="project-last-action">
-                {p.logs[0]
-                  ? `Última atualização: ${formatDate(p.logs[0].at)}`
-                  : "Pronto para começar"}
-              </span>
-              {p.demo && (
-                <span className="demo-label">Projeto de demonstração</span>
-              )}
-            </button>
+            </article>
           );
         })}
-        <button className="new-project-tile" onClick={onAdd}>
-          <span>
-            <Plus size={26} />
-          </span>
-          <strong>Nova implantação</strong>
-          <p>
-            Cadastre o município, suas entidades
-            <br />e organize os próximos passos.
-          </p>
-        </button>
+        {filter !== "closed" && (
+          <button className="new-project-tile" onClick={onAdd}>
+            <span>
+              <Plus size={26} />
+            </span>
+            <strong>Nova implantação</strong>
+            <p>
+              Cadastre o município, suas entidades
+              <br />e organize os próximos passos.
+            </p>
+          </button>
+        )}
       </div>
       {!projects.length && (
         <p className="no-project-result">
-          Nenhum município encontrado para esta busca.
+          {query
+            ? "Nenhum município encontrado para esta busca."
+            : filter === "closed"
+              ? "Nenhum projeto encerrado."
+              : !data.projects.length
+                ? "Seu workspace está vazio. Crie um município ou importe seus dados para começar."
+                : "Nenhum projeto ativo. Seus projetos concluídos estão em Encerrados."}
         </p>
       )}
       <div className="home-note">

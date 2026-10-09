@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures/test.js";
 
 async function openProject(page) {
   await page.goto("/");
@@ -461,7 +461,7 @@ test("perfil aplica cor principal e True Black, persiste e cancela a prévia", a
         .trim(),
     ),
   ).toBe("#7c3aed");
-  await expect(page.locator(".page-footer")).toContainText("v1.3.0");
+  await expect(page.locator(".page-footer")).toContainText("v1.4.0");
 });
 
 test("categorias, módulos e número aparecem nos cartões; prioridade ordena todas as fases", async ({

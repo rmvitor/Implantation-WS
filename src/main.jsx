@@ -55,7 +55,11 @@ import {
   checklistProgress,
   moveTask,
   matchesTask,
-  createDemo,
+  createEmptyWorkspace,
+  isProjectClosed,
+  setProjectClosed,
+  deleteProject,
+  clearWorkspace,
   validateBackup,
   newActivity,
   saveActivity,
@@ -79,6 +83,7 @@ import "./workflow.css";
 import "./appearance.css";
 import "./homologation.css";
 import "./pwa.css";
+import "./projects.css";
 import { usePwa, PwaControls, InstallModal } from "./PwaControls";
 import { Homologation } from "./Homologation";
 import { BoardScroller } from "./BoardScroller";
@@ -107,9 +112,9 @@ const stageIcons = {
 function loadState() {
   try {
     const saved = localStorage.getItem(STORAGE);
-    return saved ? validateBackup(JSON.parse(saved)) : createDemo();
+    return saved ? validateBackup(JSON.parse(saved)) : createEmptyWorkspace();
   } catch {
-    return createDemo();
+    return createEmptyWorkspace();
   }
 }
 function App() {
@@ -117,6 +122,7 @@ function App() {
   const pwa = usePwa();
   const [homologationEditing, setHomologationEditing] = useState(false);
   const [view, setView] = useState("municipalities");
+  const [projectFilter, setProjectFilter] = useState("active");
   const [modal, setModal] = useState(null);
   const [search, setSearch] = useState("");
   const [module, setModule] = useState("");
@@ -163,10 +169,15 @@ function App() {
     cardPositions.current.clear();
   }, [data]);
   const project =
-    data.projects.find((p) => p.id === data.selectedId) || data.projects[0];
-  const taskOrder = data.boardOrders?.[project.id] || "manual";
+    data.projects.find((p) => p.id === data.selectedId) ||
+    data.projects.find((p) => !isProjectClosed(p)) ||
+    null;
+  const projectId = project?.id || "";
+  const projectTasks = project?.tasks || [];
+  const projectTrainings = project?.trainings || [];
+  const taskOrder = data.boardOrders?.[projectId] || "manual";
   const tasks = sortActivities(
-    project.tasks.filter(
+    projectTasks.filter(
       (t) =>
         matchesTask(t, search, module, priority) &&
         (!typeFilter || t.type === typeFilter),
@@ -174,29 +185,29 @@ function App() {
     taskOrder,
   );
   const boardView = ["kanban", "list", "table", "calendar"].includes(
-    data.boardViews?.[project.id],
+    data.boardViews?.[projectId],
   )
-    ? data.boardViews[project.id]
+    ? data.boardViews[projectId]
     : "kanban";
   const setBoardView = (value) =>
     setData((d) => ({
       ...d,
-      boardViews: { ...d.boardViews, [project.id]: value },
+      boardViews: { ...d.boardViews, [projectId]: value },
     }));
-  const done = project.tasks.filter(
+  const done = projectTasks.filter(
     (t) => t.stage === "concluido" && isValidated(t),
   ).length;
-  const progress = project.tasks.length
-    ? Math.round((done / project.tasks.length) * 100)
+  const progress = projectTasks.length
+    ? Math.round((done / projectTasks.length) * 100)
     : 0;
   const today = localDate();
   const todayEvents = [
-    ...project.tasks.filter((t) => t.stage !== "concluido" && t.date === today),
-    ...project.trainings.filter(
+    ...projectTasks.filter((t) => t.stage !== "concluido" && t.date === today),
+    ...projectTrainings.filter(
       (t) => t.date === today && t.status !== "Realizado",
     ),
   ];
-  const openTickets = project.tasks.filter(
+  const openTickets = projectTasks.filter(
     (t) => t.type === "chamado" && t.stage !== "concluido",
   ).length;
   const setData = (update) => {
@@ -223,7 +234,7 @@ function App() {
     setData((d) => ({
       ...d,
       projects: d.projects.map((p) =>
-        p.id === project.id
+        p.id === projectId
           ? typeof updater === "function"
             ? updater(p)
             : updater
@@ -236,7 +247,7 @@ function App() {
     setSidebar(false);
   };
   const move = (id, stage) => {
-    const task = project.tasks.find((t) => t.id === id);
+    const task = projectTasks.find((t) => t.id === id);
     if (!task || task.stage === stage) return;
     if (stage === "concluido") {
       setModal({ type: "task", task: { ...task, stage }, isNew: false });
@@ -288,7 +299,7 @@ function App() {
     setPriority("");
     setTypeFilter("");
   };
-  const nextTraining = project.trainings
+  const nextTraining = projectTrainings
     .filter((t) => t.status !== "Realizado" && t.date >= today)
     .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))[0];
   const pageNames = {
@@ -342,18 +353,21 @@ function App() {
           <NavItem
             icon={LayoutDashboard}
             text="Quadro do município"
+            disabled={!project}
             active={view === "board" || view === "details"}
             onClick={() => changeView("board")}
           />
           <NavItem
             icon={FileCheck2}
             text="Homologação"
+            disabled={!project}
             active={view === "homologation"}
             onClick={() => changeView("homologation")}
           />
           <NavItem
             icon={CalendarDays}
             text="Minha agenda"
+            disabled={!project}
             badge={todayEvents.length || null}
             active={view === "agenda"}
             onClick={() => changeView("agenda")}
@@ -361,12 +375,14 @@ function App() {
           <NavItem
             icon={GraduationCap}
             text="Treinamentos"
+            disabled={!project}
             active={view === "trainings"}
             onClick={() => changeView("trainings")}
           />
           <NavItem
             icon={Clock3}
             text="Histórico"
+            disabled={!project}
             active={view === "history"}
             onClick={() => changeView("history")}
           />
@@ -381,20 +397,22 @@ function App() {
           </button>
         </div>
         <div className="project-nav">
-          {data.projects.map((p, i) => (
-            <button
-              key={p.id}
-              className={p.id === project.id ? "selected" : ""}
-              onClick={() => {
-                selectProject(p.id);
-                changeView("board");
-              }}
-            >
-              <span className={`project-dot dot-${i % 3}`} />
-              {p.name}
-              {p.id === project.id && <span className="selected-dot" />}
-            </button>
-          ))}
+          {data.projects
+            .filter((p) => !isProjectClosed(p))
+            .map((p, i) => (
+              <button
+                key={p.id}
+                className={p.id === projectId ? "selected" : ""}
+                onClick={() => {
+                  selectProject(p.id);
+                  changeView("board");
+                }}
+              >
+                <span className={`project-dot dot-${i % 3}`} />
+                {p.name}
+                {p.id === projectId && <span className="selected-dot" />}
+              </button>
+            ))}
         </div>
         <div className="sidebar-bottom">
           <div className="sidebar-tip">
@@ -478,10 +496,31 @@ function App() {
           </div>
         </header>
         <div className="page-content">
-          {view === "municipalities" ? (
+          {view === "municipalities" || !project ? (
             <>
               <ProjectsHome
                 data={data}
+                filter={projectFilter}
+                onFilter={setProjectFilter}
+                onImport={() => fileRef.current.click()}
+                onCloseProject={(id) =>
+                  setModal({
+                    type: "closeProject",
+                    project: data.projects.find((p) => p.id === id),
+                  })
+                }
+                onReopenProject={(id) => {
+                  if (setData((d) => setProjectClosed(d, id, false))) {
+                    setProjectFilter("active");
+                    setToast("Projeto reaberto.");
+                  }
+                }}
+                onDeleteProject={(id) =>
+                  setModal({
+                    type: "deleteProject",
+                    project: data.projects.find((p) => p.id === id),
+                  })
+                }
                 onOpen={(id) => {
                   selectProject(id);
                   changeView("board");
@@ -494,7 +533,10 @@ function App() {
               <div className="page-heading">
                 <div>
                   <div className="eyebrow">
-                    <span className="live-dot" /> IMPLANTAÇÃO EM ANDAMENTO
+                    <span className="live-dot" />{" "}
+                    {isProjectClosed(project)
+                      ? "PROJETO ENCERRADO"
+                      : "IMPLANTAÇÃO EM ANDAMENTO"}
                   </div>
                   <div className="title-row">
                     <h1>
@@ -522,6 +564,37 @@ function App() {
                   </p>
                 </div>
                 <div className="heading-actions">
+                  {isProjectClosed(project) ? (
+                    <button
+                      className="button secondary"
+                      onClick={() => {
+                        if (
+                          setData((d) => setProjectClosed(d, project.id, false))
+                        ) {
+                          setProjectFilter("active");
+                          setToast("Projeto reaberto.");
+                        }
+                      }}
+                    >
+                      Reabrir projeto
+                    </button>
+                  ) : (
+                    <button
+                      className="button secondary"
+                      onClick={() =>
+                        setModal({ type: "closeProject", project })
+                      }
+                    >
+                      Encerrar projeto
+                    </button>
+                  )}
+                  <button
+                    className="icon-button project-delete-button"
+                    aria-label="Excluir projeto"
+                    onClick={() => setModal({ type: "deleteProject", project })}
+                  >
+                    <Trash2 size={16} />
+                  </button>
                   <button
                     className="button secondary"
                     onClick={() =>
@@ -995,6 +1068,41 @@ function App() {
           </button>
         </div>
       )}
+      {["closeProject", "deleteProject", "clearWorkspace"].includes(
+        modal?.type,
+      ) && (
+        <ProjectActionModal
+          Modal={Modal}
+          Field={Field}
+          action={modal.type}
+          project={modal.project}
+          onClose={() => setModal(null)}
+          onExport={exportData}
+          onConfirm={() => {
+            const action = modal.type;
+            if (
+              setData((d) =>
+                action === "closeProject"
+                  ? setProjectClosed(d, modal.project.id, true)
+                  : action === "deleteProject"
+                    ? deleteProject(d, modal.project.id)
+                    : clearWorkspace(d),
+              )
+            ) {
+              setModal(null);
+              changeView("municipalities");
+              setProjectFilter("active");
+              setToast(
+                action === "closeProject"
+                  ? "Projeto encerrado. Histórico preservado."
+                  : action === "deleteProject"
+                    ? "Projeto excluído."
+                    : "Workspace limpo.",
+              );
+            }
+          }}
+        />
+      )}
       {modal?.type === "install" && (
         <InstallModal Modal={Modal} pwa={pwa} onClose={() => setModal(null)} />
       )}
@@ -1142,6 +1250,14 @@ function App() {
               <ArrowUpRight size={17} />
             </button>
           </div>
+          <button
+            className="text-danger workspace-clear-button"
+            disabled={!data.projects.length}
+            onClick={() => setModal({ type: "clearWorkspace" })}
+          >
+            <Trash2 size={16} />
+            Limpar workspace
+          </button>
           <p className="muted modal-note">
             Esta versão ainda não tem contas, sincronização entre pessoas ou
             integração automática com e-mail.
@@ -1223,9 +1339,13 @@ function App() {
   );
 }
 
-function NavItem({ icon: Icon, text, active, badge, onClick }) {
+function NavItem({ icon: Icon, text, active, badge, onClick, disabled }) {
   return (
-    <button className={`nav-item ${active ? "active" : ""}`} onClick={onClick}>
+    <button
+      disabled={disabled}
+      className={`nav-item ${active ? "active" : ""}`}
+      onClick={onClick}
+    >
       <Icon size={19} />
       <span>{text}</span>
       {badge && <b>{badge}</b>}
@@ -1606,6 +1726,7 @@ function TaskModal({ task, isNew, entities, onClose, onSave, onDelete }) {
                 onChange={(e) => patch("ticketStatus", e.target.value)}
               >
                 {[
+                  "Não informado",
                   "Aguardando retorno",
                   "Em análise",
                   "Em desenvolvimento",
@@ -1819,6 +1940,8 @@ function ProjectModal({ project, onClose, onSave }) {
       tasks: [],
       trainings: [],
       logs: [],
+      status: "active",
+      closedAt: null,
       demo: false,
     },
   );
@@ -2442,3 +2565,91 @@ function Empty({ icon: Icon, title, description, button, onClick }) {
 }
 
 createRoot(document.getElementById("root")).render(<App />);
+
+function ProjectActionModal({
+  Modal,
+  Field,
+  action,
+  project,
+  onClose,
+  onExport,
+  onConfirm,
+}) {
+  const [confirmation, setConfirmation] = useState("");
+  const closing = action === "closeProject";
+  const clearing = action === "clearWorkspace";
+  const expected = clearing ? "LIMPAR" : project?.name;
+  return (
+    <Modal
+      title={
+        closing
+          ? "Encerrar projeto?"
+          : clearing
+            ? "Limpar este workspace?"
+            : "Excluir projeto?"
+      }
+      subtitle={
+        clearing
+          ? "Somente os dados deste navegador/aparelho serão removidos."
+          : project.name
+      }
+      onClose={onClose}
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (closing || confirmation === expected) onConfirm();
+        }}
+      >
+        <p className="dialog-copy">
+          {closing
+            ? "O projeto sai dos ativos e fica em Encerrados, com tarefas, homologação e histórico preservados. Você poderá reabri-lo."
+            : clearing
+              ? "Todos os projetos, tarefas, treinamentos, homologações e históricos deste aparelho serão excluídos. Suas preferências de aparência serão mantidas."
+              : "O projeto e todas as suas tarefas, homologações, treinamentos e históricos serão excluídos deste aparelho."}
+        </p>
+        {!closing && (
+          <>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={onExport}
+            >
+              <Download size={16} />
+              Exportar backup antes de excluir
+            </button>
+            <Field
+              label={
+                clearing
+                  ? "Digite LIMPAR para confirmar"
+                  : "Digite o nome do projeto para confirmar"
+              }
+            >
+              <input
+                value={confirmation}
+                onChange={(e) => setConfirmation(e.target.value)}
+                autoComplete="off"
+              />
+            </Field>
+          </>
+        )}
+        <div className="modal-actions">
+          <button type="button" className="button secondary" onClick={onClose}>
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            className={closing ? "button primary" : "button danger"}
+            disabled={!closing && confirmation !== expected}
+          >
+            {closing
+              ? "Confirmar encerramento"
+              : clearing
+                ? "Confirmar limpeza"
+                : "Confirmar exclusão"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
