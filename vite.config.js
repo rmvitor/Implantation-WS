@@ -18,7 +18,7 @@ export default defineConfig({
         scope: "./",
         display: "standalone",
         background_color: "#000000",
-        theme_color: "#254e40",
+        theme_color: "#2563eb",
         icons: [
           {
             src: "icons/app-192.png",

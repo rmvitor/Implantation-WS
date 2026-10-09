@@ -107,7 +107,14 @@ export function createTeamService(client, onRefresh) {
                 .eq("id", id)
                 .single(),
             );
-            const merged = mergeProject(before.get(id), desired, latest.data);
+            // Use the same migration defaults as load() before comparing older
+            // records. Missing optional fields are not concurrent edits.
+            const remote = validateBackup({
+              version: 2,
+              selectedId: id,
+              projects: [latest.data],
+            }).projects[0];
+            const merged = mergeProject(before.get(id), desired, remote);
             validateBackup({ version: 2, selectedId: id, projects: [merged] });
             payload.push({
               id,

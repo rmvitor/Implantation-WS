@@ -38,7 +38,6 @@ import {
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
   Ticket,
   Trash2,
   Upload,
@@ -474,7 +473,7 @@ function App() {
           />
           <NavItem
             icon={GraduationCap}
-            text="Treinamento/Atendimento"
+            text="Capacitação e suporte"
             disabled={!project}
             active={view === "trainings"}
             onClick={() => changeView("trainings")}
@@ -515,15 +514,6 @@ function App() {
             ))}
         </div>
         <div className="sidebar-bottom">
-          <div className="sidebar-tip">
-            <span>
-              <Sparkles size={17} /> Menos burocracia.
-            </span>
-            <p>Mais clareza em cada etapa da implantação.</p>
-            <button onClick={() => setModal({ type: "help" })}>
-              Conheça seu workspace <ArrowUpRight size={15} />
-            </button>
-          </div>
           <button
             className="subtle-nav"
             onClick={() => setModal({ type: "backup" })}
@@ -1653,7 +1643,6 @@ function NavItem({ icon: Icon, text, active, badge, onClick, disabled }) {
       <Icon size={19} />
       <span>{text}</span>
       {badge && <b>{badge}</b>}
-      {active && <span className="nav-active-dot" />}
     </button>
   );
 }

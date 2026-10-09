@@ -7,6 +7,16 @@ const userId = "00000000-0000-4000-8000-000000000001";
 const jwt = (role) =>
   `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ sub: userId, role, exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url")}.test`;
 const config = { url: "https://test.supabase.co", key: jwt("anon") };
+const jsonb = (value) =>
+  Array.isArray(value)
+    ? value.map(jsonb)
+    : value && typeof value === "object"
+      ? Object.fromEntries(
+          Object.keys(value)
+            .sort()
+            .map((key) => [key, jsonb(value[key])]),
+        )
+      : value;
 async function setup(page, { role = "editor", loggedIn = true } = {}) {
   const demo = createDemo();
   const state = {
@@ -138,7 +148,7 @@ async function setup(page, { role = "editor", loggedIn = true } = {}) {
     await route.fulfill({
       status,
       contentType: "application/json",
-      body: status === 204 ? "" : JSON.stringify(data),
+      body: status === 204 ? "" : JSON.stringify(jsonb(data)),
     });
   });
   return state;
@@ -252,6 +262,76 @@ test("edição online combina alteração de colega; falha mantém o formulário
     await page.evaluate(() => localStorage.getItem("implanta.workspace.v1")),
   ).toBe(originalLocal);
 });
+test("excluir cartão online confirma a gravação, preserva histórico e outras alterações; falha mantém formulário", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  const deleted = state.row.data.tasks[0];
+  delete deleted.executedWork;
+  await openProject(page);
+  const localBefore = await page.evaluate(() =>
+    localStorage.getItem("implanta.workspace.v1"),
+  );
+  await page.locator(".task-card").filter({ hasText: deleted.title }).click();
+  state.row.data.tasks[1].nextAction = "Ação atualizada pelo colega";
+  state.row.version++;
+  await page.getByRole("button", { name: "Excluir", exact: true }).click();
+  state.fail = true;
+  await page.getByRole("button", { name: "Sim, excluir", exact: true }).click();
+  await expect(
+    page.getByText(/Não foi possível conectar ao banco/),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(state.row.data.tasks.some((t) => t.id === deleted.id)).toBe(true);
+  state.fail = false;
+  await page.getByRole("button", { name: "Sim, excluir", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(state.row.data.tasks.some((t) => t.id === deleted.id)).toBe(false);
+  expect(state.row.data.tasks[0].nextAction).toBe(
+    "Ação atualizada pelo colega",
+  );
+  expect(
+    state.row.data.logs.some(
+      (l) => l.title === deleted.title && l.action === "excluída",
+    ),
+  ).toBe(true);
+  await page.reload();
+  await page
+    .locator(".municipality-card")
+    .filter({ hasText: "Quatro Barras" })
+    .click();
+  await expect(
+    page.locator(".task-card").filter({ hasText: deleted.title }),
+  ).toHaveCount(0);
+  expect(
+    await page.evaluate(() => localStorage.getItem("implanta.workspace.v1")),
+  ).toBe(localBefore);
+});
+
+test("exclusão online conserva o cartão quando um colega altera o mesmo registro durante a confirmação", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  await openProject(page);
+  const writesBefore = state.writes;
+  const task = state.row.data.tasks[0];
+  await page.locator(".task-card").filter({ hasText: task.title }).click();
+  await page.getByRole("button", { name: "Excluir", exact: true }).click();
+  task.nextAction = "Alteração concorrente real";
+  state.row.version++;
+  await page.getByRole("button", { name: "Sim, excluir", exact: true }).click();
+  await expect(
+    page.getByText(/Outro colega alterou o mesmo campo/),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(
+    state.row.data.tasks.some(
+      (t) => t.id === task.id && t.nextAction === "Alteração concorrente real",
+    ),
+  ).toBe(true);
+  expect(state.writes).toBe(writesBefore);
+});
+
 test("administrador define permissão de projeto por usuário", async ({
   page,
 }) => {

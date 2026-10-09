@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 1.7.1 — 09/10/2026
+
+- Tema claro com texto e destaques mais fortes, superfícies neutras e navegação marcada por variações da cor escolhida no perfil.
+- Cor inicial azul; preferências de cor já salvas são mantidas. Avisos e fundos deixam de depender da antiga base verde; True Black preservado.
+- Menu lateral usa “Capacitação e suporte” e remove o bloco “Menos burocracia”.
+- Corrigida a exclusão de cartões online: comparação ignora a ordem das propriedades JSONB e normaliza campos opcionais antes de conferir alterações concorrentes.
+- Exclusão confirmada pelo banco preserva histórico e alterações independentes; falhas de conexão e edições simultâneas do mesmo cartão conservam o formulário.
+
 ## 1.7.0 — 09/10/2026
 
 - Agenda Treinamento/Atendimento com tipo de encontro, início e término por data e horário, duração calculada e link da sala.

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 
-export const DEFAULT_APPEARANCE = { theme: "light", primary: "#254e40" };
+export const DEFAULT_APPEARANCE = { theme: "light", primary: "#2563eb" };
 export function safeAppearance(value) {
   return {
     theme: value?.theme === "dark" ? "dark" : "light",
@@ -23,6 +23,10 @@ export function applyAppearance(value) {
     .querySelector('meta[name="theme-color"]')
     ?.setAttribute("content", theme === "dark" ? "#000000" : primary);
   root.style.setProperty("--primary", primary);
+  root.style.setProperty(
+    "--accent-text",
+    `color-mix(in srgb, ${primary}, ${theme === "dark" ? "#ffffff 65%" : luminance > 0.179 ? "#000000 65%" : "#000000 15%"})`,
+  );
   root.style.setProperty(
     "--on-primary",
     luminance > 0.179 ? "#111111" : "#ffffff",
@@ -78,23 +82,18 @@ export function ProfileSettings({ Modal, appearance, onClose, onSave }) {
             </div>
           </label>
           <div className="color-presets" aria-label="Cores sugeridas">
-            {[
-              "#254e40",
-              "#2563eb",
-              "#7c3aed",
-              "#be185d",
-              "#b45309",
-              "#0e7490",
-            ].map((color) => (
-              <button
-                type="button"
-                key={color}
-                style={{ background: color }}
-                aria-label={`Usar cor ${color}`}
-                aria-pressed={draft.primary === color}
-                onClick={() => setDraft((d) => ({ ...d, primary: color }))}
-              />
-            ))}
+            {["#2563eb", "#7c3aed", "#be185d", "#b45309", "#0e7490"].map(
+              (color) => (
+                <button
+                  type="button"
+                  key={color}
+                  style={{ background: color }}
+                  aria-label={`Usar cor ${color}`}
+                  aria-pressed={draft.primary === color}
+                  onClick={() => setDraft((d) => ({ ...d, primary: color }))}
+                />
+              ),
+            )}
           </div>
           <p className="muted">
             Veja a prévia enquanto escolhe. Suas preferências ficam salvas neste

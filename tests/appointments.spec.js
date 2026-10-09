@@ -26,7 +26,7 @@ test("sala remota por período permanece na agenda, conta hoje e ocupa todos os 
 }) => {
   await page.clock.install({ time: new Date("2026-10-09T12:00:00-03:00") });
   await openProject(page);
-  await menu(page, "Treinamento/Atendimento").click();
+  await menu(page, "Capacitação e suporte").click();
   await page
     .getByRole("button", { name: "Novo treinamento/atendimento", exact: true })
     .click();
@@ -103,7 +103,7 @@ test("período invertido mantém o formulário; atendimento salvo preserva inter
   page,
 }) => {
   await openProject(page);
-  await menu(page, "Treinamento/Atendimento").click();
+  await menu(page, "Capacitação e suporte").click();
   await page
     .getByRole("button", { name: "Novo treinamento/atendimento", exact: true })
     .click();
@@ -149,7 +149,7 @@ test("período invertido mantém o formulário; atendimento salvo preserva inter
     .locator(".municipality-card")
     .filter({ hasText: "Quatro Barras" })
     .click();
-  await menu(page, "Treinamento/Atendimento").click();
+  await menu(page, "Capacitação e suporte").click();
   await page
     .locator(".training-card")
     .filter({ hasText: "Conferência remota" })
@@ -168,7 +168,7 @@ test("celular edita treinamento antigo sem perder notas e infere término a part
   await page.setViewportSize({ width: 390, height: 844 });
   await openProject(page);
   await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
-  await menu(page, "Treinamento/Atendimento").click();
+  await menu(page, "Capacitação e suporte").click();
   await page
     .locator(".training-card")
     .filter({ hasText: "Compras e contratos" })

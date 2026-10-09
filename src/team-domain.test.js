@@ -5,6 +5,7 @@ import {
   CollaborationConflict,
   validateConnection,
   workspacePreferences,
+  same,
 } from "./team-domain.js";
 import { createTeamService } from "./team-service.js";
 import { createEmptyWorkspace, newActivity } from "./domain.js";
@@ -182,4 +183,39 @@ test("conflito de campo não grava; queda depois da confirmação não apresenta
   const saved = await service.commit(current, updated);
   assert.equal(saved.projects[0].tasks[0].title, "Confirmado");
   assert.match(service.warning, /Alteração salva/);
+});
+
+test("comparação de dados ignora a ordem das propriedades do JSONB e conserva a ordem das listas", () => {
+  assert.equal(
+    same({ a: 1, b: { c: 2, d: 3 } }, { b: { d: 3, c: 2 }, a: 1 }),
+    true,
+  );
+  assert.equal(same([1, 2], [2, 1]), false);
+  assert.equal(same({ a: 1 }, { a: 2 }), false);
+  assert.equal(same(null, {}), false);
+});
+
+test("exclusão online aceita cartão antigo normalizado e JSONB reordenado sem perder alteração de colega", async () => {
+  const stored = base();
+  delete stored.tasks[0].executedWork;
+  stored.tasks[0] = Object.fromEntries(
+    Object.entries(stored.tasks[0]).sort(([a], [b]) => a.localeCompare(b)),
+  );
+  const client = fakeClient(stored),
+    service = createTeamService(client, () => {});
+  const original = await service.load(),
+    next = structuredClone(original);
+  next.projects[0].tasks = [];
+  next.projects[0].logs.push({
+    id: "deleted",
+    title: "Conferir dados",
+    action: "excluída",
+    at: "2026-10-09T12:00:00Z",
+  });
+  client.remote((p) => ({ ...p, name: "Nome atualizado pelo colega" }));
+  const saved = await service.commit(original, next);
+  assert.equal(saved.projects[0].tasks.length, 0);
+  assert.equal(saved.projects[0].name, "Nome atualizado pelo colega");
+  assert.equal(saved.projects[0].logs[0].action, "excluída");
+  assert.equal(client.calls, 1);
 });

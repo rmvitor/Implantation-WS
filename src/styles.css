@@ -5,10 +5,10 @@
   font-synthesis: none;
   font-size: 13px;
   font-weight: 450;
-  --green: #254e40;
-  --muted: #829087;
-  --border: #e5e9e3;
-  --background: #f6f7f4;
+  --green: var(--primary);
+  --muted: #667085;
+  --border: #d9dfe8;
+  --background: #f5f6f8;
 }
 * {
   box-sizing: border-box;
@@ -533,7 +533,7 @@ h1 {
   background: var(--palette-bg-325b40);
   color: var(--palette-fg-f4f8ed);
   border: 1px solid var(--palette-edge-325b40);
-  box-shadow: 0 2px 3px #264a2710;
+  box-shadow: 0 2px 3px #11182710;
 }
 .primary:hover {
   background: var(--palette-bg-25472f);
@@ -544,7 +544,7 @@ h1 {
   background: var(--palette-bg-ffffff);
   border: 1px solid var(--palette-edge-dfe5da);
   color: var(--palette-fg-58634f);
-  box-shadow: 0 1px 2px #263d2510;
+  box-shadow: 0 1px 2px #11182710;
 }
 .secondary:hover {
   background: var(--palette-bg-f0f4ec);
@@ -578,7 +578,7 @@ h1 {
   border-radius: 9px;
   padding: 16px 17px 14px;
   position: relative;
-  box-shadow: 0 2px 4px #25302003;
+  box-shadow: 0 2px 4px #11182703;
   min-height: 128px;
 }
 .stat-card.clickable {
@@ -586,7 +586,7 @@ h1 {
 }
 .stat-card.clickable:hover {
   border-color: var(--palette-edge-bccdb3);
-  box-shadow: 0 4px 12px #31472c09;
+  box-shadow: 0 4px 12px #11182709;
 }
 .stat-label {
   display: flex;
@@ -802,7 +802,7 @@ h1 {
 }
 .search-input:focus-within {
   border-color: var(--palette-edge-8ba277);
-  box-shadow: 0 0 0 2px #8ba27720;
+  box-shadow: 0 0 0 2px #11182720;
 }
 .search-input button {
   padding: 0;
@@ -893,7 +893,7 @@ select {
   overflow-x: auto;
   padding-bottom: 8px;
   scrollbar-width: thin;
-  scrollbar-color: #cbd6bd transparent;
+  scrollbar-color: var(--border) transparent;
 }
 .kanban-column {
   border-radius: 8px;
@@ -961,14 +961,14 @@ select {
   background: var(--palette-bg-ffffff);
   border: 1px solid var(--palette-edge-e0e6d9);
   border-radius: 7px;
-  box-shadow: 0 2px 3px #3c4c2d05;
+  box-shadow: 0 2px 3px #11182705;
   padding: 12px 11px 10px;
   cursor: grab;
   position: relative;
 }
 .task-card:hover {
   border-color: var(--palette-edge-b2c4a4);
-  box-shadow: 0 4px 9px #3a513b0a;
+  box-shadow: 0 4px 9px #1118270a;
   transform: translateY(-2px);
 }
 .task-card:active {
@@ -1223,7 +1223,7 @@ select {
   background: var(--palette-bg-ffffff);
   border-radius: 10px;
   padding: 24px;
-  box-shadow: 0 3px 8px #24402003;
+  box-shadow: 0 3px 8px #11182703;
   margin-top: 12px;
 }
 .panel-heading {
@@ -1263,7 +1263,7 @@ select {
 .segmented button.active {
   background: var(--palette-bg-ffffff);
   color: var(--palette-fg-45643b);
-  box-shadow: 0 1px 3px #27422512;
+  box-shadow: 0 1px 3px #11182712;
 }
 .agenda-group {
   margin-top: 25px;
@@ -1364,7 +1364,7 @@ select {
 }
 .training-card:hover {
   border-color: var(--palette-edge-a1b58d);
-  box-shadow: 0 4px 15px #4a613b0a;
+  box-shadow: 0 4px 15px #1118270a;
 }
 .training-card > div {
   display: flex;
@@ -1570,7 +1570,7 @@ select {
 .municipality-card:hover {
   transform: translateY(-3px);
   border-color: var(--palette-edge-b0c39e);
-  box-shadow: 0 5px 15px #3e562e10;
+  box-shadow: 0 5px 15px #11182710;
 }
 .municipality-icon {
   background: var(--palette-bg-edf3e5);
@@ -1653,7 +1653,7 @@ select {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: #142e2580;
+  background: #11182780;
   backdrop-filter: blur(5px);
   display: flex;
   align-items: center;
@@ -1669,7 +1669,7 @@ select {
   background: var(--palette-bg-fcfdf9);
   border: 1px solid var(--palette-edge-dbe4d3);
   border-radius: 13px;
-  box-shadow: 0 20px 60px #16332740;
+  box-shadow: 0 20px 60px #11182740;
   display: flex;
   flex-direction: column;
 }
@@ -2017,7 +2017,7 @@ select {
   color: var(--palette-fg-f4f8ed);
   padding: 14px 17px;
   border-radius: 8px;
-  box-shadow: 0 6px 25px #1d392e30;
+  box-shadow: 0 6px 25px #11182730;
   max-width: calc(100% - 30px);
   font-size: 12px;
   animation: fadeIn 0.2s;
@@ -2034,7 +2034,7 @@ select {
 .nav-scrim {
   position: fixed;
   inset: 0;
-  background: #153b3266;
+  background: #11182766;
   z-index: 29;
 }
 .nav-scrim,
