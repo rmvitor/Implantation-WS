@@ -2,6 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createDemo,
+  homologationId,
+  homologationMatrix,
+  homologationProgress,
+  configureHomologation,
+  saveHomologationEntry,
+  releaseHomologation,
+  updateProjectEntities,
   sortActivities,
   cardSummary,
   newActivity,
@@ -191,4 +198,155 @@ test("prioridade ordena sem alterar ordem original, categorias e números sobrev
   assert.equal(restored.projects[0].tasks[2].type, "pendencia");
   assert.equal(restored.projects[0].tasks[2].ticket, "904321");
   assert.equal(restored.projects[0].tasks[3].type, "agenda");
+});
+
+test("homologação considera apenas os módulos e entidades previstos e não aproveita OKs do quadro", () => {
+  const project = createDemo().projects[0];
+  assert.deepEqual(homologationProgress(project), {
+    total: 0,
+    done: 0,
+    issues: 0,
+    ready: false,
+    released: false,
+    percent: 0,
+  });
+  const selected = [
+    homologationId("Patrimônio", "Prefeitura"),
+    homologationId("Frota", "Fundo de Saúde"),
+  ];
+  const configured = configureHomologation(project, selected);
+  assert.equal(homologationProgress(configured).total, 2);
+  assert.equal(homologationProgress(configured).done, 0);
+  assert.deepEqual(configured.tasks, project.tasks);
+  assert.throws(
+    () => releaseHomologation(configured, "Vitor"),
+    /todos os módulos/,
+  );
+  assert.throws(
+    () =>
+      configureHomologation(project, [
+        homologationId("Frota", "Entidade inexistente"),
+      ]),
+    /deste projeto/,
+  );
+});
+function approved(project, id) {
+  const entry = homologationMatrix(project).find((e) => e.id === id);
+  return {
+    ...entry,
+    status: "ok",
+    checks: entry.checks.map((c) => ({ ...c, done: true })),
+    validatedBy: "Vitor",
+    evidence: "Relatório antigo e novo comparados, totais conciliados.",
+  };
+}
+test("OK exige conferência, responsável e referência; liberação conserva evidências no histórico", () => {
+  const id = homologationId("Patrimônio", "Prefeitura");
+  let project = configureHomologation(createDemo().projects[0], [id]);
+  const draft = approved(project, id);
+  assert.throws(
+    () => saveHomologationEntry(project, { ...draft, checks: [] }),
+    /conferência/,
+  );
+  assert.throws(
+    () =>
+      saveHomologationEntry(project, {
+        ...draft,
+        checks: draft.checks.map((c) => ({ ...c, done: false })),
+      }),
+    /conferência/,
+  );
+  assert.throws(
+    () => saveHomologationEntry(project, { ...draft, validatedBy: " " }),
+    /inválida|quem/,
+  );
+  project = saveHomologationEntry(
+    project,
+    draft,
+    false,
+    "2026-10-09T12:00:00Z",
+  );
+  assert.equal(homologationProgress(project).ready, true);
+  assert.throws(() => releaseHomologation(project, " "), /quem/);
+  const released = releaseHomologation(
+    project,
+    "Colega",
+    "2026-10-09T13:00:00Z",
+  );
+  assert.equal(homologationProgress(released).released, true);
+  assert.equal(released.logs[0].validation.by, "Colega");
+  assert.match(released.logs[0].validation.evidence, /Patrimônio · Prefeitura/);
+  const reopened = saveHomologationEntry(released, {
+    ...draft,
+    status: "pending",
+  });
+  assert.equal(homologationProgress(reopened).released, false);
+  assert.equal(homologationProgress(reopened).done, 0);
+  assert.equal(reopened.logs[1].validation.by, "Colega");
+});
+test("alteração de escopo ou entidades reabre liberação e preserva OKs das combinações mantidas", () => {
+  const first = homologationId("Patrimônio", "Prefeitura");
+  const second = homologationId("Frota", "Prefeitura");
+  let project = configureHomologation(createDemo().projects[0], [first]);
+  project = saveHomologationEntry(project, approved(project, first));
+  project = releaseHomologation(project, "Vitor");
+  const changed = configureHomologation(project, [first, second]);
+  assert.equal(homologationProgress(changed).done, 1);
+  assert.equal(homologationProgress(changed).ready, false);
+  assert.equal(changed.homologation.release, null);
+  const removed = updateProjectEntities(project, {
+    ...project,
+    entities: ["Fundo de Saúde"],
+  });
+  assert.equal(removed.homologation.release, null);
+  assert.equal(homologationProgress(removed).total, 0);
+  const restored = updateProjectEntities(removed, {
+    ...removed,
+    entities: project.entities,
+  });
+  assert.equal(homologationProgress(restored).released, false);
+  assert.equal(homologationProgress(restored).done, 1);
+});
+test("divergência gera pendência vinculada uma única vez, sem alterar resultado automaticamente", () => {
+  const id = homologationId("Almoxarifado", "Prefeitura");
+  const project = configureHomologation(createDemo().projects[0], [id]);
+  const entry = homologationMatrix(project).find((e) => e.id === id);
+  const draft = {
+    ...entry,
+    status: "issue",
+    notes: "Saldo de material divergente",
+  };
+  const changed = saveHomologationEntry(project, draft, true);
+  assert.equal(changed.tasks.length, project.tasks.length + 1);
+  const linked = changed.tasks.at(-1);
+  assert.equal(linked.type, "pendencia");
+  assert.equal(linked.homologationEntryId, id);
+  assert.equal(homologationProgress(changed).issues, 1);
+  const repeated = saveHomologationEntry(changed, draft, true);
+  assert.equal(repeated.tasks.length, changed.tasks.length);
+  const completed = saveActivity(repeated, {
+    ...linked,
+    stage: "concluido",
+    criterion: "Conferir saldo",
+    validation: { by: "Colega", at: "2026-10-09", evidence: "Saldo corrigido" },
+  });
+  assert.equal(homologationProgress(completed).done, 0);
+});
+test("backup de homologação preserva escopo, rotinas e liberação e rejeita aprovações incompletas", () => {
+  const id = homologationId("Elicita", "Prefeitura");
+  const data = createDemo();
+  let project = configureHomologation(data.projects[0], [id]);
+  project = saveHomologationEntry(project, approved(project, id));
+  data.projects[0] = releaseHomologation(project, "Vitor");
+  assert.deepEqual(validateBackup(JSON.parse(JSON.stringify(data))), data);
+  const invalid = structuredClone(data);
+  invalid.projects[0].homologation.entries.find(
+    (e) => e.id === id,
+  ).checks[0].done = false;
+  assert.throws(() => validateBackup(invalid), /homologação/);
+  const duplicate = structuredClone(data);
+  duplicate.projects[0].homologation.entries.push(
+    duplicate.projects[0].homologation.entries[0],
+  );
+  assert.throws(() => validateBackup(duplicate), /homologação/);
 });

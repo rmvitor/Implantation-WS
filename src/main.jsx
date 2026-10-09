@@ -60,6 +60,7 @@ import {
   newActivity,
   saveActivity,
   isValidated,
+  updateProjectEntities,
 } from "./domain";
 import "@fontsource-variable/dm-sans";
 import "@fontsource-variable/manrope";
@@ -76,6 +77,10 @@ import { HandoffFields } from "./HandoffFields";
 import "./styles.css";
 import "./workflow.css";
 import "./appearance.css";
+import "./homologation.css";
+import "./pwa.css";
+import { usePwa, PwaControls, InstallModal } from "./PwaControls";
+import { Homologation } from "./Homologation";
 import { BoardScroller } from "./BoardScroller";
 import { ProfileSettings, applyAppearance } from "./ProfileSettings";
 import { version as appVersion } from "../package.json";
@@ -109,6 +114,8 @@ function loadState() {
 }
 function App() {
   const [data, applyData] = useState(loadState);
+  const pwa = usePwa();
+  const [homologationEditing, setHomologationEditing] = useState(false);
   const [view, setView] = useState("municipalities");
   const [modal, setModal] = useState(null);
   const [search, setSearch] = useState("");
@@ -287,6 +294,7 @@ function App() {
   const pageNames = {
     board: "Quadro do município",
     municipalities: "Projetos e municípios",
+    homologation: "Homologação da migração",
     agenda: "Minha agenda",
     trainings: "Treinamentos",
     history: "Histórico de execução",
@@ -336,6 +344,12 @@ function App() {
             text="Quadro do município"
             active={view === "board" || view === "details"}
             onClick={() => changeView("board")}
+          />
+          <NavItem
+            icon={FileCheck2}
+            text="Homologação"
+            active={view === "homologation"}
+            onClick={() => changeView("homologation")}
           />
           <NavItem
             icon={CalendarDays}
@@ -404,6 +418,11 @@ function App() {
           >
             <CircleHelp size={18} /> Ajuda e fluxo de trabalho
           </button>
+          <PwaControls
+            pwa={pwa}
+            editing={!!modal || homologationEditing}
+            onInstall={() => setModal({ type: "install" })}
+          />
           <button
             className="profile"
             aria-label="Configurações do perfil"
@@ -499,7 +518,7 @@ function App() {
                       ? "Tudo o que você precisa para fazer a implantação acontecer."
                       : view === "details"
                         ? "Informações e contatos sempre à mão."
-                        : `${project.name} · ${view === "trainings" ? "Capacitação em uma agenda própria, fora do quadro de execução." : view === "history" ? "Um registro de tudo o que foi feito, sem trabalho extra." : "Seus próximos passos, organizados por data."}`}
+                        : `${project.name} · ${view === "trainings" ? "Capacitação em uma agenda própria, fora do quadro de execução." : view === "homologation" ? "Conferência e liberação dos dados migrados por módulo e entidade." : view === "history" ? "Um registro de tudo o que foi feito, sem trabalho extra." : "Seus próximos passos, organizados por data."}`}
                   </p>
                 </div>
                 <div className="heading-actions">
@@ -514,19 +533,21 @@ function App() {
                       {view === "details" ? "Ver quadro" : "Dados do município"}
                     </span>
                   </button>
-                  <button
-                    className="button primary"
-                    onClick={() =>
-                      view === "trainings"
-                        ? setModal({ type: "training", isNew: true })
-                        : newTask("todo", view === "agenda" ? today : "")
-                    }
-                  >
-                    <Plus size={17} />
-                    {view === "trainings"
-                      ? "Novo treinamento"
-                      : "Nova atividade"}
-                  </button>
+                  {view !== "homologation" && (
+                    <button
+                      className="button primary"
+                      onClick={() =>
+                        view === "trainings"
+                          ? setModal({ type: "training", isNew: true })
+                          : newTask("todo", view === "agenda" ? today : "")
+                      }
+                    >
+                      <Plus size={17} />
+                      {view === "trainings"
+                        ? "Novo treinamento"
+                        : "Nova atividade"}
+                    </button>
+                  )}
                 </div>
               </div>
               {project.demo && (
@@ -628,6 +649,9 @@ function App() {
                     <div className="board-tabs">
                       <button className="active">
                         <LayoutDashboard size={16} /> Atividades do projeto
+                      </button>
+                      <button onClick={() => changeView("homologation")}>
+                        <FileCheck2 size={16} /> Homologação
                       </button>
                       <button onClick={() => changeView("agenda")}>
                         <CalendarDays size={16} /> Agenda
@@ -892,6 +916,24 @@ function App() {
                   </div>
                 </>
               )}
+              {view === "homologation" && (
+                <Homologation
+                  key={project.id}
+                  project={project}
+                  Modal={Modal}
+                  Field={Field}
+                  onUpdate={updateProject}
+                  onEditing={setHomologationEditing}
+                  onError={setToast}
+                  onTask={(id) => {
+                    const task = project.tasks.find((t) => t.id === id);
+                    if (task) setModal({ type: "task", task, isNew: false });
+                  }}
+                  onEditProject={() =>
+                    setModal({ type: "project", isNew: false })
+                  }
+                />
+              )}
               {view === "agenda" && (
                 <Agenda
                   project={project}
@@ -953,6 +995,9 @@ function App() {
           </button>
         </div>
       )}
+      {modal?.type === "install" && (
+        <InstallModal Modal={Modal} pwa={pwa} onClose={() => setModal(null)} />
+      )}
       {modal?.type === "profile" && (
         <ProfileSettings
           Modal={Modal}
@@ -1006,7 +1051,7 @@ function App() {
                   selectedId: p.id,
                   projects: [...d.projects, p],
                 }))
-              : updateProject(p);
+              : updateProject(updateProjectEntities(project, p));
             if (saved) {
               if (modal.isNew) setView("board");
               setModal(null);

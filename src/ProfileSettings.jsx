@@ -19,6 +19,9 @@ export function applyAppearance(value) {
   const luminance = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
   const root = document.documentElement;
   root.dataset.theme = theme;
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", theme === "dark" ? "#000000" : primary);
   root.style.setProperty("--primary", primary);
   root.style.setProperty(
     "--on-primary",

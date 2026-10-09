@@ -426,6 +426,7 @@ export function validateBackup(value) {
       !Array.isArray(p.logs)
     )
       throw new Error("Backup inválido: dados do município incompletos.");
+    if (p.homologation !== undefined) validateHomologation(p.homologation);
     ids.add(p.id);
     const taskIds = new Set();
     for (const t of p.tasks) {
@@ -539,4 +540,323 @@ export function validateBackup(value) {
       ? value.selectedId
       : value.projects[0].id,
   });
+}
+
+// Homologação da migração é independente das atividades do quadro.
+export const HOMOLOGATION_STATUS = {
+  pending: "A conferir",
+  issue: "Divergência",
+  ok: "OK",
+};
+const migrationData = {
+  "Compras e Contratos":
+    "Comparar processos, contratos, fornecedores e valores migrados",
+  Almoxarifado: "Comparar materiais, entradas, saídas e saldos de estoque",
+  Patrimônio: "Comparar bens, valores, baixas e depreciações",
+  Frota: "Comparar veículos, abastecimentos, manutenções e históricos",
+  "Fiscalização de contrato":
+    "Comparar fiscais, vínculos, ocorrências e medições de contratos",
+  Elicita: "Comparar licitações, participantes, itens e resultados migrados",
+};
+export const homologationId = (module, entity) =>
+  JSON.stringify([module, entity]);
+export function newHomologationEntry(module, entity) {
+  return {
+    id: homologationId(module, entity),
+    module,
+    entity,
+    included: false,
+    status: "pending",
+    notes: "",
+    evidence: "",
+    validatedBy: "",
+    validatedAt: "",
+    taskId: "",
+    checks: [
+      {
+        id: "cadastros",
+        text: "Conferir os cadastros com o sistema anterior",
+        done: false,
+      },
+      { id: "dados", text: migrationData[module], done: false },
+      {
+        id: "relatorios",
+        text: "Comparar totais e relatórios de referência entre os sistemas",
+        done: false,
+      },
+    ],
+  };
+}
+export function homologationMatrix(project) {
+  const saved = new Map(
+    (project.homologation?.entries || []).map((e) => [e.id, e]),
+  );
+  return MODULES.flatMap((module) =>
+    [...new Set(project.entities)].map(
+      (entity) =>
+        saved.get(homologationId(module, entity)) ||
+        newHomologationEntry(module, entity),
+    ),
+  );
+}
+export function homologationProgress(project) {
+  const entries = homologationMatrix(project).filter((e) => e.included);
+  const done = entries.filter((e) => e.status === "ok").length;
+  const ready = entries.length > 0 && done === entries.length;
+  const release = project.homologation?.release;
+  // A edição/remoção de uma entidade também invalida uma liberação anterior.
+  const released =
+    ready &&
+    !!release &&
+    JSON.stringify(entries.map((e) => e.id).sort()) ===
+      JSON.stringify(release.scope.slice().sort());
+  return {
+    total: entries.length,
+    done,
+    issues: entries.filter((e) => e.status === "issue").length,
+    ready,
+    released,
+    percent: entries.length ? Math.round((done / entries.length) * 100) : 0,
+  };
+}
+export function configureHomologation(
+  project,
+  selections,
+  now = new Date().toISOString(),
+) {
+  const matrix = homologationMatrix(project);
+  const currentIds = new Set(matrix.map((e) => e.id));
+  const chosen = new Set(selections);
+  if (selections.some((id) => !currentIds.has(id)))
+    throw new Error("Selecione módulos e entidades deste projeto.");
+  const changed = matrix.some((e) => e.included !== chosen.has(e.id));
+  if (!changed) return project;
+  const entries = matrix.map((e) =>
+    e.included === chosen.has(e.id)
+      ? e
+      : {
+          ...e,
+          included: chosen.has(e.id),
+          status: "pending",
+          validatedBy: "",
+          validatedAt: "",
+        },
+  );
+  return {
+    ...project,
+    homologation: {
+      entries: [
+        ...(project.homologation?.entries || []).filter(
+          (e) => !currentIds.has(e.id),
+        ),
+        ...entries,
+      ],
+      release: null,
+    },
+    logs: [
+      {
+        id: uid(),
+        title: "Escopo da homologação",
+        action: `atualizado: ${chosen.size} conferência(s) de módulos por entidade`,
+        at: now,
+      },
+      ...project.logs,
+    ],
+  };
+}
+export function saveHomologationEntry(
+  project,
+  draft,
+  createIssue = false,
+  now = new Date().toISOString(),
+) {
+  const original = homologationMatrix(project).find((e) => e.id === draft.id);
+  if (!original?.included)
+    throw new Error("Esta combinação não está no escopo da migração.");
+  if (
+    !Object.hasOwn(HOMOLOGATION_STATUS, draft.status) ||
+    !validHomologationEntry(draft, false)
+  )
+    throw new Error("Conferência inválida.");
+  if (
+    draft.status === "ok" &&
+    (!draft.checks.length ||
+      draft.checks.some((c) => !c.done) ||
+      !draft.validatedBy.trim() ||
+      !draft.evidence.trim())
+  )
+    throw new Error(
+      "Para dar OK, conclua a conferência e informe quem validou e a referência comparada.",
+    );
+  let entry = {
+    ...draft,
+    module: original.module,
+    entity: original.entity,
+    included: true,
+    validatedBy: draft.status === "ok" ? draft.validatedBy.trim() : "",
+    validatedAt: draft.status === "ok" ? now : "",
+    taskId: original.taskId,
+  };
+  if (createIssue && draft.status === "issue" && !draft.notes.trim())
+    throw new Error("Descreva a divergência antes de criar a pendência.");
+  let updated = project;
+  if (
+    createIssue &&
+    draft.status === "issue" &&
+    !project.tasks.some((t) => t.id === entry.taskId)
+  ) {
+    const task = {
+      ...newActivity(),
+      title: `Corrigir migração de ${entry.module} — ${entry.entity}`,
+      module: entry.module,
+      type: "pendencia",
+      priority: "alta",
+      problem: draft.notes,
+      nextAction:
+        "Corrigir a divergência e repetir a conferência dos dados migrados.",
+      description: `Origem: homologação da migração · ${entry.entity}`,
+      homologationEntryId: entry.id,
+    };
+    updated = saveActivity(project, task, now);
+    entry.taskId = task.id;
+  }
+  return {
+    ...updated,
+    homologation: {
+      ...project.homologation,
+      release: null,
+      entries: [
+        ...(project.homologation?.entries || []).filter(
+          (e) => e.id !== entry.id,
+        ),
+        entry,
+      ],
+    },
+    logs: [
+      {
+        id: uid(),
+        title: `Homologação · ${entry.module} · ${entry.entity}`,
+        action:
+          entry.status === "ok"
+            ? "OK registrado"
+            : entry.status === "issue"
+              ? "divergência registrada"
+              : "conferência reaberta",
+        at: now,
+        ...(entry.status === "ok"
+          ? {
+              validation: {
+                by: entry.validatedBy,
+                at: now,
+                evidence: entry.evidence,
+              },
+              criterion: entry.checks.map((c) => c.text).join("; "),
+            }
+          : {}),
+      },
+      ...updated.logs,
+    ],
+  };
+}
+export function releaseHomologation(
+  project,
+  by,
+  now = new Date().toISOString(),
+) {
+  const progress = homologationProgress(project);
+  if (!progress.ready)
+    throw new Error(
+      "Dê OK em todos os módulos e entidades previstos antes de liberar.",
+    );
+  if (!by?.trim())
+    throw new Error("Informe quem está liberando a homologação.");
+  if (progress.released) return project;
+  const entries = homologationMatrix(project).filter((e) => e.included);
+  const release = { by: by.trim(), at: now, scope: entries.map((e) => e.id) };
+  return {
+    ...project,
+    homologation: { ...project.homologation, release },
+    logs: [
+      {
+        id: uid(),
+        title: `Homologação de ${project.name}`,
+        action: "liberada",
+        at: now,
+        validation: {
+          by: release.by,
+          at: now,
+          evidence: entries
+            .map((e) => `${e.module} · ${e.entity}: ${e.evidence}`)
+            .join("\n"),
+        },
+        criterion: `Todas as ${entries.length} conferências do escopo com OK`,
+      },
+      ...project.logs,
+    ],
+  };
+}
+function validHomologationEntry(e, checkApproval = true) {
+  return (
+    e &&
+    MODULES.includes(e.module) &&
+    typeof e.entity === "string" &&
+    e.id === homologationId(e.module, e.entity) &&
+    typeof e.included === "boolean" &&
+    Object.hasOwn(HOMOLOGATION_STATUS, e.status) &&
+    ["notes", "evidence", "validatedBy", "validatedAt", "taskId"].every(
+      (k) => typeof e[k] === "string",
+    ) &&
+    Array.isArray(e.checks) &&
+    e.checks.every(
+      (c) =>
+        c &&
+        typeof c.id === "string" &&
+        typeof c.text === "string" &&
+        !!c.text.trim() &&
+        typeof c.done === "boolean",
+    ) &&
+    new Set(e.checks.map((c) => c.id)).size === e.checks.length &&
+    (!checkApproval ||
+      e.status !== "ok" ||
+      (e.checks.length > 0 &&
+        e.checks.every((c) => c.done) &&
+        !!e.evidence.trim() &&
+        !!e.validatedBy.trim())) &&
+    (!e.validatedAt || !Number.isNaN(Date.parse(e.validatedAt)))
+  );
+}
+export function validateHomologation(value) {
+  if (
+    !value ||
+    !Array.isArray(value.entries) ||
+    !value.entries.every(
+      (e) => validHomologationEntry(e) && (e.status !== "ok" || e.validatedAt),
+    ) ||
+    new Set(value.entries.map((e) => e.id)).size !== value.entries.length ||
+    (value.release != null &&
+      (typeof value.release.by !== "string" ||
+        !value.release.by.trim() ||
+        typeof value.release.at !== "string" ||
+        Number.isNaN(Date.parse(value.release.at)) ||
+        !Array.isArray(value.release.scope) ||
+        !value.release.scope.length ||
+        !value.release.scope.every(
+          (id) =>
+            typeof id === "string" &&
+            value.entries.some(
+              (e) => e.id === id && e.included && e.status === "ok",
+            ),
+        )))
+  )
+    throw new Error("Backup inválido: homologação da migração.");
+}
+
+export function updateProjectEntities(previous, next) {
+  if (
+    !next.homologation ||
+    JSON.stringify([...new Set(previous.entities)].sort()) ===
+      JSON.stringify([...new Set(next.entities)].sort())
+  )
+    return next;
+  return { ...next, homologation: { ...next.homologation, release: null } };
 }

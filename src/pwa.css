@@ -1,0 +1,76 @@
+.pwa-controls {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+}
+.pwa-offline {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: #e6c694;
+  padding: 7px 10px;
+}
+.pwa-update {
+  color: #d4e8c2;
+}
+.install-guide {
+  display: grid;
+  gap: 18px;
+  line-height: 1.6;
+}
+.install-guide ol {
+  display: grid;
+  gap: 18px;
+  padding-left: 20px;
+  margin: 0;
+}
+.install-guide li {
+  padding-left: 5px;
+}
+.install-guide li span {
+  display: block;
+  color: var(--muted);
+  margin-top: 5px;
+}
+.install-offline-note {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.app-shell {
+  min-height: 100dvh;
+}
+.sidebar {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.page-footer {
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+}
+.sidebar > * {
+  flex-shrink: 0;
+}
+.board-tabs {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  .board-tabs {
+    gap: 10px 18px;
+  }
+}
+.topbar {
+  height: calc(72px + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.sidebar {
+  padding-top: calc(33px + env(safe-area-inset-top, 0px));
+}
+@media (max-width: 760px) {
+  .topbar {
+    height: calc(60px + env(safe-area-inset-top, 0px));
+  }
+  .sidebar {
+    padding-top: calc(25px + env(safe-area-inset-top, 0px));
+  }
+}

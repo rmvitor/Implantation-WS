@@ -28,7 +28,8 @@ A publicação do site é independente da publicação do ambiente de desenvolvi
 - **Situação de trabalho:** A fazer, Em andamento, Aguardando retorno, Em homologação e Concluídos. Qualquer atividade ou chamado pode circular entre essas situações.
 - **Categoria e módulo:** Chamado, Tarefa, Agenda e Pendência, independentes da situação. Os módulos de Suprimentos são Compras e Contratos, Almoxarifado, Patrimônio, Frota, Fiscalização de contrato e Elicita. Um chamado pode estar em andamento ou em homologação. Número, link do chamado e situação na fábrica continuam registrados; o cadastro é local, sem envio automático à fábrica.
 - **Passagem de trabalho:** responsável, prazo, problema, impacto, próxima ação, quem precisa agir agora, dependência, evidências e critério de conclusão. Os campos de contexto podem ser preenchidos aos poucos; o formulário mostra o que falta.
-- **Homologação:** um checklist independente para cada entidade. Itens podem ser adicionados, marcados ou removidos. Completar um checklist não conclui nem valida automaticamente a atividade.
+- **Homologação da migração:** tela própria com matriz de módulos × entidades. Em “Configurar migração”, selecione somente as combinações que recebem dados do sistema anterior. Cada conferência tem uma rotina ajustável, resultado (A conferir, Divergência ou OK), responsável, data e referência comparada. “Não migra” não exige OK. A liberação do módulo acompanha os OKs das suas entidades; a liberação geral exige todos os OKs previstos e registra o responsável no histórico. Alterar o escopo, editar as entidades ou reabrir uma conferência reabre a liberação, preservando o histórico. Divergências podem gerar pendências vinculadas no quadro; resolver a pendência não dá OK automaticamente nos dados.
+- **Checklists das atividades:** continuam disponíveis por entidade para rotinas do quadro. Não geram automaticamente OKs na homologação da migração.
 - **Evidências:** texto e links de exemplos/relatórios, link do chamado e até 3 arquivos de 1 MB por cartão (PNG, JPG, WebP, PDF ou TXT). Os anexos entram no backup. A aplicação verifica o limite local antes de salvar e mantém o formulário aberto se faltar espaço.
 - **Concluídos e histórico:** a conclusão exige critério, nome de quem validou, data e evidência da validação. Esse registro é copiado para o histórico. Reabrir uma atividade remove a validação atual, mas preserva o registro histórico e os anexos. O nome é informado manualmente; não representa autenticação ou assinatura.
 - **Visualizações:** Quadro arrastável, Lista agrupada por situação, Tabela com ordenação e Calendário mensal navegável. São os mesmos dados e filtros, sem duplicação de cartões. A preferência é salva por projeto. No calendário, é possível abrir ou criar atividades por data; itens sem data ficam acessíveis abaixo da grade.
@@ -42,6 +43,18 @@ O trabalho pode acontecer em paralelo. Arraste um cartão ou edite sua situaçã
 
 O projeto inicial de Quatro Barras é uma demonstração baseada no fluxo fornecido. Crie seu município para começar com um quadro vazio. Os dados ficam separados por município.
 
+## Instalar como app (PWA)
+
+Abra o site publicado em HTTPS e use **Instalar app**, no menu lateral:
+
+- Android, Chrome: botão de instalação ou menu ⋮ → Instalar app / Adicionar à tela inicial.
+- iPhone/iPad, Safari: Compartilhar → Adicionar à Tela de Início; ative “Abrir como App” quando disponível.
+- PC, Chrome/Edge: ícone de instalação na barra de endereço ou opção de instalação no menu do navegador.
+
+A primeira abertura com internet prepara o acesso offline, incluindo as fontes. Depois disso, é possível abrir o app e registrar atividades ou conferências sem conexão. A instalação usa um manifesto com ícones PNG 192/512, ícone maskable e ícone Apple. O ID, a URL inicial e o service worker respeitam o caminho `/Implantation-WS/` no GitHub Pages.
+
+Novas versões exibem **Atualizar app**. A atualização aguarda o fechamento de formulários e não apaga o armazenamento local. Os arquivos do app ficam em cache; os cadastros continuam em `localStorage`. Não há sincronização automática entre celular e PC. Se o sistema separar o armazenamento do app instalado e do navegador (como pode ocorrer no iOS), exporte um backup no navegador e restaure no app.
+
 ## Dados e limitações
 
 Os dados ficam em `localStorage` no navegador que acessa o site, vinculados ao endereço/origem. Não há servidor de dados, contas ou sincronização entre usuários nesta versão. Publicar os arquivos do site não compartilha os dados cadastrados entre computadores.
@@ -50,7 +63,7 @@ Use **Dados e backup** para exportar ou restaurar um arquivo JSON. A restauraç�
 
 A versão exibida no rodapé vem de `package.json`. Veja as mudanças em [CHANGELOG.md](CHANGELOG.md).
 
-Os cadastros e backups da versão anterior são migrados sem apagar atividades, notas, datas, checklists, números de chamados ou histórico. Pendências e agendas antigas passam para A fazer, mantendo as datas; antigos cartões de Chamados passam para Aguardando retorno com etiqueta Chamado. Conclusões antigas permanecem na coluna, com o aviso “Validação não registrada” se não houver aceite. A migração não inventa evidências ou nomes de validadores.
+Os cadastros e backups da versão anterior são migrados sem apagar atividades, notas, datas, checklists, números de chamados ou histórico. Pendências e agendas antigas passam para A fazer, mantendo as datas; antigos cartões de Chamados passam para Aguardando retorno com etiqueta Chamado. Conclusões antigas permanecem na coluna, com o aviso “Validação não registrada” se não houver aceite. A migração não inventa evidências ou nomes de validadores. A homologação começa sem escopo configurado nos projetos existentes; checklists e conclusões anteriores não são convertidos em OKs da migração. O novo escopo, os registros de conferência e a liberação também são incluídos no backup.
 
 Para uso compartilhado na empresa, uma etapa posterior precisa adicionar autenticação, banco de dados e controle de acesso. Não cadastre dados reais sensíveis em uma publicação aberta sem esse controle.
 
@@ -64,4 +77,4 @@ npm run build
 
 Os testes de domínio cobrem movimentação livre, validação obrigatória na conclusão, reabertura, histórico, checklists, migração de versões, filtros e integridade do backup. Os testes no navegador cobrem tela inicial, cadastro, edição, persistência, treinamentos, exportação/restauração, anexos, migração, troca de visualização, calendário, navegação móvel, rolagem, animação, prioridades, categorias, preferências de aparência e falhas de armazenamento.
 
-Se não houver Chromium instalado, instale o navegador do Playwright com `npx playwright install chromium` e execute `npm run test:e2e` sem a variável acima. O arquivo de configuração inicia o servidor de desenvolvimento automaticamente quando necessário.
+Se não houver Chromium instalado, instale o navegador do Playwright com `npx playwright install chromium` e execute `npm run test:e2e` sem a variável acima. O arquivo de configuração inicia o servidor de desenvolvimento e um servidor de teste do build PWA sob `/Implantation-WS/` automaticamente quando necessário. O segundo usa uma cópia em `.local/pwa-site`, permitindo simular a troca do service worker sem alterar `dist`. As verificações de PWA cobrem instalação reconhecida pelo Chromium com perfil normal, metadados/ícones/escopo, gravação offline, atualização com formulário aberto e preservação dos dados. Os testes de homologação cobrem escopo, validação, liberação, reabertura, pendência vinculada, backup e falha de armazenamento.
