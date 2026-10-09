@@ -1,4 +1,5 @@
 import { validateAppointment } from "./appointments.js";
+import { validatePersonalAgenda } from "./personal-agenda.js";
 
 export const STAGES = [
   { id: "todo", label: "A fazer", color: "#dcab58" },
@@ -226,6 +227,8 @@ export function validateBackup(value) {
   )
     throw new Error("Selecione um backup do Implanta.");
   const ids = new Set();
+  if (value.personalAgenda !== undefined)
+    validatePersonalAgenda(value.personalAgenda);
   if (
     value.projectOrder !== undefined &&
     (!Array.isArray(value.projectOrder) ||
@@ -774,5 +777,8 @@ export function clearWorkspace(workspace) {
   return {
     ...createEmptyWorkspace(),
     ...(workspace.appearance ? { appearance: workspace.appearance } : {}),
+    ...(Array.isArray(workspace.personalAgenda)
+      ? { personalAgenda: workspace.personalAgenda }
+      : {}),
   };
 }

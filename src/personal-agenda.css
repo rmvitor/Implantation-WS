@@ -1,0 +1,177 @@
+.personal-agenda-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.personal-agenda-tools .segmented button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.personal-agenda-tools input,
+.personal-agenda-tools select,
+.personal-calendar input,
+.personal-event-form input:not([type="checkbox"]),
+.personal-event-form select,
+.personal-event-form textarea {
+  min-width: 0;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 10px;
+  font: inherit;
+  font-size: 12px;
+}
+.personal-agenda-tools .personal-agenda-search {
+  flex: 1;
+  min-width: min(220px, 100%);
+}
+.personal-agenda-list {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.personal-agenda-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  text-align: left;
+  width: 100%;
+  border-bottom: 1px solid var(--border);
+}
+.personal-agenda-row:last-child {
+  border-bottom: 0;
+}
+.personal-agenda-row:hover {
+  background: var(--surface-muted);
+}
+.personal-event-content {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+.personal-event-content small,
+.personal-event-content > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.personal-event-content > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.personal-event-content strong {
+  font-size: 14px;
+}
+.personal-event-icon {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+}
+.personal-event {
+  border-left: 3px solid var(--primary);
+}
+.personal-project,
+.personal-personal {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+.personal-travel {
+  color: #0e7490;
+  background: #e0f2fe;
+}
+.personal-holiday {
+  color: #92400e;
+  background: #fef3c7;
+}
+[data-theme="dark"] .personal-travel {
+  color: #7dd3fc;
+  background: #082f49;
+}
+[data-theme="dark"] .personal-holiday {
+  color: #fcd34d;
+  background: #451a03;
+}
+.personal-calendar .calendar-event {
+  min-width: 0;
+  text-align: left;
+}
+.personal-calendar .calendar-event span {
+  overflow-wrap: anywhere;
+}
+.personal-calendar .calendar-event small {
+  display: block;
+  color: inherit;
+  opacity: 0.8;
+}
+.personal-empty {
+  padding: 20px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.personal-event-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.personal-event-form > label:not(.personal-all-day) {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+}
+.personal-all-day {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.personal-delete-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.personal-delete-confirm p {
+  width: 100%;
+  font-size: 12px;
+}
+.personal-event-form .modal-actions {
+  flex-wrap: wrap;
+}
+@media (max-width: 760px) {
+  .personal-agenda > .page-heading {
+    gap: 16px;
+  }
+  .personal-calendar .calendar-toolbar {
+    flex-wrap: wrap;
+  }
+  .personal-calendar .calendar-toolbar > section {
+    flex-wrap: wrap;
+  }
+  .personal-agenda-tools select {
+    max-width: 100%;
+  }
+  .personal-agenda-row {
+    padding: 14px;
+    gap: 10px;
+  }
+  .personal-event-form {
+    gap: 12px;
+  }
+}

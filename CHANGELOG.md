@@ -1,5 +1,14 @@
 # Histórico de versões
 
+## 1.10.0 — 09/10/2026
+
+- Agenda geral pessoal, disponível sem municípios, com calendário e lista de novos projetos, viagens, feriados municipais e compromissos pessoais.
+- Registros previstos ou confirmados, períodos com início/término, dia inteiro ou horários, local livre e observações. Datas prováveis não criam nem alteram projetos.
+- Busca, filtros, navegação por mês, edição e exclusão com confirmação. Períodos invertidos são bloqueados e falhas preservam o formulário.
+- Dados guardados nas preferências privadas de cada usuário no Supabase; colegas e administradores não consultam a agenda de outras contas pelas permissões do sistema. Sem nova migração SQL.
+- Agenda pessoal não aparece nas tarefas, indicadores, homologação ou histórico de municípios. Excluir, encerrar ou limpar projetos mantém seus compromissos pessoais.
+- Backups incluem a agenda geral; importar backups antigos sem essa área conserva os compromissos atuais.
+
 ## 1.9.1 — 09/10/2026
 
 - Tela inicial permite ordenar os cards de projetos manualmente por arraste ou botões de mover antes/depois, inclusive no celular.

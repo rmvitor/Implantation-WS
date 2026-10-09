@@ -117,6 +117,45 @@ try {
   ]);
   await denied(anon, "select * from public.implanta_projects");
   await denied(anon, "select public.implanta_access()");
+  const viewerAgenda = {
+    personalAgenda: [
+      {
+        id: "private-trip",
+        title: "Viagem do usuário",
+        kind: "travel",
+        date: "2026-10-13",
+        endDate: "2026-10-16",
+        allDay: true,
+        time: "",
+        endTime: "",
+        tentative: true,
+        place: "Local pessoal",
+        notes: "",
+      },
+    ],
+  };
+  await viewer.query("select public.implanta_commit($1,$2,$3)", [
+    "[]",
+    "[]",
+    JSON.stringify(viewerAgenda),
+  ]);
+  assert.deepEqual(
+    (
+      await viewer.query("select data from public.implanta_preferences")
+    ).rows.map((row) => row.data),
+    [viewerAgenda],
+  );
+  checks++;
+  assert.equal(await count(admin, "implanta_preferences"), 0);
+  checks++;
+  assert.equal(await count(other, "implanta_preferences"), 0);
+  checks++;
+  await denied(anon, "select * from public.implanta_preferences");
+  await denied(
+    editor,
+    "update public.implanta_preferences set data='{}' where user_id=$1",
+    [ids.viewer],
+  );
   for (const id of ["one", "two"])
     await admin.query("select public.implanta_create_project($1)", [
       project(id),

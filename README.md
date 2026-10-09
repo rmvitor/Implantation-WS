@@ -141,3 +141,11 @@ Equipe e acessos passa a ter abas de usuários e permissões por projeto, com co
 ## Versão 1.9.1
 
 Na tela inicial, use **Ordenar projetos** e arraste os cards pelo ícone Mover ou use os botões para mover antes/depois. A ordem é salva automaticamente e aparece também na troca rápida de municípios. No modo de equipe, é uma preferência pessoal por usuário, disponível inclusive para quem tem acesso de leitura. A ordem fica incluída nos backups; não exige migração SQL.
+
+## Versão 1.10.0
+
+Use **Agenda geral** no menu lateral para organizar datas prováveis de novos projetos, viagens, feriados municipais e compromissos pessoais. Escolha Previsto ou Confirmado, início e término, dia inteiro ou horários, local e observações. O calendário mostra períodos em todos os dias correspondentes; a lista reúne próximos compromissos ou todas as datas e permite busca por local e filtros por tipo.
+
+A agenda é independente dos municípios e funciona mesmo sem projetos. Seus registros não criam atividades nem alteram indicadores ou histórico dos projetos. No modo de equipe, ficam nas preferências privadas da conta, protegidas pelas políticas existentes do Supabase, inclusive contra consulta por outros administradores. No modo local, ficam neste navegador. Não exige migração SQL.
+
+Backups incluem a agenda geral. Importar um backup antigo sem agenda pessoal conserva os compromissos atuais; um backup com agenda pessoal restaura seu conteúdo. Encerrar, excluir ou limpar municípios mantém a agenda geral. Exclusões de compromissos exigem confirmação, e falhas de salvamento preservam o formulário.

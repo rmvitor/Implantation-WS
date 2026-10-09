@@ -107,6 +107,7 @@ import {
 } from "./ProjectControls";
 import { projectColor, PROJECT_COLORS } from "./project-identity";
 import { orderedProjects, reorderProjects } from "./project-order";
+import { PersonalAgenda, PersonalEventModal } from "./PersonalAgenda";
 import "./project-controls.css";
 import { TeamHost, TeamSettings, useTeam } from "./Team";
 import { same } from "./team-domain";
@@ -176,7 +177,8 @@ function App() {
     if (!team.online || !team.workspace) return;
     if (
       data.selectedId &&
-      !team.workspace.projects.some((p) => p.id === data.selectedId)
+      !team.workspace.projects.some((p) => p.id === data.selectedId) &&
+      view !== "personalAgenda"
     ) {
       setModal(null);
       setView("municipalities");
@@ -429,19 +431,22 @@ function App() {
     trainings: "Treinamento/Atendimento",
     history: "Histórico de execução",
     details: "Dados do município",
+    personalAgenda: "Agenda geral",
   };
   useEffect(() => {
     document.title =
-      view === "municipalities" || !project
-        ? "Projetos e municípios · Implanta"
-        : `${project.name} · ${pageNames[view]} · Implanta`;
+      view === "personalAgenda"
+        ? "Agenda geral · Implanta"
+        : view === "municipalities" || !project
+          ? "Projetos e municípios · Implanta"
+          : `${project.name} · ${pageNames[view]} · Implanta`;
     return () => {
       document.title = "Implanta";
     };
   }, [project?.name, view]);
   return (
     <div
-      className={`app-shell ${project ? "has-active-project" : ""} ${saving ? "app-saving" : ""}`}
+      className={`app-shell ${project && view !== "personalAgenda" ? "has-active-project" : ""} ${saving ? "app-saving" : ""}`}
       style={{ "--project-color": projectColor(project) }}
     >
       {sidebar && (
@@ -487,6 +492,12 @@ function App() {
             disabled={!project}
             active={view === "board" || view === "details"}
             onClick={() => changeView("board")}
+          />
+          <NavItem
+            icon={CalendarDays}
+            text="Agenda geral"
+            active={view === "personalAgenda"}
+            onClick={() => changeView("personalAgenda")}
           />
           <NavItem
             icon={FileCheck2}
@@ -602,7 +613,9 @@ function App() {
         </header>
         <div className="page-content">
           {team.online &&
-            (team.stale || team.error || (project && !canEdit)) && (
+            (team.stale ||
+              team.error ||
+              (project && !canEdit && view !== "personalAgenda")) && (
               <div className="team-sync-bar">
                 <Users size={15} />{" "}
                 {team.error ||
@@ -611,7 +624,14 @@ function App() {
                     : "Este projeto está liberado somente para leitura.")}
               </div>
             )}
-          {view === "municipalities" || !project ? (
+          {view === "personalAgenda" ? (
+            <PersonalAgenda
+              events={data.personalAgenda || []}
+              saving={saving}
+              onAdd={(date) => setModal({ type: "personalEvent", date })}
+              onEdit={(event) => setModal({ type: "personalEvent", event })}
+            />
+          ) : view === "municipalities" || !project ? (
             <>
               <ProjectsHome
                 canManage={canManage}
@@ -1283,7 +1303,9 @@ function App() {
             <span>
               <ShieldCheck size={13} />{" "}
               {team.online
-                ? "Dados salvos no banco da equipe"
+                ? view === "personalAgenda"
+                  ? "Agenda pessoal salva na sua conta"
+                  : "Dados salvos no banco da equipe"
                 : "Dados salvos neste navegador"}
             </span>
           </footer>
@@ -1336,6 +1358,44 @@ function App() {
                     ? "Projeto excluído."
                     : "Workspace limpo.",
               );
+            }
+          }}
+        />
+      )}
+      {modal?.type === "personalEvent" && (
+        <PersonalEventModal
+          Modal={Modal}
+          event={modal.event}
+          date={modal.date}
+          saving={saving}
+          onClose={() => setModal(null)}
+          onSave={async (event) => {
+            if (
+              await setData((current) => ({
+                ...current,
+                personalAgenda: [
+                  ...(current.personalAgenda || []).filter(
+                    (entry) => entry.id !== event.id,
+                  ),
+                  event,
+                ],
+              }))
+            ) {
+              setModal(null);
+              setToast("Compromisso salvo na sua agenda geral.");
+            }
+          }}
+          onDelete={async (id) => {
+            if (
+              await setData((current) => ({
+                ...current,
+                personalAgenda: (current.personalAgenda || []).filter(
+                  (entry) => entry.id !== id,
+                ),
+              }))
+            ) {
+              setModal(null);
+              setToast("Compromisso excluído da sua agenda geral.");
             }
           }}
         />
@@ -1612,7 +1672,11 @@ function App() {
                       ],
                     }
                   : modal.data;
-                if (await setData(imported)) {
+                const restored =
+                  modal.data.personalAgenda === undefined && data.personalAgenda
+                    ? { ...imported, personalAgenda: data.personalAgenda }
+                    : imported;
+                if (await setData(restored)) {
                   setModal(null);
                   changeView("municipalities");
                   setToast("Backup restaurado.");
@@ -3233,7 +3297,7 @@ function ProjectActionModal({
           {closing
             ? "O projeto sai dos ativos e fica em Encerrados, com tarefas, homologação e histórico preservados. Você poderá reabri-lo."
             : clearing
-              ? "Todos os projetos, tarefas, treinamentos/atendimentos, homologações e históricos deste aparelho serão excluídos. Suas preferências de aparência serão mantidas."
+              ? "Todos os projetos, tarefas, treinamentos/atendimentos, homologações e históricos deste aparelho serão excluídos. Sua agenda geral e suas preferências de aparência serão mantidas."
               : "O projeto e todas as suas tarefas, homologações, treinamentos/atendimentos e históricos serão excluídos deste aparelho."}
         </p>
         {!closing && (

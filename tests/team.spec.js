@@ -588,3 +588,76 @@ test("visualizador ordena projetos como preferência pessoal, sem editar registr
   ]);
   expect(state.row).toEqual(original);
 });
+
+test("agenda geral do visualizador grava só preferências pessoais, mantém edição após revogar município e preserva formulário em falha", async ({
+  page,
+}) => {
+  const state = await setup(page, { role: "viewer" });
+  const original = structuredClone(state.row);
+  await page.goto("/");
+  await page
+    .locator("nav")
+    .getByRole("button", { name: "Agenda geral", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Novo compromisso", exact: true })
+    .click();
+  await page
+    .getByLabel("Título do compromisso", { exact: true })
+    .fill("Viagem privada");
+  await page
+    .getByRole("combobox", { name: "Tipo", exact: true })
+    .selectOption("travel");
+  await page
+    .getByRole("button", { name: "Salvar compromisso", exact: true })
+    .click();
+  await expect
+    .poll(() => state.preferences.personalAgenda?.length || 0)
+    .toBe(1);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(state.commits.at(-1).p_changes).toEqual([]);
+  expect(state.commits.at(-1).p_removed).toEqual([]);
+  expect(state.row).toEqual(original);
+  await page.getByRole("button", { name: "Lista", exact: true }).click();
+  await page.locator(".personal-agenda-row").click();
+  await page
+    .getByRole("textbox", { name: "Observações", exact: true })
+    .fill("Rascunho da viagem");
+  state.revoked = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(
+    page.getByRole("button", { name: "Trocar projeto ativo", exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Observações", exact: true }),
+  ).toHaveValue("Rascunho da viagem");
+  state.fail = true;
+  await page
+    .getByRole("button", { name: "Salvar compromisso", exact: true })
+    .click();
+  await expect(page.locator(".toast")).toContainText(
+    "Não foi possível conectar ao banco",
+  );
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(state.preferences.personalAgenda[0].notes).toBe("");
+  state.fail = false;
+  await page
+    .getByRole("button", { name: "Salvar compromisso", exact: true })
+    .click();
+  await expect
+    .poll(() => state.preferences.personalAgenda[0].notes)
+    .toBe("Rascunho da viagem");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(state.commits.at(-1).p_changes).toEqual([]);
+  expect(state.row).toEqual(original);
+  await page.reload();
+  await page
+    .locator("nav")
+    .getByRole("button", { name: "Agenda geral", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Lista", exact: true }).click();
+  await expect(page.locator(".personal-agenda-row")).toContainText(
+    "Viagem privada",
+  );
+});
