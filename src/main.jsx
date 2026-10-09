@@ -100,7 +100,12 @@ import "./pwa.css";
 import "./projects.css";
 import "./app-usability.css";
 import { CardMenu } from "./CardMenu";
-import { ProjectNavigation, ProjectMenu } from "./ProjectControls";
+import {
+  ProjectNavigation,
+  ProjectMenu,
+  ProjectSwitcher,
+} from "./ProjectControls";
+import { projectColor, PROJECT_COLORS } from "./project-identity";
 import "./project-controls.css";
 import { TeamHost, TeamSettings, useTeam } from "./Team";
 import { same } from "./team-domain";
@@ -424,8 +429,20 @@ function App() {
     history: "Histórico de execução",
     details: "Dados do município",
   };
+  useEffect(() => {
+    document.title =
+      view === "municipalities" || !project
+        ? "Projetos e municípios · Implanta"
+        : `${project.name} · ${pageNames[view]} · Implanta`;
+    return () => {
+      document.title = "Implanta";
+    };
+  }, [project?.name, view]);
   return (
-    <div className={`app-shell ${saving ? "app-saving" : ""}`}>
+    <div
+      className={`app-shell ${project ? "has-active-project" : ""} ${saving ? "app-saving" : ""}`}
+      style={{ "--project-color": projectColor(project) }}
+    >
       {sidebar && (
         <div className="nav-scrim" onClick={() => setSidebar(false)} />
       )}
@@ -445,16 +462,16 @@ function App() {
           </span>
           implanta<span className="brand-dot">.</span>
         </a>
-        <div className="workspace-select">
-          <span className="workspace-avatar">
-            <Building2 size={18} />
-          </span>
-          <div>
-            <strong title={project?.name}>
-              {project?.name || "Projetos e municípios"}
-            </strong>
-          </div>
-        </div>
+        <ProjectSwitcher
+          project={project}
+          projects={data.projects}
+          busy={saving}
+          onSelect={async (id) => {
+            if (!(await selectProject(id))) return false;
+            changeView(view === "municipalities" ? "board" : view);
+            return true;
+          }}
+        />
         <div className="nav-label">WORKSPACE</div>
         <nav>
           <NavItem
@@ -500,34 +517,8 @@ function App() {
             onClick={() => changeView("history")}
           />
         </nav>
-        <div className="nav-label project-label">
-          <span>MEUS MUNICÍPIOS</span>
-          <button
-            disabled={!canManage}
-            aria-label="Adicionar município"
-            onClick={() => setModal({ type: "project", isNew: true })}
-          >
-            <Plus size={16} />
-          </button>
-        </div>
-        <div className="project-nav">
-          {data.projects
-            .filter((p) => !isProjectClosed(p))
-            .map((p, i) => (
-              <button
-                key={p.id}
-                className={p.id === projectId ? "selected" : ""}
-                onClick={async () => {
-                  if (await selectProject(p.id)) changeView("board");
-                }}
-              >
-                <span className={`project-dot dot-${i % 3}`} />
-                {p.name}
-                {p.id === projectId && <span className="selected-dot" />}
-              </button>
-            ))}
-        </div>
         <div className="sidebar-bottom">
+          <div className="nav-label management-label">GERENCIAMENTO</div>
           <button
             className="subtle-nav"
             onClick={() => setModal({ type: "backup" })}
@@ -654,7 +645,7 @@ function App() {
             </>
           ) : (
             <>
-              <div className="page-heading">
+              <div className="page-heading project-heading">
                 <div>
                   <div className="eyebrow">
                     <span className="live-dot" />{" "}
@@ -663,36 +654,21 @@ function App() {
                       : "IMPLANTAÇÃO EM ANDAMENTO"}
                   </div>
                   <div className="title-row">
-                    <h1>
-                      {view === "board" || view === "details" ? (
-                        project.name
-                      ) : view === "trainings" ? (
-                        <>
-                          Treinamento/
-                          <wbr />
-                          Atendimento
-                        </>
-                      ) : (
-                        pageNames[view]
-                      )}
-                    </h1>
-                    {(view === "board" || view === "details") && (
-                      <span className="state-tag">{project.state || "BR"}</span>
-                    )}
-                    <button
-                      className="project-switch icon-button"
-                      aria-label="Trocar município"
-                      onClick={() => changeView("municipalities")}
-                    >
-                      <ChevronDown size={19} />
-                    </button>
+                    <h1>{project.name}</h1>
+                    <span className="state-tag">{project.state || "BR"}</span>
                   </div>
                   <p>
                     {view === "board"
                       ? "Tudo o que você precisa para fazer a implantação acontecer."
                       : view === "details"
                         ? "Informações e contatos sempre à mão."
-                        : `${project.name} · ${view === "trainings" ? "Capacitação e salas de atendimento remoto em uma agenda própria." : view === "homologation" ? "Conferência e liberação dos dados migrados por módulo e entidade." : view === "history" ? "Um registro de tudo o que foi feito, sem trabalho extra." : "Seus próximos passos, organizados por data."}`}
+                        : view === "trainings"
+                          ? "Capacitação e salas de atendimento remoto em uma agenda própria."
+                          : view === "homologation"
+                            ? "Conferência e liberação dos dados migrados por módulo e entidade."
+                            : view === "history"
+                              ? "Um registro de tudo o que foi feito, sem trabalho extra."
+                              : "Seus próximos passos, organizados por data."}
                   </p>
                 </div>
                 <div className="heading-actions">
@@ -1362,6 +1338,7 @@ function App() {
           Modal={Modal}
           onClose={() => setModal(null)}
           projects={data.projects}
+          activeProjectId={projectId}
         />
       )}
       {saving && (
@@ -1869,18 +1846,16 @@ function Modal({
   headerAction,
 }) {
   const ref = useRef();
-  useEffect(() => {
+  useLayoutEffect(() => {
     const previous = document.activeElement;
     const oldOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const timer = setTimeout(
-      () =>
-        (
-          ref.current?.querySelector(".modal-body input, .modal-body select") ||
-          ref.current?.querySelector("button")
-        )?.focus(),
-      30,
-    );
+    const firstField = [
+      ...ref.current.querySelectorAll(".modal-body input, .modal-body select"),
+    ].find((element) => !element.disabled && element.offsetParent !== null);
+    (firstField || ref.current.querySelector("button"))?.focus({
+      preventScroll: true,
+    });
     const key = (e) => {
       if (e.key === "Escape") onClose();
       if (e.key === "Tab") {
@@ -1902,7 +1877,6 @@ function Modal({
     };
     document.addEventListener("keydown", key);
     return () => {
-      clearTimeout(timer);
       document.body.style.overflow = oldOverflow;
       document.removeEventListener("keydown", key);
       previous?.focus();
@@ -2385,6 +2359,7 @@ function ProjectModal({ readOnly = false, project, onClose, onSave }) {
           e.preventDefault();
           onSave({
             ...draft,
+            color: projectColor(draft),
             name: draft.name.trim(),
             entities: [
               ...new Set(
@@ -2408,6 +2383,33 @@ function ProjectModal({ readOnly = false, project, onClose, onSave }) {
                 onChange={(e) => patch("name", e.target.value)}
                 placeholder="Ex.: Quatro Barras"
               />
+            </Field>
+            <Field
+              label="Cor do projeto"
+              full
+              hint="Identifica este município no cabeçalho e na troca de projetos. Independente da cor do seu perfil."
+            >
+              <div className="color-picker">
+                <input
+                  type="color"
+                  aria-label="Cor do projeto"
+                  value={projectColor(draft)}
+                  onChange={(event) => patch("color", event.target.value)}
+                />
+                <span>{projectColor(draft).toUpperCase()}</span>
+              </div>
+              <div className="color-presets" aria-label="Cores do projeto">
+                {PROJECT_COLORS.map((color) => (
+                  <button
+                    type="button"
+                    key={color}
+                    style={{ background: color }}
+                    aria-label={`Cor do projeto ${color}`}
+                    aria-pressed={projectColor(draft) === color}
+                    onClick={() => patch("color", color)}
+                  />
+                ))}
+              </div>
             </Field>
             <Field label="UF">
               <select

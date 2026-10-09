@@ -1,5 +1,15 @@
 # Histórico de versões
 
+## 1.9.0 — 09/10/2026
+
+- Nome do projeto em destaque em todas as áreas, com cor própria no cabeçalho, no seletor lateral e nos cards da tela inicial. A cor é configurável nos dados do município e não altera o tema do perfil.
+- Troca rápida de projetos ativos na seta do bloco lateral, com suporte a teclado e preservação da área em uso. Projetos encerrados ficam fora da lista.
+- Nome do município também identifica a aba do navegador. Projetos antigos recebem cor automática estável, sem alterar seus registros.
+- Lista lateral de municípios substituída pelo separador estático Gerenciamento; criação e gestão continuam na tela inicial.
+- Equipe e acessos organizada em abas, com linhas compactas para usuários e permissões. Rascunhos são mantidos ao alternar entre abas.
+- Cor do projeto preservada em backups e no banco compartilhado, com validação dos valores importados. Não exige migração SQL.
+- Foco inicial dos formulários aplicado sem atraso, para não interromper a edição rápida de outro campo.
+
 ## 1.8.2 — 09/10/2026
 
 - Bloco do projeto ativo na barra lateral mostra somente o nome do município, sem subtítulo e sem seta para baixo.

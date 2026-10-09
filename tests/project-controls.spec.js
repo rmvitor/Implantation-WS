@@ -231,8 +231,10 @@ test("implantação abre atalhos por botão direito, teclado e toque; editar dad
   await page
     .getByRole("button", { name: "Salvar município", exact: true })
     .click();
+  await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
   await page
-    .getByRole("button", { name: "Trocar município", exact: true })
+    .locator("nav")
+    .getByRole("button", { name: "Início", exact: true })
     .click();
   await page
     .getByRole("button", {

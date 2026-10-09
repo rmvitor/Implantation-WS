@@ -1,4 +1,10 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   Building2,
   CalendarDays,
@@ -9,8 +15,134 @@ import {
   Pencil,
   Trash2,
   CheckCheck,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import { isProjectClosed } from "./domain";
+import { projectColor } from "./project-identity";
+
+export function ProjectSwitcher({ project, projects, busy, onSelect }) {
+  const [open, setOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const container = useRef();
+  const trigger = useRef();
+  const listId = useId();
+  const active = projects.filter((p) => !isProjectClosed(p));
+  const close = (restoreFocus = false) => {
+    setOpen(false);
+    if (restoreFocus) trigger.current?.focus({ preventScroll: true });
+  };
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (event) => {
+      if (!container.current.contains(event.target)) close();
+    };
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, [open]);
+  useLayoutEffect(() => {
+    if (open)
+      (
+        container.current.querySelector('[aria-selected="true"]') ||
+        container.current.querySelector('[role="option"]')
+      )?.focus({ preventScroll: true });
+  }, [open]);
+  return (
+    <div
+      className="project-picker"
+      ref={container}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) close();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && open) {
+          event.preventDefault();
+          event.stopPropagation();
+          close(true);
+        }
+      }}
+    >
+      <button
+        type="button"
+        className="workspace-select"
+        ref={trigger}
+        aria-label="Trocar projeto ativo"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        disabled={busy || switching || !active.length}
+        onClick={() => setOpen((value) => !value)}
+        onKeyDown={(event) => {
+          if (["ArrowDown", "ArrowUp"].includes(event.key)) {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
+      >
+        <span className="workspace-avatar">
+          <Building2 size={18} />
+        </span>
+        <strong title={project?.name}>
+          {project?.name || "Projetos e municípios"}
+        </strong>
+        <ChevronDown size={15} aria-hidden="true" />
+      </button>
+      {open && (
+        <div
+          id={listId}
+          role="listbox"
+          aria-label="Projetos ativos"
+          className="project-picker-options"
+          onKeyDown={(event) => {
+            if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key))
+              return;
+            event.preventDefault();
+            const items = [
+              ...event.currentTarget.querySelectorAll('[role="option"]'),
+            ];
+            const index = items.indexOf(document.activeElement);
+            const next =
+              event.key === "Home"
+                ? 0
+                : event.key === "End"
+                  ? items.length - 1
+                  : (index +
+                      (event.key === "ArrowDown" ? 1 : -1) +
+                      items.length) %
+                    items.length;
+            items[next]?.focus();
+          }}
+        >
+          {active.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              role="option"
+              aria-selected={p.id === project?.id}
+              disabled={busy || switching}
+              onClick={async () => {
+                setSwitching(true);
+                try {
+                  if (p.id === project?.id || (await onSelect(p.id)))
+                    close(true);
+                } finally {
+                  setSwitching(false);
+                }
+              }}
+            >
+              <span
+                className="project-color-dot"
+                style={{ background: projectColor(p) }}
+              />
+              <span>{p.name}</span>
+              {p.id === project?.id && <Check size={14} aria-hidden="true" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const AREAS = [
   { id: "board", label: "Atividades", icon: LayoutDashboard },

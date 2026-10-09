@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { projectColor } from "./project-identity";
 import {
   ArrowLeft,
   ArrowRight,
@@ -227,6 +228,7 @@ export function ProjectsHome({
           return (
             <article
               className="project-home-card"
+              style={{ "--project-color": projectColor(p) }}
               key={p.id}
               onContextMenu={(e) => onContextMenu?.(e, p)}
             >

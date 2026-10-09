@@ -246,8 +246,11 @@ test("cada município mantém seu próprio escopo de homologação", async ({
     }),
   ).toHaveCount(0);
   await page
-    .locator(".project-nav")
-    .getByRole("button", { name: "Quatro Barras", exact: true })
+    .getByRole("button", { name: "Trocar projeto ativo", exact: true })
+    .click();
+  await page
+    .getByRole("listbox", { name: "Projetos ativos" })
+    .getByRole("option", { name: "Quatro Barras", exact: true })
     .click();
   await page
     .locator("nav")

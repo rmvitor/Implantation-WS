@@ -544,11 +544,14 @@ function AuthScreen({
   );
 }
 
-export function TeamSettings({ Modal, onClose, projects }) {
+export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
   const team = useTeam();
   const [users, setUsers] = useState([]);
   const [members, setMembers] = useState([]);
-  const [selected, setSelected] = useState(projects[0]?.id || "");
+  const [selected, setSelected] = useState(
+    activeProjectId || projects[0]?.id || "",
+  );
+  const [section, setSection] = useState("users");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const load = async () => {
@@ -622,84 +625,148 @@ export function TeamSettings({ Modal, onClose, projects }) {
           )}
           {team.profile.admin && (
             <fieldset disabled={busy} className="team-management">
-              <h3>Usuários da equipe</h3>
-              <p>
-                Novos cadastros aguardam sua aprovação. Administradores têm
-                acesso a todos os projetos.
-              </p>
-              {users.map((user) => (
-                <UserAccess
-                  key={user.id}
-                  user={user}
-                  self={user.id === team.profile.id}
-                  onSave={(draft) =>
-                    act(() =>
-                      team.client.rpc("implanta_set_user", {
-                        p_user: user.id,
-                        p_name: draft.name,
-                        p_active: draft.active,
-                        p_admin: draft.admin,
-                      }),
+              <div
+                className="team-management-tabs"
+                role="tablist"
+                aria-label="Gerenciamento da equipe"
+                onKeyDown={(event) => {
+                  if (
+                    busy ||
+                    !["ArrowLeft", "ArrowRight", "Home", "End"].includes(
+                      event.key,
                     )
-                  }
-                />
-              ))}
-              {!users.length && <p>Carregando usuários…</p>}
-              <h3>Liberação por projeto</h3>
-              <label className="team-project-select">
-                Projeto
-                <select
-                  value={selected}
-                  onChange={(e) => setSelected(e.target.value)}
+                  )
+                    return;
+                  event.preventDefault();
+                  const next =
+                    event.key === "Home"
+                      ? "users"
+                      : event.key === "End"
+                        ? "access"
+                        : section === "users"
+                          ? "access"
+                          : "users";
+                  setSection(next);
+                  document
+                    .getElementById(
+                      next === "users" ? "team-users-tab" : "team-access-tab",
+                    )
+                    ?.focus();
+                }}
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={section === "users"}
+                  tabIndex={section === "users" ? 0 : -1}
+                  aria-controls="team-users-panel"
+                  id="team-users-tab"
+                  onClick={() => setSection("users")}
                 >
-                  <option value="">Selecione um projeto</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {selected &&
-                users
-                  .filter((user) => !user.admin)
-                  .map((user) => (
-                    <div className="team-project-member" key={user.id}>
-                      <div>
-                        <strong>{user.name}</strong>
-                        <small>
-                          {user.email}
-                          {!user.active && " · cadastro pendente/inativo"}
-                        </small>
+                  Usuários <span>{users.length}</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={section === "access"}
+                  tabIndex={section === "access" ? 0 : -1}
+                  aria-controls="team-access-panel"
+                  id="team-access-tab"
+                  onClick={() => setSection("access")}
+                >
+                  Acessos por projeto
+                </button>
+              </div>
+              <section
+                role="tabpanel"
+                aria-labelledby="team-users-tab"
+                id="team-users-panel"
+                hidden={section !== "users"}
+              >
+                <p>
+                  Novos cadastros aguardam sua aprovação. Administradores têm
+                  acesso a todos os projetos.
+                </p>
+                {users.map((user) => (
+                  <UserAccess
+                    key={user.id}
+                    user={user}
+                    self={user.id === team.profile.id}
+                    onSave={(draft) =>
+                      act(() =>
+                        team.client.rpc("implanta_set_user", {
+                          p_user: user.id,
+                          p_name: draft.name,
+                          p_active: draft.active,
+                          p_admin: draft.admin,
+                        }),
+                      )
+                    }
+                  />
+                ))}
+                {!users.length && <p>Carregando usuários…</p>}
+              </section>
+              <section
+                role="tabpanel"
+                aria-labelledby="team-access-tab"
+                id="team-access-panel"
+                hidden={section !== "access"}
+              >
+                <label className="team-project-select">
+                  Projeto
+                  <select
+                    value={selected}
+                    onChange={(e) => setSelected(e.target.value)}
+                  >
+                    <option value="">Selecione um projeto</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {selected &&
+                  users
+                    .filter((user) => !user.admin)
+                    .map((user) => (
+                      <div className="team-project-member" key={user.id}>
+                        <div>
+                          <strong>{user.name}</strong>
+                          <small>
+                            {user.email}
+                            {!user.active && " · cadastro pendente/inativo"}
+                          </small>
+                        </div>
+                        <select
+                          aria-label={`Acesso de ${user.name}`}
+                          value={
+                            members.find(
+                              (m) =>
+                                m.project_id === selected &&
+                                m.user_id === user.id,
+                            )?.role || ""
+                          }
+                          onChange={(e) =>
+                            act(() =>
+                              team.client.rpc("implanta_grant_project", {
+                                p_project: selected,
+                                p_user: user.id,
+                                p_role: e.target.value || null,
+                              }),
+                            )
+                          }
+                        >
+                          <option value="">Sem acesso</option>
+                          <option value="viewer">Leitura</option>
+                          <option value="editor">Edição</option>
+                        </select>
                       </div>
-                      <select
-                        aria-label={`Acesso de ${user.name}`}
-                        value={
-                          members.find(
-                            (m) =>
-                              m.project_id === selected &&
-                              m.user_id === user.id,
-                          )?.role || ""
-                        }
-                        onChange={(e) =>
-                          act(() =>
-                            team.client.rpc("implanta_grant_project", {
-                              p_project: selected,
-                              p_user: user.id,
-                              p_role: e.target.value || null,
-                            }),
-                          )
-                        }
-                      >
-                        <option value="">Sem acesso</option>
-                        <option value="viewer">Leitura</option>
-                        <option value="editor">Edição</option>
-                      </select>
-                    </div>
-                  ))}
-              {!projects.length && (
-                <p>Crie um município para liberar o acesso aos colegas.</p>
-              )}
+                    ))}
+                {!projects.length && (
+                  <p>Crie um município para liberar o acesso aos colegas.</p>
+                )}
+              </section>
             </fieldset>
           )}
         </>
@@ -718,51 +785,55 @@ function UserAccess({ user, self, onSave }) {
         onSave(draft);
       }}
     >
-      <label>
-        Nome
-        <input
-          required
-          aria-label={`Nome de ${user.email}`}
-          value={draft.name}
-          onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-        />
-      </label>
-      <small>{user.email}</small>
-      <label className="team-checkbox">
-        <input
-          type="checkbox"
-          disabled={self}
-          checked={draft.active}
-          onChange={(e) =>
-            setDraft({
-              ...draft,
-              active: e.target.checked,
-              admin: e.target.checked ? draft.admin : false,
-            })
-          }
-        />{" "}
-        Acesso ativo
-      </label>
-      <label className="team-checkbox">
-        <input
-          type="checkbox"
-          disabled={self}
-          checked={draft.admin}
-          onChange={(e) =>
-            setDraft({
-              ...draft,
-              admin: e.target.checked,
-              active: e.target.checked || draft.active,
-            })
-          }
-        />{" "}
-        Administrador
-      </label>
+      <div className="team-user-identity">
+        <label>
+          Nome
+          <input
+            required
+            aria-label={`Nome de ${user.email}`}
+            value={draft.name}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          />
+        </label>
+        <small>{user.email}</small>
+      </div>
+      <div className="team-user-permissions">
+        <label className="team-checkbox">
+          <input
+            type="checkbox"
+            disabled={self}
+            checked={draft.active}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                active: e.target.checked,
+                admin: e.target.checked ? draft.admin : false,
+              })
+            }
+          />{" "}
+          Acesso ativo
+        </label>
+        <label className="team-checkbox">
+          <input
+            type="checkbox"
+            disabled={self}
+            checked={draft.admin}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                admin: e.target.checked,
+                active: e.target.checked || draft.active,
+              })
+            }
+          />{" "}
+          Administrador
+        </label>
+      </div>
       <button
         className="button secondary"
         aria-label={`Salvar usuário ${user.name}`}
       >
-        Salvar usuário
+        Salvar
       </button>
     </form>
   );

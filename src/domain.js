@@ -242,6 +242,11 @@ export function validateBackup(value) {
     if (p.status !== undefined && !["active", "closed"].includes(p.status))
       throw new Error("Backup inválido: situação do projeto.");
     if (
+      p.color !== undefined &&
+      (typeof p.color !== "string" || !/^#[0-9a-f]{6}$/i.test(p.color))
+    )
+      throw new Error("Backup inválido: cor do projeto.");
+    if (
       p.closedAt != null &&
       (typeof p.closedAt !== "string" || Number.isNaN(Date.parse(p.closedAt)))
     )

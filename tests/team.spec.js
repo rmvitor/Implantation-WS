@@ -84,7 +84,7 @@ async function setup(page, { role = "editor", loggedIn = true } = {}) {
         admin: role === "admin",
       };
     else if (path.endsWith("/rpc/implanta_admin_users"))
-      data = [
+      data = state.users ||= [
         {
           id: userId,
           name: "Colega teste",
@@ -100,7 +100,21 @@ async function setup(page, { role = "editor", loggedIn = true } = {}) {
           admin: false,
         },
       ];
-    else if (path.endsWith("/rpc/implanta_grant_project")) {
+    else if (path.endsWith("/rpc/implanta_set_user")) {
+      const args = req.postDataJSON();
+      state.userUpdates ||= [];
+      state.userUpdates.push(args);
+      state.users = state.users.map((profile) =>
+        profile.id === args.p_user
+          ? {
+              ...profile,
+              name: args.p_name,
+              active: args.p_active,
+              admin: args.p_admin,
+            }
+          : profile,
+      );
+    } else if (path.endsWith("/rpc/implanta_grant_project")) {
       const args = req.postDataJSON();
       state.grants.push(args);
       state.members = [
@@ -426,6 +440,9 @@ test("administrador define permissão de projeto por usuário", async ({
   await page
     .getByRole("button", { name: "Equipe e acessos", exact: true })
     .click();
+  await page
+    .getByRole("tab", { name: "Acessos por projeto", exact: true })
+    .click();
   await page.getByLabel("Acesso de Nova colega").selectOption("editor");
   await expect.poll(() => state.grants.length).toBe(1);
   expect(state.grants[0].p_role).toBe("editor");
@@ -445,3 +462,71 @@ test("revogar projeto fecha formulário e retira o município da sessão", async
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.locator(".municipality-card,.task-card")).toHaveCount(0);
 });
+
+for (const width of [360, 1440]) {
+  test(`gerenciamento compacto preserva rascunho entre abas e salva usuário e acesso em ${width}px`, async ({
+    page,
+  }) => {
+    const state = await setup(page, { role: "admin" });
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto("/");
+    if (width === 360)
+      await page
+        .getByRole("button", { name: "Abrir menu", exact: true })
+        .click();
+    await page
+      .getByRole("button", { name: "Equipe e acessos", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.locator(".team-user")).toHaveCount(2);
+    const name = page.getByLabel("Nome de colega@example.invalid");
+    const row = dialog.locator(".team-user").filter({ has: name });
+    await name.fill("Colega atualizada");
+    await row.getByLabel("Acesso ativo", { exact: true }).check();
+    await expect(
+      dialog
+        .locator(".team-user")
+        .first()
+        .getByLabel("Administrador", { exact: true }),
+    ).toBeDisabled();
+    const users = page.getByRole("tab", { name: /^Usuários/ });
+    const access = page.getByRole("tab", {
+      name: "Acessos por projeto",
+      exact: true,
+    });
+    await users.focus();
+    await users.press("ArrowRight");
+    await expect(access).toHaveAttribute("aria-selected", "true");
+    await expect(name).not.toBeVisible();
+    await access.press("ArrowLeft");
+    await expect(name).toHaveValue("Colega atualizada");
+    await row
+      .getByRole("button", { name: "Salvar usuário Nova colega", exact: true })
+      .click();
+    await expect.poll(() => state.userUpdates?.length || 0).toBe(1);
+    expect(state.userUpdates[0]).toMatchObject({
+      p_name: "Colega atualizada",
+      p_active: true,
+      p_admin: false,
+    });
+    await expect(
+      page.getByRole("button", {
+        name: "Salvar usuário Colega atualizada",
+        exact: true,
+      }),
+    ).toBeEnabled();
+    const bounds = await row.boundingBox();
+    expect(bounds.height).toBeLessThan(width === 360 ? 210 : 130);
+    await access.click();
+    await page.getByLabel("Acesso de Colega atualizada").selectOption("viewer");
+    await expect.poll(() => state.grants.length).toBe(1);
+    expect(state.grants[0].p_role).toBe("viewer");
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    if (width === 1440)
+      await dialog.screenshot({ path: "/tmp/implanta-team-190.png" });
+  });
+}

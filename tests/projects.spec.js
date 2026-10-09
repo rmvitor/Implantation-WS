@@ -72,7 +72,9 @@ test("encerrados saem dos ativos, preservam histórico e podem ser reabertos", a
     .getByRole("button", { name: "Confirmar encerramento", exact: true })
     .click();
   await expect(page.locator(".municipality-card")).toHaveCount(0);
-  await expect(page.locator(".project-nav button")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Trocar projeto ativo", exact: true }),
+  ).toBeDisabled();
   await page.getByRole("button", { name: /^Encerrados / }).click();
   await expect(page.locator(".municipality-card")).toHaveCount(1);
   await page.reload();

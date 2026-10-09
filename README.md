@@ -131,3 +131,9 @@ No modo de equipe, abra o perfil pelo avatar ou pelo menu lateral e use **Finali
 ## Versão 1.8.1
 
 Capacitação integra a barra de navegação do projeto e o menu de ações rápidas, com acesso aos treinamentos e atendimentos remotos. Em telas menores, a barra mantém a área atual visível ao mudar pelo menu lateral. A conexão pública de produção usa por padrão o projeto Supabase informado; configurações específicas salvas no aparelho continuam sendo respeitadas. Não exige migração SQL.
+
+## Versão 1.9.0
+
+Cada município tem uma cor de identificação, ajustável em **Dados do município → Editar dados → Cor do projeto**, independente da aparência pessoal. O nome do projeto ocupa o título grande em todas as áreas e identifica a aba do navegador. O bloco superior da barra lateral permite trocar entre projetos ativos, mantendo a área em uso; a lista antiga dá lugar ao separador Gerenciamento.
+
+Equipe e acessos passa a ter abas de usuários e permissões por projeto, com controles compactos e rascunhos preservados ao alternar entre elas. O projeto em uso fica selecionado inicialmente para liberação de acessos. A cor é incluída nos backups e nos dados compartilhados; projetos antigos continuam compatíveis. Não exige migração SQL.

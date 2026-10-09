@@ -15,7 +15,7 @@
   text-decoration: underline;
 }
 .team-form label,
-.team-user > label:first-child,
+.team-user-identity > label,
 .team-project-select {
   display: flex;
   flex-direction: column;
@@ -128,19 +128,26 @@
   font-size: 15px;
 }
 .team-user {
-  padding: 16px 0;
+  padding: 12px 0;
   border-bottom: 1px solid var(--border);
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: minmax(150px, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
 }
-.team-user > small {
-  grid-column: 1 / -1;
+.team-user-identity {
+  min-width: 0;
+}
+.team-user-identity > small {
+  display: block;
+  margin-top: 5px;
   color: var(--muted);
   overflow-wrap: anywhere;
 }
-.team-user > label:first-child {
-  grid-column: 1 / -1;
+.team-user-permissions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .team-checkbox {
   display: flex;
@@ -149,14 +156,43 @@
   font-size: 12px;
 }
 .team-user button {
-  grid-column: 1 / -1;
   justify-self: end;
+  padding: 8px 12px;
+}
+.team-management-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+.team-management-tabs button {
+  padding: 9px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.team-management-tabs [aria-selected="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.team-management-tabs span {
+  font-size: 10px;
+  margin-left: 5px;
+}
+.team-management > section > p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  margin-bottom: 8px;
 }
 .team-project-member {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-top: 14px;
+  margin-top: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
   font-size: 12px;
 }
 .team-project-member > div {
@@ -231,6 +267,18 @@
   }
   .team-account {
     flex-wrap: wrap;
+  }
+  .team-user {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .team-user-identity {
+    grid-column: 1 / -1;
+  }
+  .team-user-permissions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
