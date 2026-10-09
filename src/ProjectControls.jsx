@@ -4,6 +4,7 @@ import {
   CalendarDays,
   Clock3,
   FileCheck2,
+  GraduationCap,
   LayoutDashboard,
   Pencil,
   Trash2,
@@ -15,17 +16,30 @@ const AREAS = [
   { id: "board", label: "Atividades", icon: LayoutDashboard },
   { id: "homologation", label: "Homologação", icon: FileCheck2 },
   { id: "agenda", label: "Agenda", icon: CalendarDays },
+  { id: "trainings", label: "Capacitação", icon: GraduationCap },
   { id: "history", label: "Histórico", icon: Clock3 },
 ];
 
 export function ProjectNavigation({ view, onChange }) {
+  const tabs = useRef();
+  useLayoutEffect(() => {
+    const container = tabs.current;
+    const active = container.querySelector('[aria-current="page"]');
+    if (!active) return;
+    const bounds = container.getBoundingClientRect();
+    const item = active.getBoundingClientRect();
+    if (item.left < bounds.left)
+      container.scrollLeft += item.left - bounds.left;
+    else if (item.right > bounds.right)
+      container.scrollLeft += item.right - bounds.right;
+  }, [view]);
   return (
     <div
       className="board-toolbar project-navigation"
       role="navigation"
       aria-label="Navegação do projeto"
     >
-      <div className="board-tabs">
+      <div className="board-tabs" ref={tabs}>
         {AREAS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}

@@ -140,6 +140,23 @@
   font-size: 12px;
 }
 @media (max-width: 600px) {
+  .topbar {
+    gap: 12px;
+  }
+  .breadcrumbs {
+    min-width: 0;
+  }
+  .breadcrumbs strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .breadcrumbs > svg,
+  .breadcrumbs > button,
+  .topbar-actions {
+    flex-shrink: 0;
+  }
   .project-navigation .board-tabs {
     flex-wrap: nowrap;
   }

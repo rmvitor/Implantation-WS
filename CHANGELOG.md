@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 1.8.1 — 09/10/2026
+
+- Capacitação incluída na barra de navegação do projeto e nas ações rápidas do município, para acessar treinamentos e atendimentos remotos.
+- Navegação mantém a área atual visível na rolagem horizontal do celular, inclusive ao acessar pelo menu lateral.
+- Conexão pública padrão do Supabase conferida com a URL e a chave publicável informadas, mantendo as configurações específicas já salvas no aparelho.
+
 ## 1.8.0 — 09/10/2026
 
 - Barra de navegação do projeto disponível em Atividades, Homologação, Agenda e Histórico, com área atual marcada e layout em uma linha no celular.

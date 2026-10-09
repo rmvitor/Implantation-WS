@@ -127,3 +127,7 @@ Barra de navegação do projeto disponível em Atividades, Homologação, Agenda
 Ações de encerrar, reabrir e excluir ficam nos dados do município e no card da tela inicial. Clique com o botão direito no card, pressione Shift+F10 com ele em foco ou use os três pontos para abrir atividades, consultar/editar dados, homologação, agenda, histórico e ações do projeto. Permissões continuam sendo verificadas, e encerramento/exclusão mantêm as confirmações.
 
 No modo de equipe, abra o perfil pelo avatar ou pelo menu lateral e use **Finalizar sessão**. A sessão deste aparelho é encerrada e os dados online saem da tela; alterações de aparência ainda não salvas são descartadas. O modo local não oferece esse botão, pois não possui uma sessão autenticada. Não exige nova migração SQL.
+
+## Versão 1.8.1
+
+Capacitação integra a barra de navegação do projeto e o menu de ações rápidas, com acesso aos treinamentos e atendimentos remotos. Em telas menores, a barra mantém a área atual visível ao mudar pelo menu lateral. A conexão pública de produção usa por padrão o projeto Supabase informado; configurações específicas salvas no aparelho continuam sendo respeitadas. Não exige migração SQL.

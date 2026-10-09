@@ -10,7 +10,7 @@ async function open(page) {
     .click();
 }
 
-test("navegação do projeto permanece nas quatro áreas em uma linha no celular e ações de encerramento ficam nos dados", async ({
+test("navegação do projeto mantém cinco áreas em uma linha no celular e ações de encerramento ficam nos dados", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 360, height: 800 });
@@ -21,6 +21,7 @@ test("navegação do projeto permanece nas quatro áreas em uma linha no celular
   for (const [label, area] of [
     ["Homologação", ".homologation-page"],
     ["Agenda", ".agenda-group"],
+    ["Capacitação", ".training-grid"],
     ["Histórico", ".timeline"],
     ["Atividades", ".kanban"],
   ]) {
@@ -28,6 +29,7 @@ test("navegação do projeto permanece nas quatro áreas em uma linha no celular
     await expect(
       nav(page).getByRole("button", { name: label, exact: true }),
     ).toHaveAttribute("aria-current", "page");
+    await expect(page.locator(area).first()).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Encerrar projeto", exact: true }),
     ).toHaveCount(0);
@@ -46,6 +48,22 @@ test("navegação do projeto permanece nas quatro áreas em uma linha no celular
       ),
     ).toBe(true);
   }
+  await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
+  await page
+    .locator("nav")
+    .getByRole("button", { name: "Capacitação e suporte", exact: true })
+    .click();
+  await expect(page.locator(".training-grid")).toBeVisible();
+  const activeFits = await nav(page).evaluate((navigation) => {
+    const bounds = navigation
+      .querySelector(".board-tabs")
+      .getBoundingClientRect();
+    const active = navigation
+      .querySelector('[aria-current="page"]')
+      .getBoundingClientRect();
+    return active.left >= bounds.left - 1 && active.right <= bounds.right + 1;
+  });
+  expect(activeFits).toBe(true);
   await page
     .getByRole("button", { name: "Dados do município", exact: true })
     .click();
