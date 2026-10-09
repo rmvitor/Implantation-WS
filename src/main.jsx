@@ -1,4 +1,10 @@
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowUpRight,
@@ -39,6 +45,10 @@ import {
 import {
   STAGES,
   MODULES,
+  CATEGORIES,
+  PRIORITIES,
+  sortActivities,
+  cardSummary,
   uid,
   localDate,
   nextDate,
@@ -60,10 +70,15 @@ import {
   ActivitiesTable,
   ActivitiesCalendar,
   ValidationBadge,
+  ModuleBadge,
 } from "./WorkflowViews";
 import { HandoffFields } from "./HandoffFields";
 import "./styles.css";
 import "./workflow.css";
+import "./appearance.css";
+import { BoardScroller } from "./BoardScroller";
+import { ProfileSettings, applyAppearance } from "./ProfileSettings";
+import { version as appVersion } from "../package.json";
 
 const STORAGE = "implanta.workspace.v1";
 const formatDate = (value, options = { day: "2-digit", month: "short" }) =>
@@ -105,12 +120,51 @@ function App() {
   const [sidebar, setSidebar] = useState(false);
   const [dragging, setDragging] = useState(null);
   const fileRef = useRef();
+  const cardPositions = useRef(new Map());
+  const [dropTarget, setDropTarget] = useState(null);
+  useLayoutEffect(() => {
+    applyAppearance(data.appearance);
+  }, [data.appearance]);
+  const captureCards = () => {
+    cardPositions.current = new Map(
+      [...document.querySelectorAll("[data-task-id]")].map((el) => [
+        el.dataset.taskId,
+        el.getBoundingClientRect(),
+      ]),
+    );
+  };
+  useLayoutEffect(() => {
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      document.querySelectorAll("[data-task-id]").forEach((el) => {
+        const before = cardPositions.current.get(el.dataset.taskId);
+        const after = el.getBoundingClientRect();
+        if (
+          before &&
+          (Math.abs(before.x - after.x) > 1 || Math.abs(before.y - after.y) > 1)
+        )
+          el.animate(
+            [
+              {
+                transform: `translate(${before.x - after.x}px, ${before.y - after.y}px) rotate(-1deg)`,
+              },
+              { transform: "translate(0,0) rotate(0deg)" },
+            ],
+            { duration: 260, easing: "cubic-bezier(.2,.8,.2,1)" },
+          );
+      });
+    }
+    cardPositions.current.clear();
+  }, [data]);
   const project =
     data.projects.find((p) => p.id === data.selectedId) || data.projects[0];
-  const tasks = project.tasks.filter(
-    (t) =>
-      matchesTask(t, search, module, priority) &&
-      (!typeFilter || t.type === typeFilter),
+  const taskOrder = data.boardOrders?.[project.id] || "manual";
+  const tasks = sortActivities(
+    project.tasks.filter(
+      (t) =>
+        matchesTask(t, search, module, priority) &&
+        (!typeFilter || t.type === typeFilter),
+    ),
+    taskOrder,
   );
   const boardView = ["kanban", "list", "table", "calendar"].includes(
     data.boardViews?.[project.id],
@@ -181,6 +235,7 @@ function App() {
       setModal({ type: "task", task: { ...task, stage }, isNew: false });
       return;
     }
+    captureCards();
     if (updateProject((p) => moveTask(p, id, stage)))
       setToast("Situação atualizada. Histórico preservado.");
   };
@@ -188,6 +243,7 @@ function App() {
     setModal({ type: "task", task: newActivity(stage, date), isNew: true });
   const saveTask = (task, isNew) => {
     try {
+      captureCards();
       if (updateProject((p) => saveActivity(p, task))) {
         setModal(null);
         setToast(isNew ? "Atividade criada." : "Alterações salvas.");
@@ -348,14 +404,18 @@ function App() {
           >
             <CircleHelp size={18} /> Ajuda e fluxo de trabalho
           </button>
-          <div className="profile">
+          <button
+            className="profile"
+            aria-label="Configurações do perfil"
+            onClick={() => setModal({ type: "profile" })}
+          >
             <span className="avatar">VC</span>
             <div>
               <strong>Seu workspace</strong>
               <small>Armazenamento local</small>
             </div>
-            <ShieldCheck size={17} />
-          </div>
+            <Settings2 size={17} />
+          </button>
         </div>
       </aside>
       <main className="main">
@@ -389,7 +449,13 @@ function App() {
               {todayEvents.length > 0 && <i />}
             </button>
             <span className="topbar-divider" />
-            <span className="avatar small-avatar">VC</span>
+            <button
+              className="avatar small-avatar"
+              aria-label="Abrir configurações do perfil"
+              onClick={() => setModal({ type: "profile" })}
+            >
+              VC
+            </button>
           </div>
         </header>
         <div className="page-content">
@@ -603,7 +669,14 @@ function App() {
                         onChange={(e) => setModule(e.target.value)}
                       >
                         <option value="">Todos os módulos</option>
-                        {MODULES.map((m) => (
+                        {[
+                          ...new Set([
+                            ...MODULES,
+                            ...project.tasks
+                              .map((t) => t.module)
+                              .filter(Boolean),
+                          ]),
+                        ].map((m) => (
                           <option key={m}>{m}</option>
                         ))}
                       </select>
@@ -616,6 +689,25 @@ function App() {
                           <span className="filter-dot" />
                         )}
                       </button>
+                      <select
+                        aria-label="Ordenar cartões"
+                        value={taskOrder}
+                        onChange={(e) => {
+                          captureCards();
+                          setData((d) => ({
+                            ...d,
+                            boardOrders: {
+                              ...d.boardOrders,
+                              [project.id]: e.target.value,
+                            },
+                          }));
+                        }}
+                      >
+                        <option value="manual">Ordem de criação</option>
+                        <option value="priority">
+                          Prioridade: alta primeiro
+                        </option>
+                      </select>
                       <span className="avatar-stack">
                         <span>VC</span>
                         <span>
@@ -626,15 +718,18 @@ function App() {
                   </div>
                   {showFilters && (
                     <div className="expanded-filters">
-                      <span>Tipo</span>
+                      <span>Categoria</span>
                       <select
                         value={typeFilter}
                         onChange={(e) => setTypeFilter(e.target.value)}
-                        aria-label="Filtrar por tipo"
+                        aria-label="Filtrar por categoria"
                       >
                         <option value="">Todos</option>
-                        <option value="atividade">Atividade</option>
-                        <option value="chamado">Chamado</option>
+                        {Object.entries(CATEGORIES).map(([id, label]) => (
+                          <option key={id} value={id}>
+                            {label}
+                          </option>
+                        ))}
                       </select>
                       <span>Prioridade</span>
                       <select
@@ -661,25 +756,27 @@ function App() {
                     </div>
                   )}
                   {boardView === "kanban" && (
-                    <section
-                      className="kanban"
-                      aria-label="Quadro de implantação"
-                    >
+                    <BoardScroller>
                       {STAGES.map((stage) => {
                         const items = tasks.filter((t) => t.stage === stage.id);
                         const Icon = stageIcons[stage.id];
                         return (
                           <div
                             id={`column-${stage.id}`}
-                            className={`kanban-column column-${stage.id}`}
+                            className={`kanban-column column-${stage.id} ${dragging && dropTarget === stage.id ? "drop-target" : ""}`}
                             key={stage.id}
-                            onDragOver={(e) => e.preventDefault()}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = "move";
+                              setDropTarget(stage.id);
+                            }}
                             onDrop={(e) => {
                               e.preventDefault();
                               const id = e.dataTransfer.getData("text/plain");
                               if (project.tasks.some((t) => t.id === id))
                                 move(id, stage.id);
                               setDragging(null);
+                              setDropTarget(null);
                             }}
                           >
                             <div className="column-heading">
@@ -716,7 +813,10 @@ function App() {
                                   key={t.id}
                                   dragging={dragging === t.id}
                                   onDrag={() => setDragging(t.id)}
-                                  onDragEnd={() => setDragging(null)}
+                                  onDragEnd={() => {
+                                    setDragging(null);
+                                    setDropTarget(null);
+                                  }}
                                   onOpen={() =>
                                     setModal({
                                       type: "task",
@@ -746,7 +846,7 @@ function App() {
                           </div>
                         );
                       })}
-                    </section>
+                    </BoardScroller>
                   )}
                   {boardView === "list" && (
                     <ActivitiesList
@@ -760,6 +860,7 @@ function App() {
                   )}
                   {boardView === "table" && (
                     <ActivitiesTable
+                      priorityOrder={taskOrder === "priority"}
                       tasks={tasks}
                       onOpen={(task) =>
                         setModal({ type: "task", task, isNew: false })
@@ -829,7 +930,7 @@ function App() {
             </>
           )}
           <footer className="page-footer">
-            <span>Feito para organizar. Pensado para avançar.</span>
+            <span>Implanta · v{appVersion}</span>
             <span>
               <ShieldCheck size={13} /> Dados salvos neste navegador
             </span>
@@ -851,6 +952,19 @@ function App() {
             <X size={16} />
           </button>
         </div>
+      )}
+      {modal?.type === "profile" && (
+        <ProfileSettings
+          Modal={Modal}
+          appearance={data.appearance}
+          onClose={() => setModal(null)}
+          onSave={(appearance) => {
+            if (setData((d) => ({ ...d, appearance }))) {
+              setModal(null);
+              setToast("Aparência salva.");
+            }
+          }}
+        />
       )}
       {modal?.type === "task" && (
         <TaskModal
@@ -1122,39 +1236,26 @@ function TaskCard({ task, onOpen, onDrag, onDragEnd, dragging }) {
   return (
     <button
       className={`task-card ${dragging ? "dragging" : ""} ${task.stage === "concluido" ? "completed-card" : ""}`}
+      data-task-id={task.id}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", task.id);
+        e.dataTransfer.effectAllowed = "move";
         onDrag();
       }}
       onDragEnd={onDragEnd}
       onClick={onOpen}
     >
       <div className="task-tag-row">
-        <span className={`module-tag module-${MODULES.indexOf(task.module)}`}>
-          {task.module}
-        </span>
-        {task.priority === "alta" && (
-          <span className="priority-indicator" title="Alta prioridade">
-            <i />
-            <i />
-            <i />
-          </span>
-        )}
+        <ModuleBadge task={task} />
         {task.stage === "concluido" && (
           <Check className="done-icon" size={15} />
         )}
       </div>
-      {task.ticket && <span className="ticket-number">#{task.ticket}</span>}
-      <h4>
-        {task.ticket && `${task.ticket} — `}
-        {task.title}
-      </h4>
-      {task.type === "chamado" && (
-        <span className="ticket-type-label">
-          <Ticket size={11} /> Chamado
-        </span>
-      )}
+      <h4>{cardSummary(task)}</h4>
+      <span className="ticket-type-label">
+        {CATEGORIES[task.type] || "Tarefa"}
+      </span>
       {task.nextAction ? (
         <p className="card-next-action">
           <ArrowRight size={12} />
@@ -1377,6 +1478,10 @@ function TaskModal({ task, isNew, entities, onClose, onSave, onDelete }) {
               value={draft.module}
               onChange={(e) => patch("module", e.target.value)}
             >
+              <option value="">Selecione o módulo</option>
+              {draft.module && !MODULES.includes(draft.module) && (
+                <option>{draft.module}</option>
+              )}
               {MODULES.map((m) => (
                 <option key={m}>{m}</option>
               ))}
@@ -1415,13 +1520,16 @@ function TaskModal({ task, isNew, entities, onClose, onSave, onDelete }) {
               onChange={(e) => patch("time", e.target.value)}
             />
           </Field>
-          <Field label="Tipo de atividade">
+          <Field label="Categoria">
             <select
               value={draft.type}
               onChange={(e) => patch("type", e.target.value)}
             >
-              <option value="atividade">Atividade</option>
-              <option value="chamado">Chamado</option>
+              {Object.entries(CATEGORIES).map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
             </select>
           </Field>
           {draft.stage === "waiting" && (
@@ -1439,31 +1547,29 @@ function TaskModal({ task, isNew, entities, onClose, onSave, onDelete }) {
               </datalist>
             </Field>
           )}
+          <Field label="Número do chamado">
+            <input
+              value={draft.ticket}
+              onChange={(e) => patch("ticket", e.target.value)}
+              placeholder="Ex.: 872797"
+            />
+          </Field>
           {(draft.type === "chamado" || draft.ticket) && (
-            <>
-              <Field label="Número do chamado">
-                <input
-                  value={draft.ticket}
-                  onChange={(e) => patch("ticket", e.target.value)}
-                  placeholder="Ex.: 872797"
-                />
-              </Field>
-              <Field label="Situação na fábrica">
-                <select
-                  value={draft.ticketStatus || "Aguardando retorno"}
-                  onChange={(e) => patch("ticketStatus", e.target.value)}
-                >
-                  {[
-                    "Aguardando retorno",
-                    "Em análise",
-                    "Em desenvolvimento",
-                    "Disponível para validar",
-                  ].map((s) => (
-                    <option key={s}>{s}</option>
-                  ))}
-                </select>
-              </Field>
-            </>
+            <Field label="Situação na fábrica">
+              <select
+                value={draft.ticketStatus || "Aguardando retorno"}
+                onChange={(e) => patch("ticketStatus", e.target.value)}
+              >
+                {[
+                  "Aguardando retorno",
+                  "Em análise",
+                  "Em desenvolvimento",
+                  "Disponível para validar",
+                ].map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </Field>
           )}
           <Field label="Descrição / notas adicionais" full>
             <textarea

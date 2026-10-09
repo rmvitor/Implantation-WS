@@ -20,6 +20,10 @@ import {
   Users,
 } from "lucide-react";
 import {
+  CATEGORIES,
+  PRIORITIES,
+  sortActivities,
+  cardSummary,
   STAGES,
   MODULES,
   isValidated,
@@ -48,8 +52,13 @@ export function StageBadge({ task }) {
 }
 export function ModuleBadge({ task }) {
   return (
-    <span className={`module-tag module-${MODULES.indexOf(task.module)}`}>
-      {task.module}
+    <span className="activity-tags">
+      <span className={`module-tag module-${MODULES.indexOf(task.module)}`}>
+        {task.module || "Sem módulo"}
+      </span>
+      <span className={`priority-tag priority-${task.priority || "normal"}`}>
+        {PRIORITIES[task.priority] || "Normal"}
+      </span>
     </span>
   );
 }
@@ -285,14 +294,11 @@ export function ActivitiesList({ tasks, onOpen, onMove, onAdd }) {
                 >
                   <div>
                     <ModuleBadge task={t} />
-                    {t.type === "chamado" && (
-                      <span className="ticket-type-label">
-                        <Ticket size={12} />
-                        Chamado {t.ticket && `#${t.ticket}`}
-                      </span>
-                    )}
+                    <span className="ticket-type-label">
+                      {CATEGORIES[t.type] || "Tarefa"}
+                    </span>
                   </div>
-                  <h4>{t.title}</h4>
+                  <h4>{cardSummary(t)}</h4>
                   <p className={t.nextAction ? "" : "context-missing"}>
                     {t.nextAction || "Próxima ação ainda não definida"}
                   </p>
@@ -344,15 +350,18 @@ export function ActivitiesList({ tasks, onOpen, onMove, onAdd }) {
   );
 }
 
-export function ActivitiesTable({ tasks, onOpen, onMove }) {
+export function ActivitiesTable({ tasks, onOpen, onMove, priorityOrder }) {
   const [sort, setSort] = useState("date");
-  const sorted = [...tasks].sort((a, b) =>
-    sort === "title"
-      ? a.title.localeCompare(b.title, "pt-BR")
-      : sort === "owner"
-        ? a.owner.localeCompare(b.owner, "pt-BR")
-        : (a.date || "9999").localeCompare(b.date || "9999"),
-  );
+  const sorted =
+    priorityOrder || sort === "priority"
+      ? sortActivities(tasks, "priority")
+      : [...tasks].sort((a, b) =>
+          sort === "title"
+            ? a.title.localeCompare(b.title, "pt-BR")
+            : sort === "owner"
+              ? a.owner.localeCompare(b.owner, "pt-BR")
+              : (a.date || "9999").localeCompare(b.date || "9999"),
+        );
   return (
     <section className="activities-table-panel">
       <div className="table-toolbar">
@@ -363,10 +372,12 @@ export function ActivitiesTable({ tasks, onOpen, onMove }) {
         <label>
           Ordenar por{" "}
           <select
-            value={sort}
+            value={priorityOrder ? "priority" : sort}
+            disabled={priorityOrder}
             onChange={(e) => setSort(e.target.value)}
             aria-label="Ordenar atividades"
           >
+            <option value="priority">Prioridade</option>
             <option value="date">Prazo</option>
             <option value="title">Título</option>
             <option value="owner">Responsável</option>
@@ -391,16 +402,11 @@ export function ActivitiesTable({ tasks, onOpen, onMove }) {
                 <tr key={t.id}>
                   <td>
                     <button onClick={() => onOpen(t)}>
-                      {t.ticket && (
-                        <small>
-                          <Ticket size={12} />#{t.ticket}
-                        </small>
-                      )}
-                      <strong>{t.title}</strong>
+                      <strong>{cardSummary(t)}</strong>
                       <ModuleBadge task={t} />
-                      {t.type === "chamado" && (
-                        <span className="ticket-type-label">Chamado</span>
-                      )}
+                      <span className="ticket-type-label">
+                        {CATEGORIES[t.type] || "Tarefa"}
+                      </span>
                     </button>
                   </td>
                   <td>
@@ -569,7 +575,7 @@ export function ActivitiesCalendar({
                   <button
                     key={t.id}
                     className={`calendar-event ${t.kind === "training" ? "training-event" : ""} ${t.stage === "concluido" ? "finished-event" : ""}`}
-                    title={`${t.time || ""} ${t.title}`}
+                    title={`${t.time || ""} ${cardSummary(t)}`}
                     onClick={() =>
                       t.kind === "training" ? onTraining(t) : onOpen(t)
                     }
@@ -584,7 +590,7 @@ export function ActivitiesCalendar({
                     )}
                     <span>
                       {t.time && <small>{t.time} </small>}
-                      {t.title}
+                      {cardSummary(t)}
                     </span>
                   </button>
                 ))}
@@ -599,7 +605,7 @@ export function ActivitiesCalendar({
           {undated.map((t) => (
             <button key={t.id} onClick={() => onOpen(t)}>
               <Clock3 size={14} />
-              <span>{t.title}</span>
+              <span>{cardSummary(t)}</span>
               <ModuleBadge task={t} />
               <ChevronRight size={13} />
             </button>

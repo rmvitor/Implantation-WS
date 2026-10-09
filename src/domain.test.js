@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createDemo,
+  sortActivities,
+  cardSummary,
+  newActivity,
   moveTask,
   saveActivity,
   isValidated,
@@ -150,4 +153,42 @@ test("backup válido preserva dados e rejeita estrutura incompatível", () => {
     },
   ];
   assert.throws(() => validateBackup(invalidAttachment));
+});
+
+test("prioridade ordena sem alterar ordem original, categorias e números sobrevivem ao backup", () => {
+  const tasks = [
+    { ...newActivity(), title: "Menor", priority: "baixa" },
+    { ...newActivity(), title: "Normal", priority: "normal" },
+    {
+      ...newActivity(),
+      title: "Primeira alta",
+      priority: "alta",
+      type: "pendencia",
+      ticket: "904321",
+    },
+    {
+      ...newActivity(),
+      title: "Segunda alta",
+      priority: "alta",
+      type: "agenda",
+    },
+  ];
+  assert.deepEqual(
+    sortActivities(tasks, "priority").map((t) => t.title),
+    ["Primeira alta", "Segunda alta", "Normal", "Menor"],
+  );
+  assert.equal(sortActivities(tasks), tasks);
+  assert.equal(tasks[0].title, "Menor");
+  assert.equal(cardSummary(tasks[2]), "Primeira alta — #904321");
+  assert.equal(cardSummary(tasks[0]), "Menor");
+  const backup = createDemo();
+  backup.appearance = { theme: "dark", primary: "#7c3aed" };
+  backup.boardOrders = { "quatro-barras": "priority" };
+  backup.projects[0].tasks = tasks;
+  const restored = validateBackup(backup);
+  assert.deepEqual(restored.appearance, backup.appearance);
+  assert.deepEqual(restored.boardOrders, backup.boardOrders);
+  assert.equal(restored.projects[0].tasks[2].type, "pendencia");
+  assert.equal(restored.projects[0].tasks[2].ticket, "904321");
+  assert.equal(restored.projects[0].tasks[3].type, "agenda");
 });

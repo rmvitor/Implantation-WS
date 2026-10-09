@@ -6,13 +6,47 @@ export const STAGES = [
   { id: "concluido", label: "Concluídos", color: "#70a08a" },
 ];
 export const MODULES = [
-  "Frotas",
+  "Compras e Contratos",
   "Almoxarifado",
   "Patrimônio",
-  "Compras e contratos",
-  "Licitações",
-  "Geral",
+  "Frota",
+  "Fiscalização de contrato",
+  "Elicita",
 ];
+export const CATEGORIES = {
+  chamado: "Chamado",
+  tarefa: "Tarefa",
+  agenda: "Agenda",
+  pendencia: "Pendência",
+};
+export const PRIORITIES = { alta: "Alta", normal: "Normal", baixa: "Baixa" };
+export function sortActivities(tasks, order = "manual") {
+  if (order !== "priority") return tasks;
+  const rank = { alta: 0, normal: 1, baixa: 2 };
+  return [...tasks].sort(
+    (a, b) => (rank[a.priority] ?? 1) - (rank[b.priority] ?? 1),
+  );
+}
+export function normalizeModule(module) {
+  const key = module
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  return (
+    {
+      frotas: "Frota",
+      frota: "Frota",
+      "compras e contratos": "Compras e Contratos",
+      patrimonio: "Patrimônio",
+      licitacoes: "Elicita",
+      elicita: "Elicita",
+      "fiscalizacao de contrato": "Fiscalização de contrato",
+    }[key] || module
+  );
+}
+export function cardSummary(task) {
+  return `${task.title}${task.ticket ? ` — #${task.ticket}` : ""}`;
+}
 export const uid = () => globalThis.crypto.randomUUID();
 export const localDate = (date = new Date()) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -100,9 +134,9 @@ export function newActivity(stage = "todo", date = "") {
   return {
     id: uid(),
     title: "",
-    module: "Geral",
+    module: "",
     stage,
-    type: "atividade",
+    type: "tarefa",
     owner: "",
     priority: "normal",
     date,
@@ -135,10 +169,19 @@ export function migrateWorkspace(value) {
       tasks: p.tasks.map((t) => ({
         ...newActivity(),
         ...t,
+        module: normalizeModule(t.module),
         stage: legacy ? map[t.stage] || t.stage : t.stage,
         type:
-          t.type ||
-          (t.ticket || t.stage === "chamado" ? "chamado" : "atividade"),
+          t.type === "atividade"
+            ? "tarefa"
+            : t.type ||
+              (t.ticket || t.stage === "chamado"
+                ? "chamado"
+                : t.stage === "agenda"
+                  ? "agenda"
+                  : t.stage === "pendencia"
+                    ? "pendencia"
+                    : "tarefa"),
         problem: legacy ? t.problem || t.description || "" : t.problem || "",
         validation: t.validation || null,
       })),
@@ -181,7 +224,7 @@ const list = (entity, completed = 0) => ({
 const task = (title, module, stage, extra = {}) => ({
   ...newActivity(stage),
   title,
-  module,
+  module: normalizeModule(module),
   owner: "Você",
   ...extra,
 });

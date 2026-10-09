@@ -32,7 +32,7 @@ test("quadro permite editar checklists, concluir e recuperar os dados salvos", a
   await page
     .getByLabel("Título da atividade")
     .fill("Validar fluxo de requisição");
-  await page.getByLabel("Tipo de atividade").selectOption("chamado");
+  await page.getByLabel("Categoria").selectOption("chamado");
   await page.getByLabel("Número do chamado").fill("123456");
   await page.getByRole("button", { name: "Criar atividade" }).click();
   const card = page.getByRole("button", {
@@ -83,7 +83,7 @@ test("município, agenda de treinamentos e backup funcionam de ponta a ponta", a
     .getByRole("button", { name: "Novo município", exact: true })
     .click();
   await page.getByLabel("Nome do município").fill("Município de Teste");
-  await page.getByLabel("Código no Dream").fill("9999");
+  await page.getByLabel("Código no Dream").press("End");
   await page.getByLabel("Nome do fiscal").fill("Fiscal de Teste");
   await page.getByLabel("E-mail do fiscal").fill("fiscal@example.com");
   await page.getByLabel("Entidades do projeto").fill("Prefeitura\nCâmara");
@@ -123,13 +123,11 @@ test("município, agenda de treinamentos e backup funcionam de ponta a ponta", a
   expect(backup.projects[1].trainings[0].title).toBe(
     "Treinamento de patrimônio",
   );
-  await page
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "backup.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(body),
-    });
+  await page.locator("input[type=file]").setInputFiles({
+    name: "backup.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(body),
+  });
   await expect(
     page.getByRole("heading", { name: "Restaurar este backup?" }),
   ).toBeVisible();
@@ -226,7 +224,7 @@ test("lista, tabela e calendário compartilham atividades, filtros e datas", asy
   await expect(tableRow).toContainText("Chamado");
   await expect(tableRow).toContainText("IPM: analisar");
   await page.getByRole("button", { name: "Filtros", exact: true }).click();
-  await page.getByLabel("Filtrar por tipo").selectOption("chamado");
+  await page.getByLabel("Filtrar por categoria").selectOption("chamado");
   await expect(page.locator(".activities-table tbody tr")).toHaveCount(3);
   await page.getByRole("button", { name: "Limpar filtros" }).click();
   await page.getByRole("button", { name: "Calendário", exact: true }).click();
@@ -292,13 +290,11 @@ test("contexto e anexos são preservados no backup; conclusão registra validaç
   await page
     .getByLabel("Próxima ação", { exact: true })
     .fill("Ana: conferir o saldo do bem 0042 após a correção IPM.");
-  await page
-    .getByLabel("Anexar evidência", { exact: true })
-    .setInputFiles({
-      name: "relatorio-teste.txt",
-      mimeType: "text/plain",
-      buffer: Buffer.from("Bem 0042: saldo conferido."),
-    });
+  await page.getByLabel("Anexar evidência", { exact: true }).setInputFiles({
+    name: "relatorio-teste.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("Bem 0042: saldo conferido."),
+  });
   await expect(page.locator(".evidence-file")).toContainText(
     "relatorio-teste.txt",
   );
@@ -388,7 +384,7 @@ test("migração local mantém chamados e distingue conclusões antigas sem vali
   await expect(page.getByLabel("Problema", { exact: true })).toHaveValue(
     "Notas antigas",
   );
-  await expect(page.getByLabel("Tipo de atividade")).toHaveValue("chamado");
+  await expect(page.getByLabel("Categoria")).toHaveValue("chamado");
   await page.getByRole("button", { name: "Salvar alterações" }).click();
   const stored = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("implanta.workspace.v1")),
@@ -419,5 +415,187 @@ test("falha de armazenamento mantém formulário e não declara salvamento", asy
   );
   await expect(page.getByLabel("Título da atividade")).toHaveValue(
     "Atividade sem espaço para salvar",
+  );
+});
+
+test("perfil aplica cor principal e True Black, persiste e cancela a prévia", async ({
+  page,
+}) => {
+  await openProject(page);
+  await page
+    .getByRole("button", { name: "Abrir configurações do perfil" })
+    .click();
+  await page.getByLabel("Tema", { exact: true }).selectOption("dark");
+  await page.getByLabel("Cor principal", { exact: true }).fill("#7c3aed");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(
+    await page
+      .locator(".sidebar")
+      .evaluate((el) => getComputedStyle(el).backgroundColor),
+  ).toBe("rgb(0, 0, 0)");
+  expect(
+    await page
+      .locator(".main")
+      .evaluate((el) => getComputedStyle(el).backgroundColor),
+  ).toBe("rgb(0, 0, 0)");
+  await page.getByRole("button", { name: "Salvar aparência" }).click();
+  await expect(
+    page.getByRole("button", { name: "Nova atividade", exact: true }),
+  ).toHaveCSS("background-color", "rgb(124, 58, 237)");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page
+    .getByRole("button", { name: "Abrir configurações do perfil" })
+    .click();
+  await expect(page.getByLabel("Cor principal", { exact: true })).toHaveValue(
+    "#7c3aed",
+  );
+  await page.getByLabel("Tema", { exact: true }).selectOption("light");
+  await page.getByLabel("Cor principal", { exact: true }).fill("#2563eb");
+  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(
+    await page.evaluate(() =>
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--primary")
+        .trim(),
+    ),
+  ).toBe("#7c3aed");
+  await expect(page.locator(".page-footer")).toContainText("v1.2.0");
+});
+
+test("categorias, módulos e número aparecem nos cartões; prioridade ordena todas as fases", async ({
+  page,
+}) => {
+  await openProject(page);
+  for (const [category, priority, title, ticket, module] of [
+    ["tarefa", "baixa", "Conferir saldo", "", "Frota"],
+    ["agenda", "normal", "Reunião com fiscal", "", "Fiscalização de contrato"],
+    ["pendencia", "alta", "Corrigir resultado", "904321", "Elicita"],
+    ["chamado", "alta", "Verificar relatório", "904322", "Compras e Contratos"],
+  ]) {
+    await page
+      .getByRole("button", { name: "Nova atividade", exact: true })
+      .click();
+    await page.getByLabel("Título da atividade").fill(title);
+    const options = await page
+      .getByLabel("Módulo", { exact: true })
+      .locator("option")
+      .allTextContents();
+    expect(options).toEqual([
+      "Selecione o módulo",
+      "Compras e Contratos",
+      "Almoxarifado",
+      "Patrimônio",
+      "Frota",
+      "Fiscalização de contrato",
+      "Elicita",
+    ]);
+    await page.getByLabel("Categoria", { exact: true }).selectOption(category);
+    await page.getByLabel("Prioridade", { exact: true }).selectOption(priority);
+    await page.getByLabel("Módulo", { exact: true }).selectOption(module);
+    if (ticket) await page.getByLabel("Número do chamado").fill(ticket);
+    await page.getByRole("button", { name: "Criar atividade" }).click();
+    const card = page.locator(".task-card").filter({ hasText: title });
+    await expect(card.locator("h4")).toHaveText(
+      ticket ? `${title} — #${ticket}` : title,
+    );
+    await expect(card.locator(".priority-tag")).toHaveText(
+      priority === "alta" ? "Alta" : priority === "baixa" ? "Baixa" : "Normal",
+    );
+  }
+  await page.getByLabel("Ordenar cartões").selectOption("priority");
+  const priorities = await page
+    .locator("#column-todo .priority-tag")
+    .allTextContents();
+  expect(priorities).toEqual(
+    [...priorities].sort(
+      (a, b) =>
+        ["Alta", "Normal", "Baixa"].indexOf(a) -
+        ["Alta", "Normal", "Baixa"].indexOf(b),
+    ),
+  );
+  await page.getByRole("button", { name: "Filtros", exact: true }).click();
+  await page.getByLabel("Filtrar por categoria").selectOption("pendencia");
+  await expect(page.locator(".task-card")).toHaveCount(1);
+  await page.getByRole("button", { name: "Lista", exact: true }).click();
+  await page
+    .getByLabel("Situação de Corrigir resultado")
+    .selectOption("progress");
+  await page.getByRole("button", { name: "Quadro", exact: true }).click();
+  await expect(page.locator("#column-progress")).toContainText(
+    "Corrigir resultado — #904321",
+  );
+  await page.locator(".task-card").click();
+  await expect(page.getByLabel("Situação", { exact: true })).toHaveValue(
+    "progress",
+  );
+  await expect(page.getByLabel("Categoria", { exact: true })).toHaveValue(
+    "pendencia",
+  );
+  await page.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await page.reload();
+  await page
+    .locator(".municipality-card")
+    .filter({ hasText: "Quatro Barras" })
+    .click();
+  await expect(page.getByLabel("Ordenar cartões")).toHaveValue("priority");
+});
+
+test("rolagem alcança todas as fases em telas menores e anima movimentação respeitando movimento reduzido", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openProject(page);
+  const board = page.getByRole("region", { name: "Quadro de implantação" });
+  await page
+    .getByLabel("Rolar quadro horizontalmente", { exact: true })
+    .press("End");
+  await expect(
+    page.getByRole("button", { name: "Rolar quadro para a direita" }),
+  ).toBeDisabled();
+  await expect(page.locator("#column-concluido h3")).toBeInViewport();
+  await board.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(
+    page.getByRole("button", { name: "Rolar quadro para a direita" }),
+  ).toBeEnabled();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.setViewportSize({ width: 1440, height: 1080 });
+  await page.evaluate(() => {
+    window.cardAnimations = 0;
+    const original = Element.prototype.animate;
+    Element.prototype.animate = function (...args) {
+      if (this.dataset.taskId) window.cardAnimations++;
+      return original.apply(this, args);
+    };
+  });
+  await page
+    .getByLabel("Rolar quadro horizontalmente", { exact: true })
+    .fill("0");
+  const card = page
+    .locator(".task-card")
+    .filter({ hasText: "Homologação de Frotas" });
+  await card.dragTo(page.locator("#column-todo"), {
+    targetPosition: { x: 45, y: 25 },
+  });
+  await expect(page.locator("#column-todo")).toContainText(
+    "Homologação de Frotas",
+  );
+  expect(await page.evaluate(() => window.cardAnimations)).toBeGreaterThan(0);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.evaluate(() => (window.cardAnimations = 0));
+  await page.getByRole("button", { name: "Lista", exact: true }).click();
+  await page
+    .getByLabel("Situação de Homologação de Frotas")
+    .selectOption("waiting");
+  await page.getByRole("button", { name: "Quadro", exact: true }).click();
+  expect(await page.evaluate(() => window.cardAnimations)).toBe(0);
+  await expect(page.locator("#column-waiting")).toContainText(
+    "Homologação de Frotas",
   );
 });

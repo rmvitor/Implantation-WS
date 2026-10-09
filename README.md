@@ -26,16 +26,19 @@ A publicação do site é independente da publicação do ambiente de desenvolvi
 
 - **Tela inicial:** projetos/municípios com busca, indicadores e cadastro de novas implantações. Ao abrir um município, o quadro apresenta seus dados separados dos demais projetos.
 - **Situação de trabalho:** A fazer, Em andamento, Aguardando retorno, Em homologação e Concluídos. Qualquer atividade ou chamado pode circular entre essas situações.
-- **Tipo e módulo:** etiquetas independentes da situação. Um chamado pode estar em andamento ou em homologação. Número, link do chamado e situação na fábrica continuam registrados; o cadastro é local, sem envio automático à fábrica.
+- **Categoria e módulo:** Chamado, Tarefa, Agenda e Pendência, independentes da situação. Os módulos de Suprimentos são Compras e Contratos, Almoxarifado, Patrimônio, Frota, Fiscalização de contrato e Elicita. Um chamado pode estar em andamento ou em homologação. Número, link do chamado e situação na fábrica continuam registrados; o cadastro é local, sem envio automático à fábrica.
 - **Passagem de trabalho:** responsável, prazo, problema, impacto, próxima ação, quem precisa agir agora, dependência, evidências e critério de conclusão. Os campos de contexto podem ser preenchidos aos poucos; o formulário mostra o que falta.
 - **Homologação:** um checklist independente para cada entidade. Itens podem ser adicionados, marcados ou removidos. Completar um checklist não conclui nem valida automaticamente a atividade.
 - **Evidências:** texto e links de exemplos/relatórios, link do chamado e até 3 arquivos de 1 MB por cartão (PNG, JPG, WebP, PDF ou TXT). Os anexos entram no backup. A aplicação verifica o limite local antes de salvar e mantém o formulário aberto se faltar espaço.
 - **Concluídos e histórico:** a conclusão exige critério, nome de quem validou, data e evidência da validação. Esse registro é copiado para o histórico. Reabrir uma atividade remove a validação atual, mas preserva o registro histórico e os anexos. O nome é informado manualmente; não representa autenticação ou assinatura.
 - **Visualizações:** Quadro arrastável, Lista agrupada por situação, Tabela com ordenação e Calendário mensal navegável. São os mesmos dados e filtros, sem duplicação de cartões. A preferência é salva por projeto. No calendário, é possível abrir ou criar atividades por data; itens sem data ficam acessíveis abaixo da grade.
+- **Prioridade:** Alta, Normal ou Baixa, em tag junto ao módulo. Use “Ordenar cartões” para exibir primeiro as atividades de alta prioridade; essa preferência fica salva por município. A tabela também tem ordenação própria por prioridade.
+- **Aparência:** abra o perfil pelo avatar ou pelo rodapé da barra lateral para escolher a cor principal e o tema claro ou escuro True Black. A prévia pode ser cancelada; as escolhas salvas persistem neste navegador e entram no backup.
+- **Telas menores:** use a rolagem horizontal, a barra ou os botões acima do quadro para chegar às demais fases. Quando o quadro estiver em foco, as setas do teclado também permitem navegar.
 - **Agenda:** compromissos, prazos e treinamentos por data, independentemente da situação do cartão.
 - **Treinamentos:** agenda própria, cadastrada manualmente a partir da programação recebida por e-mail. Sem integração de e-mail nesta versão.
 
-O trabalho pode acontecer em paralelo. Arraste um cartão ou edite sua situação para movimentá-lo sem passagem obrigatória pelas outras colunas. Ao arrastar para Concluídos, o formulário de validação abre antes de aplicar a conclusão. O progresso exibido corresponde à proporção de atividades concluídas com validação registrada; cada checklist tem seu próprio progresso.
+O trabalho pode acontecer em paralelo. Arraste um cartão ou edite sua situação para movimentá-lo sem passagem obrigatória pelas outras colunas. A movimentação tem indicação de destino e animação, respeitando a configuração de movimento reduzido do sistema. Ao arrastar para Concluídos, o formulário de validação abre antes de aplicar a conclusão. O progresso exibido corresponde à proporção de atividades concluídas com validação registrada; cada checklist tem seu próprio progresso.
 
 O projeto inicial de Quatro Barras é uma demonstração baseada no fluxo fornecido. Crie seu município para começar com um quadro vazio. Os dados ficam separados por município.
 
@@ -44,6 +47,8 @@ O projeto inicial de Quatro Barras é uma demonstração baseada no fluxo fornec
 Os dados ficam em `localStorage` no navegador que acessa o site, vinculados ao endereço/origem. Não há servidor de dados, contas ou sincronização entre usuários nesta versão. Publicar os arquivos do site não compartilha os dados cadastrados entre computadores.
 
 Use **Dados e backup** para exportar ou restaurar um arquivo JSON. A restauração pede confirmação e substitui os dados atuais. O backup pode conter contatos e CPF; conserve-o em um local com acesso restrito. O CPF fica mascarado na visualização e pode ser editado no formulário.
+
+A versão exibida no rodapé vem de `package.json`. Veja as mudanças em [CHANGELOG.md](CHANGELOG.md).
 
 Os cadastros e backups da versão anterior são migrados sem apagar atividades, notas, datas, checklists, números de chamados ou histórico. Pendências e agendas antigas passam para A fazer, mantendo as datas; antigos cartões de Chamados passam para Aguardando retorno com etiqueta Chamado. Conclusões antigas permanecem na coluna, com o aviso “Validação não registrada” se não houver aceite. A migração não inventa evidências ou nomes de validadores.
 
@@ -57,6 +62,6 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE=/usr/bin/chromium npm run test:e2e
 npm run build
 ```
 
-Os testes de domínio cobrem movimentação livre, validação obrigatória na conclusão, reabertura, histórico, checklists, migração de versões, filtros e integridade do backup. Os testes no navegador cobrem tela inicial, cadastro, edição, persistência, treinamentos, exportação/restauração, anexos, migração, troca de visualização, calendário, navegação móvel e falhas de armazenamento.
+Os testes de domínio cobrem movimentação livre, validação obrigatória na conclusão, reabertura, histórico, checklists, migração de versões, filtros e integridade do backup. Os testes no navegador cobrem tela inicial, cadastro, edição, persistência, treinamentos, exportação/restauração, anexos, migração, troca de visualização, calendário, navegação móvel, rolagem, animação, prioridades, categorias, preferências de aparência e falhas de armazenamento.
 
 Se não houver Chromium instalado, instale o navegador do Playwright com `npx playwright install chromium` e execute `npm run test:e2e` sem a variável acima. O arquivo de configuração inicia o servidor de desenvolvimento automaticamente quando necessário.
