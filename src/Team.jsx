@@ -251,7 +251,7 @@ export function TeamHost({ children }) {
     },
     refresh: () => refreshRef.current?.(),
     async signOut() {
-      const { error: e } = await client.auth.signOut();
+      const { error: e } = await client.auth.signOut({ scope: "local" });
       if (e) throw e;
       setProfile(null);
       setWorkspace(null);

@@ -54,8 +54,10 @@ async function setup(page, { role = "editor", loggedIn = true } = {}) {
         JSON.stringify(config),
       );
       localStorage.setItem("implanta.workspace.v1", JSON.stringify(demo));
-      if (session)
+      if (session && !sessionStorage.getItem("implanta.test.auth-seeded")) {
         localStorage.setItem("sb-test-auth-token", JSON.stringify(session));
+        sessionStorage.setItem("implanta.test.auth-seeded", "true");
+      }
     },
     { config, demo, session: loggedIn ? session : null },
   );
@@ -69,7 +71,10 @@ async function setup(page, { role = "editor", loggedIn = true } = {}) {
     else if (path === "/auth/v1/user") data = user;
     else if (path === "/auth/v1/signup") data = { user, session: null };
     else if (path === "/auth/v1/logout") {
-      status = 204;
+      status = state.logoutFail ? 400 : 204;
+      data = state.logoutFail
+        ? { message: "Não foi possível finalizar a sessão agora." }
+        : null;
     } else if (path.endsWith("/rpc/implanta_access"))
       data = {
         id: userId,
@@ -192,6 +197,78 @@ test("cadastro pendente não carrega projetos", async ({ page }) => {
   expect(state.reads).toBe(0);
   await expect(page.locator(".municipality-card")).toHaveCount(0);
 });
+test("perfil finaliza a sessão atual e retira os dados online, sem salvar a prévia de aparência", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  await openProject(page);
+  await page
+    .getByRole("button", { name: "Abrir configurações do perfil" })
+    .click();
+  await page.getByLabel("Cor principal", { exact: true }).fill("#be185d");
+  await page
+    .getByRole("button", { name: "Finalizar sessão", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Entrar na equipe" }),
+  ).toBeVisible();
+  await expect(
+    page.locator(".task-card,.municipality-card,.modal"),
+  ).toHaveCount(0);
+  expect(state.preferences.appearance).toBeUndefined();
+  expect(
+    await page.evaluate(() => localStorage.getItem("sb-test-auth-token")),
+  ).toBeNull();
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Entrar na equipe" }),
+  ).toBeVisible();
+});
+test("perfil retira os dados do aparelho mesmo quando falha a confirmação do encerramento no servidor", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const state = await setup(page);
+  await openProject(page);
+  await page.getByRole("button", { name: "Abrir menu" }).click();
+  await page
+    .getByRole("button", { name: "Configurações do perfil", exact: true })
+    .click();
+  state.logoutFail = true;
+  await page
+    .getByRole("button", { name: "Finalizar sessão", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Entrar na equipe" }),
+  ).toBeVisible();
+  await expect(page.locator(".task-card,.municipality-card")).toHaveCount(0);
+  expect(
+    await page.evaluate(() => localStorage.getItem("sb-test-auth-token")),
+  ).toBeNull();
+});
+test("atalhos do projeto mantêm consulta e bloqueiam alterações para visualizador", async ({
+  page,
+}) => {
+  await setup(page, { role: "viewer" });
+  await page.goto("/");
+  await page.locator(".municipality-card").click({ button: "right" });
+  const menu = page.getByRole("menu", { name: "Ações do projeto" });
+  await expect(
+    menu.getByRole("menuitem", { name: "Editar dados", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    menu.getByRole("menuitem", { name: "Encerrar projeto", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    menu.getByRole("menuitem", { name: "Excluir projeto", exact: true }),
+  ).toBeDisabled();
+  await menu
+    .getByRole("menuitem", { name: "Dados do município", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Informações do município" }),
+  ).toBeVisible();
+});
 test("visualizador abre contexto mas não edita, arrasta, encerra ou exclui", async ({
   page,
 }) => {
@@ -202,10 +279,10 @@ test("visualizador abre contexto mas não edita, arrasta, encerra ou exclui", as
   ).toBeDisabled();
   await expect(
     page.getByRole("button", { name: "Encerrar projeto", exact: true }),
-  ).toBeDisabled();
+  ).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Excluir projeto", exact: true }),
-  ).toBeDisabled();
+  ).toHaveCount(0);
   const card = page
     .locator(".task-card")
     .filter({ hasText: "Homologação de Frotas" });
@@ -221,6 +298,15 @@ test("visualizador abre contexto mas não edita, arrasta, encerra ou exclui", as
   await page.getByRole("button", { name: "Lista", exact: true }).click();
   await expect(
     page.getByLabel("Situação de Homologação de Frotas"),
+  ).toBeDisabled();
+  await page
+    .getByRole("button", { name: "Dados do município", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Encerrar projeto", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Excluir projeto", exact: true }),
   ).toBeDisabled();
 });
 test("edição online combina alteração de colega; falha mantém o formulário e não grava backup local", async ({

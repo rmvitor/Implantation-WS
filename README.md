@@ -46,7 +46,7 @@ O trabalho pode acontecer em paralelo. Arraste um cartão ou edite sua situaçã
 
 O primeiro acesso começa sem projetos de demonstração. Crie um município ou use **Importar dados** na tela inicial. Os dados ficam separados por município; os exemplos usados pelos testes não são incluídos no site.
 
-Use **Encerrar projeto** quando terminar a implantação. Ele sai dos ativos e do menu lateral, fica na aba **Encerrados** e conserva tarefas, homologações e histórico. **Reabrir projeto** devolve-o aos ativos. **Excluir projeto** remove os seus dados deste navegador e exige digitar o nome para confirmar; é possível exportar um backup antes.
+Use **Encerrar projeto** nos dados do município ou no card da tela inicial quando terminar a implantação. Ele sai dos ativos e do menu lateral, fica na aba **Encerrados** e conserva tarefas, homologações e histórico. **Reabrir projeto** devolve-o aos ativos. **Excluir projeto** remove os seus dados deste navegador e exige digitar o nome para confirmar; é possível exportar um backup antes.
 
 ## Instalar como app (PWA)
 
@@ -119,3 +119,11 @@ Treinamento/Atendimento com períodos de vários dias, link de sala, duração c
 Tema claro com bases neutras, texto mais contrastado e marcações derivadas da cor escolhida. O padrão inicial usa azul e preserva preferências já salvas; o tema escuro mantém True Black. Navegação lateral com “Capacitação e suporte”, sem o bloco promocional.
 
 Exclusão online compara os valores do JSON sem depender da ordem das propriedades devolvidas pelo PostgreSQL. Campos opcionais de cartões antigos recebem os mesmos padrões antes da comparação. Isso remove falsos conflitos sem permitir apagar um cartão que outro colega realmente alterou durante a edição. Testes verificam exclusão persistida, histórico, preservação de outras alterações e formulário conservado quando há falha ou conflito. Não exige nova migração SQL.
+
+## Versão 1.8.0
+
+Barra de navegação do projeto disponível em Atividades, Homologação, Agenda e Histórico, com indicação da área atual e uma linha no celular. O cabeçalho lateral mostra o município selecionado. A lista permite recolher fases e exibir seus resumos, compartilhando com o quadro a preferência salva por município e incluída nos backups.
+
+Ações de encerrar, reabrir e excluir ficam nos dados do município e no card da tela inicial. Clique com o botão direito no card, pressione Shift+F10 com ele em foco ou use os três pontos para abrir atividades, consultar/editar dados, homologação, agenda, histórico e ações do projeto. Permissões continuam sendo verificadas, e encerramento/exclusão mantêm as confirmações.
+
+No modo de equipe, abra o perfil pelo avatar ou pelo menu lateral e use **Finalizar sessão**. A sessão deste aparelho é encerrada e os dados online saem da tela; alterações de aparência ainda não salvas são descartadas. O modo local não oferece esse botão, pois não possui uma sessão autenticada. Não exige nova migração SQL.

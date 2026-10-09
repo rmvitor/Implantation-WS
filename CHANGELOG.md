@@ -1,5 +1,14 @@
 # Histórico de versões
 
+## 1.8.0 — 09/10/2026
+
+- Barra de navegação do projeto disponível em Atividades, Homologação, Agenda e Histórico, com área atual marcada e layout em uma linha no celular.
+- Perfil oferece Finalizar sessão para retornar ao login e retirar os dados online da tela. Encerra a sessão deste aparelho e descarta a prévia de aparência não salva.
+- Lista permite recolher fases individualmente ou em conjunto, com resumos e a mesma preferência do quadro por município.
+- Encerrar, reabrir e excluir projeto ficam nos dados do município e nos cards da tela inicial.
+- Cabeçalho lateral mostra o nome do projeto selecionado. Botões de adicionar ficam dentro das fases, inclusive recolhidas.
+- Cards de município abrem ações rápidas por botão direito, Shift+F10 ou botão de três pontos. Consulta, edição e ciclo do projeto respeitam permissões e confirmações existentes.
+
 ## 1.7.1 — 09/10/2026
 
 - Tema claro com texto e destaques mais fortes, superfícies neutras e navegação marcada por variações da cor escolhida no perfil.

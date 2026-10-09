@@ -100,6 +100,8 @@ import "./pwa.css";
 import "./projects.css";
 import "./app-usability.css";
 import { CardMenu } from "./CardMenu";
+import { ProjectNavigation, ProjectMenu } from "./ProjectControls";
+import "./project-controls.css";
 import { TeamHost, TeamSettings, useTeam } from "./Team";
 import { same } from "./team-domain";
 import { friendlyTeamError } from "./team-service";
@@ -160,6 +162,7 @@ function App() {
   const cardPositions = useRef(new Map());
   const [dropTarget, setDropTarget] = useState(null);
   const [cardMenu, setCardMenu] = useState(null);
+  const [projectMenu, setProjectMenu] = useState(null);
   useEffect(() => {
     team.setEditing?.(!!modal || homologationEditing || saving);
   }, [modal, homologationEditing, saving]);
@@ -225,6 +228,16 @@ function App() {
       ...d,
       boardCollapsed: { ...d.boardCollapsed, [projectId]: stages },
     }));
+  const openProjectMenu = (event, selected) => {
+    event.preventDefault();
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setCardMenu(null);
+    setProjectMenu({
+      projectId: selected.id,
+      x: event.clientX || bounds.left + 20,
+      y: event.clientY || bounds.top + 25,
+    });
+  };
   const openCardMenu = (event, task) => {
     event.preventDefault();
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -331,6 +344,7 @@ function App() {
     }));
   const changeView = (v) => {
     setCardMenu(null);
+    setProjectMenu(null);
     setView(v);
     setSearch("");
     setSidebar(false);
@@ -436,7 +450,9 @@ function App() {
             <Building2 size={18} />
           </span>
           <div>
-            <strong>{team.online ? "Equipe online" : "Meu workspace"}</strong>
+            <strong title={project?.name}>
+              {project?.name || "Projetos e municípios"}
+            </strong>
             <small>Gestão de implantação</small>
           </div>
           <ChevronDown size={15} />
@@ -609,6 +625,7 @@ function App() {
             <>
               <ProjectsHome
                 canManage={canManage}
+                onContextMenu={openProjectMenu}
                 data={data}
                 filter={projectFilter}
                 onFilter={setProjectFilter}
@@ -681,42 +698,48 @@ function App() {
                   </p>
                 </div>
                 <div className="heading-actions">
-                  {isProjectClosed(project) ? (
-                    <button
-                      disabled={!canManage}
-                      className="button secondary"
-                      onClick={async () => {
-                        if (
-                          await setData((d) =>
-                            setProjectClosed(d, project.id, false),
-                          )
-                        ) {
-                          setProjectFilter("active");
-                          setToast("Projeto reaberto.");
+                  {view === "details" && (
+                    <>
+                      {isProjectClosed(project) ? (
+                        <button
+                          disabled={!canManage}
+                          className="button secondary"
+                          onClick={async () => {
+                            if (
+                              await setData((d) =>
+                                setProjectClosed(d, project.id, false),
+                              )
+                            ) {
+                              setProjectFilter("active");
+                              setToast("Projeto reaberto.");
+                            }
+                          }}
+                        >
+                          Reabrir projeto
+                        </button>
+                      ) : (
+                        <button
+                          disabled={!canManage}
+                          className="button secondary"
+                          onClick={() =>
+                            setModal({ type: "closeProject", project })
+                          }
+                        >
+                          Encerrar projeto
+                        </button>
+                      )}
+                      <button
+                        disabled={!canManage}
+                        className="button secondary project-delete-button"
+                        aria-label="Excluir projeto"
+                        onClick={() =>
+                          setModal({ type: "deleteProject", project })
                         }
-                      }}
-                    >
-                      Reabrir projeto
-                    </button>
-                  ) : (
-                    <button
-                      disabled={!canManage}
-                      className="button secondary"
-                      onClick={() =>
-                        setModal({ type: "closeProject", project })
-                      }
-                    >
-                      Encerrar projeto
-                    </button>
+                      >
+                        Excluir
+                      </button>
+                    </>
                   )}
-                  <button
-                    disabled={!canManage}
-                    className="button secondary project-delete-button"
-                    aria-label="Excluir projeto"
-                    onClick={() => setModal({ type: "deleteProject", project })}
-                  >
-                    Excluir
-                  </button>
                   <button
                     className="button secondary"
                     onClick={() =>
@@ -756,6 +779,7 @@ function App() {
                   </button>
                 </div>
               )}
+              <ProjectNavigation view={view} onChange={changeView} />
               {view === "board" && (
                 <>
                   <section className="stats-grid">
@@ -842,25 +866,6 @@ function App() {
                       Ver agenda <ArrowRight size={16} />
                     </button>
                   </section>
-                  <div className="board-toolbar">
-                    <div className="board-tabs">
-                      <button className="active">
-                        <LayoutDashboard size={16} /> Atividades do projeto
-                      </button>
-                      <button onClick={() => changeView("homologation")}>
-                        <FileCheck2 size={16} /> Homologação
-                      </button>
-                      <button onClick={() => changeView("agenda")}>
-                        <CalendarDays size={16} /> Agenda
-                      </button>
-                      <button onClick={() => changeView("history")}>
-                        <Clock3 size={16} /> Histórico
-                      </button>
-                    </div>
-                    <span className="parallel-hint">
-                      <span className="live-dot" /> Trabalho em paralelo
-                    </span>
-                  </div>
                   <div className="view-toolbar">
                     <ViewSwitcher value={boardView} onChange={setBoardView} />
                   </div>
@@ -928,7 +933,7 @@ function App() {
                           Prioridade: alta primeiro
                         </option>
                       </select>
-                      {boardView === "kanban" && (
+                      {["kanban", "list"].includes(boardView) && (
                         <button
                           className="button secondary"
                           onClick={() =>
@@ -996,7 +1001,7 @@ function App() {
                       <BoardScroller
                         columns={STAGES.map((s) =>
                           collapsedStages.includes(s.id)
-                            ? "minmax(170px, .65fr)"
+                            ? "minmax(215px, .65fr)"
                             : "minmax(255px, 1fr)",
                         ).join(" ")}
                       >
@@ -1180,6 +1185,14 @@ function App() {
                       readOnly={!canEdit}
                       onContextMenu={openCardMenu}
                       tasks={tasks}
+                      collapsedStages={collapsedStages}
+                      onToggleStage={(id) =>
+                        setCollapsedStages(
+                          collapsedStages.includes(id)
+                            ? collapsedStages.filter((s) => s !== id)
+                            : [...collapsedStages, id],
+                        )
+                      }
                       onOpen={(task) =>
                         setModal({ type: "task", task, isNew: false })
                       }
@@ -1365,6 +1378,8 @@ function App() {
         <ProfileSettings
           Modal={Modal}
           appearance={data.appearance}
+          email={team.profile?.email}
+          onSignOut={team.online ? team.signOut : undefined}
           onClose={() => setModal(null)}
           onSave={async (appearance) => {
             if (await setData((d) => ({ ...d, appearance }))) {
@@ -1374,6 +1389,46 @@ function App() {
           }}
         />
       )}
+      {projectMenu &&
+        !modal &&
+        data.projects.some((p) => p.id === projectMenu.projectId) &&
+        (() => {
+          const selected = data.projects.find(
+            (p) => p.id === projectMenu.projectId,
+          );
+          return (
+            <ProjectMenu
+              anchor={projectMenu}
+              project={selected}
+              canManage={canManage}
+              canEdit={!team.online || team.canEdit(selected.id)}
+              onClose={() => setProjectMenu(null)}
+              onArea={async (area) => {
+                if (await selectProject(selected.id)) changeView(area);
+              }}
+              onEdit={async () => {
+                if (await selectProject(selected.id)) {
+                  changeView("details");
+                  setModal({ type: "project", isNew: false });
+                }
+              }}
+              onCloseProject={() =>
+                setModal({ type: "closeProject", project: selected })
+              }
+              onDelete={() =>
+                setModal({ type: "deleteProject", project: selected })
+              }
+              onReopen={async () => {
+                if (
+                  await setData((d) => setProjectClosed(d, selected.id, false))
+                ) {
+                  setProjectFilter("active");
+                  setToast("Projeto reaberto.");
+                }
+              }}
+            />
+          );
+        })()}
       {cardMenu &&
         projectTasks.some((t) => t.id === cardMenu.taskId) &&
         !modal && (

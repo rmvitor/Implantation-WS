@@ -9,6 +9,13 @@ async function create(page, name) {
     .getByRole("button", { name: "Salvar município", exact: true })
     .click();
 }
+async function details(page) {
+  const button = page.getByRole("button", {
+    name: "Dados do município",
+    exact: true,
+  });
+  if (await button.count()) await button.click();
+}
 test("primeiro acesso inicia vazio, aceita backup vazio e permite criar o primeiro município", async ({
   page,
 }) => {
@@ -27,15 +34,13 @@ test("primeiro acesso inicia vazio, aceita backup vazio e permite criar o primei
   await page
     .getByRole("button", { name: "Importar dados", exact: true })
     .click();
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles({
-      name: "vazio.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(
-        JSON.stringify({ version: 2, selectedId: "", projects: [] }),
-      ),
-    });
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "vazio.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({ version: 2, selectedId: "", projects: [] }),
+    ),
+  });
   await page
     .getByRole("button", { name: "Restaurar dados", exact: true })
     .click();
@@ -59,6 +64,7 @@ test("encerrados saem dos ativos, preservam histórico e podem ser reabertos", a
   await page
     .getByRole("button", { name: "Criar atividade", exact: true })
     .click();
+  await details(page);
   await page
     .getByRole("button", { name: "Encerrar projeto", exact: true })
     .click();
@@ -78,6 +84,7 @@ test("encerrados saem dos ativos, preservam histórico e podem ser reabertos", a
     .getByRole("button", { name: "Histórico", exact: true })
     .click();
   await expect(page.locator(".timeline")).toContainText("Projeto encerrado");
+  await details(page);
   await page
     .getByRole("button", { name: "Reabrir projeto", exact: true })
     .click();
@@ -93,6 +100,7 @@ test("exclusão exige confirmação, cancela sem perda e excluir último projeto
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await create(page, "Projeto de teste");
+  await details(page);
   await page
     .getByRole("button", { name: "Excluir projeto", exact: true })
     .click();
@@ -103,6 +111,7 @@ test("exclusão exige confirmação, cancela sem perda e excluir último projeto
   await expect(
     page.getByRole("heading", { name: "Projeto de teste", exact: true }),
   ).toBeVisible();
+  await details(page);
   await page
     .getByRole("button", { name: "Excluir projeto", exact: true })
     .click();
@@ -129,6 +138,7 @@ test("limpar workspace conserva aparência e exportação anterior inclui projet
     .click();
   await page.getByLabel("Tema", { exact: true }).selectOption("dark");
   await page.getByRole("button", { name: "Salvar aparência" }).click();
+  await details(page);
   await page
     .getByRole("button", { name: "Encerrar projeto", exact: true })
     .click();

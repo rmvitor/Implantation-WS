@@ -7,6 +7,8 @@ import {
   CalendarDays,
   CheckCheck,
   ChevronRight,
+  ChevronDown,
+  MoreHorizontal,
   CircleHelp,
   Clock3,
   FileCheck2,
@@ -105,6 +107,7 @@ export function ProjectsHome({
   onCloseProject,
   onReopenProject,
   onDeleteProject,
+  onContextMenu,
 }) {
   const [query, setQuery] = useState("");
   const active = data.projects.filter((p) => !isProjectClosed(p));
@@ -222,15 +225,25 @@ export function ProjectsHome({
             : 0;
           const waiting = p.tasks.filter((t) => t.stage === "waiting").length;
           return (
-            <article className="project-home-card" key={p.id}>
+            <article
+              className="project-home-card"
+              key={p.id}
+              onContextMenu={(e) => onContextMenu?.(e, p)}
+            >
               <button
                 className="municipality-card"
                 onClick={() => onOpen(p.id)}
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "ContextMenu" ||
+                    (e.shiftKey && e.key === "F10")
+                  )
+                    onContextMenu?.(e, p);
+                }}
               >
                 <div className="municipality-icon">
                   <Building2 size={25} />
                 </div>
-                <ArrowUpRight className="card-arrow" size={20} />
                 <h2>{p.name}</h2>
                 <p>
                   {p.state || "UF não informada"} · Dream{" "}
@@ -266,6 +279,14 @@ export function ProjectsHome({
                 {p.demo && (
                   <span className="demo-label">Projeto de demonstração</span>
                 )}
+              </button>
+              <button
+                className="icon-button project-menu-trigger"
+                aria-label={`Ações do projeto ${p.name}`}
+                aria-haspopup="menu"
+                onClick={(e) => onContextMenu?.(e, p)}
+              >
+                <MoreHorizontal size={19} />
               </button>
               <div className="project-card-actions">
                 {isProjectClosed(p) ? (
@@ -366,6 +387,8 @@ export function ViewSwitcher({ value, onChange }) {
 export function ActivitiesList({
   readOnly = false,
   tasks,
+  collapsedStages = [],
+  onToggleStage,
   onOpen,
   onMove,
   onAdd,
@@ -375,13 +398,32 @@ export function ActivitiesList({
     <section className="activities-list" aria-label="Lista de atividades">
       {STAGES.map((stage) => {
         const items = tasks.filter((t) => t.stage === stage.id);
+        const collapsed = collapsedStages.includes(stage.id);
         return (
           <section className="list-stage" key={stage.id}>
             <header>
-              <span className="stage-dot" style={{ background: stage.color }} />
-              <h3>{stage.label}</h3>
-              <span className="count-badge">{items.length}</span>
+              <h3>
+                <button
+                  className="list-stage-toggle"
+                  aria-label={`${collapsed ? "Expandir" : "Recolher"} fase ${stage.label}`}
+                  aria-expanded={!collapsed}
+                  onClick={() => onToggleStage?.(stage.id)}
+                >
+                  <span
+                    className="stage-dot"
+                    style={{ background: stage.color }}
+                  />
+                  <span>{stage.label}</span>
+                  <span className="count-badge">{items.length}</span>
+                  {collapsed ? (
+                    <ChevronRight size={16} />
+                  ) : (
+                    <ChevronDown size={16} />
+                  )}
+                </button>
+              </h3>
               <button
+                className="phase-add-button"
                 aria-label={`Adicionar em ${stage.label}`}
                 disabled={readOnly}
                 onClick={() => onAdd(stage.id)}
@@ -389,64 +431,96 @@ export function ActivitiesList({
                 <Plus size={16} />
               </button>
             </header>
-            {items.map((t) => (
-              <article
-                className="activity-list-row"
-                key={t.id}
-                onContextMenu={(e) => onContextMenu?.(e, t)}
-              >
-                <button
-                  className="list-activity-main"
-                  onClick={() => onOpen(t)}
+            {collapsed ? (
+              <div className="column-overview list-phase-overview">
+                <span>Resumo da fase</span>
+                <dl>
+                  {[
+                    ["Atividades", items.length],
+                    [
+                      "Prioridade alta",
+                      items.filter((t) => t.priority === "alta").length,
+                    ],
+                    [
+                      stage.id === "concluido" ? "Validadas" : "Em atraso",
+                      items.filter((t) =>
+                        stage.id === "concluido"
+                          ? isValidated(t)
+                          : t.date && t.date < localDate(),
+                      ).length,
+                    ],
+                    [
+                      "Chamados",
+                      items.filter((t) => t.type === "chamado").length,
+                    ],
+                  ].map(([label, count]) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd>{count}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            ) : (
+              items.map((t) => (
+                <article
+                  className="activity-list-row"
+                  key={t.id}
+                  onContextMenu={(e) => onContextMenu?.(e, t)}
                 >
-                  <div>
-                    <ModuleBadge task={t} />
-                    <span className="ticket-type-label">
-                      {CATEGORIES[t.type] || "Tarefa"}
+                  <button
+                    className="list-activity-main"
+                    onClick={() => onOpen(t)}
+                  >
+                    <div>
+                      <ModuleBadge task={t} />
+                      <span className="ticket-type-label">
+                        {CATEGORIES[t.type] || "Tarefa"}
+                      </span>
+                    </div>
+                    <h4>{cardSummary(t)}</h4>
+                    <p className={t.nextAction ? "" : "context-missing"}>
+                      {t.nextAction || "Próxima ação ainda não definida"}
+                    </p>
+                    <ValidationBadge task={t} />
+                  </button>
+                  <div className="list-responsibility">
+                    <strong>{t.owner || "Sem responsável"}</strong>
+                    <span>
+                      {t.nextOwner
+                        ? `Próxima ação: ${t.nextOwner}`
+                        : "Quem age agora: a definir"}
                     </span>
                   </div>
-                  <h4>{cardSummary(t)}</h4>
-                  <p className={t.nextAction ? "" : "context-missing"}>
-                    {t.nextAction || "Próxima ação ainda não definida"}
-                  </p>
-                  <ValidationBadge task={t} />
-                </button>
-                <div className="list-responsibility">
-                  <strong>{t.owner || "Sem responsável"}</strong>
-                  <span>
-                    {t.nextOwner
-                      ? `Próxima ação: ${t.nextOwner}`
-                      : "Quem age agora: a definir"}
+                  <span
+                    className={`list-due ${t.date && t.date < localDate() && t.stage !== "concluido" ? "overdue" : ""}`}
+                  >
+                    <CalendarDays size={14} />
+                    {formatDate(t.date)}
                   </span>
-                </div>
-                <span
-                  className={`list-due ${t.date && t.date < localDate() && t.stage !== "concluido" ? "overdue" : ""}`}
-                >
-                  <CalendarDays size={14} />
-                  {formatDate(t.date)}
-                </span>
-                <select
-                  aria-label={`Situação de ${t.title}`}
-                  value={t.stage}
-                  disabled={readOnly}
-                  onChange={(e) => onMove(t.id, e.target.value)}
-                >
-                  {STAGES.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className="icon-button"
-                  aria-label={`Abrir ${t.title}`}
-                  onClick={() => onOpen(t)}
-                >
-                  <ChevronRight size={17} />
-                </button>
-              </article>
-            ))}
-            {!items.length && (
+                  <select
+                    aria-label={`Situação de ${t.title}`}
+                    value={t.stage}
+                    disabled={readOnly}
+                    onChange={(e) => onMove(t.id, e.target.value)}
+                  >
+                    {STAGES.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="icon-button"
+                    aria-label={`Abrir ${t.title}`}
+                    onClick={() => onOpen(t)}
+                  >
+                    <ChevronRight size={17} />
+                  </button>
+                </article>
+              ))
+            )}
+            {!collapsed && !items.length && (
               <div className="list-empty">
                 Nenhuma atividade nesta situação.
               </div>

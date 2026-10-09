@@ -1,0 +1,155 @@
+.project-navigation {
+  max-width: 100%;
+  margin: 0 0 22px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.project-navigation .board-tabs {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.project-navigation .board-tabs button {
+  flex: 1 0 auto;
+  justify-content: center;
+  min-height: 39px;
+  padding: 8px 13px;
+  border-radius: 6px;
+  gap: 7px;
+  color: var(--text-secondary);
+}
+.project-navigation .board-tabs button:hover {
+  background: var(--surface-muted);
+}
+.project-navigation .board-tabs button.active {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  border: 0;
+}
+.project-navigation .board-tabs button.active::after {
+  display: none;
+}
+.workspace-select div {
+  min-width: 0;
+}
+.workspace-select strong {
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+.column-heading {
+  gap: 8px;
+  padding: 0;
+  min-width: 0;
+}
+.column-heading h3,
+.column-title-toggle,
+.column-title-toggle > span:nth-child(2) {
+  min-width: 0;
+}
+.column-title-toggle {
+  padding: 4px 0;
+}
+.column-title-toggle > span:nth-child(2) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.column-heading > button,
+.list-stage > header > .phase-add-button {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--accent-text);
+}
+.list-stage h3 {
+  min-width: 0;
+  flex: 1;
+}
+.list-stage-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+}
+.list-stage-toggle > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.list-phase-overview {
+  padding: 14px 17px;
+}
+.list-phase-overview dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 30px;
+}
+.list-phase-overview dl > div {
+  gap: 12px;
+  margin: 0;
+}
+.project-home-card {
+  position: relative;
+}
+.project-home-card .municipality-card h2 {
+  padding-right: 15px;
+}
+.project-menu-trigger {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.profile-session {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.profile-session > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.profile-session span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+@media (max-width: 600px) {
+  .project-navigation .board-tabs {
+    flex-wrap: nowrap;
+  }
+  .project-navigation .board-tabs button {
+    padding: 7px 6px;
+    gap: 5px;
+    font-size: 10px;
+  }
+  .project-navigation .board-tabs svg {
+    width: 14px;
+    height: 14px;
+  }
+}

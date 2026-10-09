@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { LogOut } from "lucide-react";
+import { friendlyTeamError } from "./team-service";
 
 export const DEFAULT_APPEARANCE = { theme: "light", primary: "#2563eb" };
 export function safeAppearance(value) {
@@ -32,12 +34,22 @@ export function applyAppearance(value) {
     luminance > 0.179 ? "#111111" : "#ffffff",
   );
 }
-export function ProfileSettings({ Modal, appearance, onClose, onSave }) {
+export function ProfileSettings({
+  Modal,
+  appearance,
+  onClose,
+  onSave,
+  onSignOut,
+  email,
+}) {
   const [draft, setDraft] = useState(() => safeAppearance(appearance));
+  const [ending, setEnding] = useState(false);
+  const [error, setError] = useState("");
   useEffect(() => {
     applyAppearance(draft);
   }, [draft]);
   const close = () => {
+    if (ending) return;
     applyAppearance(appearance);
     onClose();
   };
@@ -50,6 +62,7 @@ export function ProfileSettings({ Modal, appearance, onClose, onSave }) {
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          if (ending) return;
           onSave(draft);
         }}
       >
@@ -100,11 +113,49 @@ export function ProfileSettings({ Modal, appearance, onClose, onSave }) {
             navegador.
           </p>
         </div>
+        {onSignOut && (
+          <div className="profile-session">
+            <div>
+              <strong>Sua conta</strong>
+              <span>{email}</span>
+            </div>
+            <button
+              type="button"
+              className="button secondary"
+              disabled={ending}
+              onClick={async () => {
+                setEnding(true);
+                setError("");
+                try {
+                  applyAppearance(appearance);
+                  await onSignOut();
+                } catch (err) {
+                  applyAppearance(draft);
+                  setError(friendlyTeamError(err));
+                  setEnding(false);
+                }
+              }}
+            >
+              <LogOut size={16} />{" "}
+              {ending ? "Finalizando sessão…" : "Finalizar sessão"}
+            </button>
+          </div>
+        )}
+        {error && (
+          <p className="team-error" role="alert">
+            {error}
+          </p>
+        )}
         <div className="modal-actions">
-          <button type="button" className="button secondary" onClick={close}>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={ending}
+            onClick={close}
+          >
             Cancelar
           </button>
-          <button type="submit" className="button primary">
+          <button type="submit" className="button primary" disabled={ending}>
             Salvar aparência
           </button>
         </div>
