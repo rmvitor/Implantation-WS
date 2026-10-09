@@ -226,6 +226,12 @@ export function validateBackup(value) {
   )
     throw new Error("Selecione um backup do Implanta.");
   const ids = new Set();
+  if (
+    value.projectOrder !== undefined &&
+    (!Array.isArray(value.projectOrder) ||
+      !value.projectOrder.every((id) => typeof id === "string"))
+  )
+    throw new Error("Backup inválido: ordem dos projetos.");
   for (const p of value.projects) {
     if (
       !p ||
@@ -365,6 +371,13 @@ export function validateBackup(value) {
   }
   return migrateWorkspace({
     ...value,
+    ...(value.projectOrder !== undefined
+      ? {
+          projectOrder: [...new Set(value.projectOrder)].filter((id) =>
+            ids.has(id),
+          ),
+        }
+      : {}),
     selectedId: ids.has(value.selectedId)
       ? value.selectedId
       : value.projects.find((p) => p.status !== "closed")?.id || "",
@@ -744,6 +757,13 @@ export function deleteProject(workspace, id) {
     boardViews,
     boardOrders,
     boardCollapsed,
+    ...(Array.isArray(workspace.projectOrder)
+      ? {
+          projectOrder: workspace.projectOrder.filter(
+            (projectId) => projectId !== id,
+          ),
+        }
+      : {}),
     selectedId:
       workspace.selectedId === id
         ? projects.find((p) => !isProjectClosed(p))?.id || ""

@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 1.9.1 — 09/10/2026
+
+- Tela inicial permite ordenar os cards de projetos manualmente por arraste ou botões de mover antes/depois, inclusive no celular.
+- Ordem salva automaticamente por usuário, incluída nos backups e usada também no seletor rápido de municípios.
+- Filtros e projetos encerrados preservam a preferência; projetos novos entram no fim e exclusões removem apenas o ID correspondente da ordem.
+- Alterações de ordem não editam os dados compartilhados dos municípios e falhas de salvamento mantêm a ordem anterior. Não exige migração SQL.
+
 ## 1.9.0 — 09/10/2026
 
 - Nome do projeto em destaque em todas as áreas, com cor própria no cabeçalho, no seletor lateral e nos cards da tela inicial. A cor é configurável nos dados do município e não altera o tema do perfil.

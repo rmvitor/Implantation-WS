@@ -28,6 +28,7 @@ async function setup(page, { role = "editor", loggedIn = true } = {}) {
     writes: 0,
     reads: 0,
     preferences: {},
+    commits: [],
     grants: [],
   };
   const user = {
@@ -122,6 +123,7 @@ async function setup(page, { role = "editor", loggedIn = true } = {}) {
       ];
     } else if (path.endsWith("/rpc/implanta_commit")) {
       const args = req.postDataJSON();
+      state.commits.push(args);
       if (state.fail) {
         status = 503;
         data = { message: "network temporarily unavailable" };
@@ -147,7 +149,7 @@ async function setup(page, { role = "editor", loggedIn = true } = {}) {
           ? []
           : url.searchParams.has("id")
             ? state.row
-            : [state.row];
+            : [state.row, ...(state.extraRows || [])];
     } else if (path.endsWith("/implanta_members"))
       data =
         state.members ||
@@ -530,3 +532,59 @@ for (const width of [360, 1440]) {
       await dialog.screenshot({ path: "/tmp/implanta-team-190.png" });
   });
 }
+
+test("visualizador ordena projetos como preferência pessoal, sem editar registros; falha online preserva a ordem salva", async ({
+  page,
+}) => {
+  const state = await setup(page, { role: "viewer" });
+  state.extraRows = [
+    {
+      id: "pinhais",
+      data: {
+        ...structuredClone(state.row.data),
+        id: "pinhais",
+        name: "Pinhais",
+      },
+      version: 1,
+    },
+  ];
+  const original = structuredClone(state.row);
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Ordenar projetos", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Mover projeto Pinhais antes", exact: true })
+    .click();
+  await expect(page.locator(".municipality-card h2")).toHaveText([
+    "Pinhais",
+    "Quatro Barras",
+  ]);
+  expect(state.commits.at(-1).p_changes).toEqual([]);
+  expect(state.commits.at(-1).p_removed).toEqual([]);
+  expect(state.preferences.projectOrder).toEqual(["pinhais", "quatro-barras"]);
+  expect(state.row).toEqual(original);
+  await page.reload();
+  await expect(page.locator(".municipality-card h2")).toHaveText([
+    "Pinhais",
+    "Quatro Barras",
+  ]);
+  await page
+    .getByRole("button", { name: "Ordenar projetos", exact: true })
+    .click();
+  state.fail = true;
+  await page
+    .getByRole("button", {
+      name: "Mover projeto Quatro Barras antes",
+      exact: true,
+    })
+    .click();
+  await expect(page.locator(".project-order-status")).toContainText(
+    "Não foi possível salvar a ordem.",
+  );
+  await expect(page.locator(".municipality-card h2")).toHaveText([
+    "Pinhais",
+    "Quatro Barras",
+  ]);
+  expect(state.row).toEqual(original);
+});

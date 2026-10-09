@@ -106,6 +106,7 @@ import {
   ProjectSwitcher,
 } from "./ProjectControls";
 import { projectColor, PROJECT_COLORS } from "./project-identity";
+import { orderedProjects, reorderProjects } from "./project-order";
 import "./project-controls.css";
 import { TeamHost, TeamSettings, useTeam } from "./Team";
 import { same } from "./team-domain";
@@ -464,7 +465,7 @@ function App() {
         </a>
         <ProjectSwitcher
           project={project}
-          projects={data.projects}
+          projects={orderedProjects(data.projects, data.projectOrder)}
           busy={saving}
           onSelect={async (id) => {
             if (!(await selectProject(id))) return false;
@@ -614,6 +615,12 @@ function App() {
             <>
               <ProjectsHome
                 canManage={canManage}
+                saving={saving}
+                onReorder={(source, target) =>
+                  setData((workspace) =>
+                    reorderProjects(workspace, source, target),
+                  )
+                }
                 onContextMenu={openProjectMenu}
                 data={data}
                 filter={projectFilter}

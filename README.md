@@ -137,3 +137,7 @@ Capacitação integra a barra de navegação do projeto e o menu de ações ráp
 Cada município tem uma cor de identificação, ajustável em **Dados do município → Editar dados → Cor do projeto**, independente da aparência pessoal. O nome do projeto ocupa o título grande em todas as áreas e identifica a aba do navegador. O bloco superior da barra lateral permite trocar entre projetos ativos, mantendo a área em uso; a lista antiga dá lugar ao separador Gerenciamento.
 
 Equipe e acessos passa a ter abas de usuários e permissões por projeto, com controles compactos e rascunhos preservados ao alternar entre elas. O projeto em uso fica selecionado inicialmente para liberação de acessos. A cor é incluída nos backups e nos dados compartilhados; projetos antigos continuam compatíveis. Não exige migração SQL.
+
+## Versão 1.9.1
+
+Na tela inicial, use **Ordenar projetos** e arraste os cards pelo ícone Mover ou use os botões para mover antes/depois. A ordem é salva automaticamente e aparece também na troca rápida de municípios. No modo de equipe, é uma preferência pessoal por usuário, disponível inclusive para quem tem acesso de leitura. A ordem fica incluída nos backups; não exige migração SQL.

@@ -469,7 +469,7 @@ test("perfil aplica cor principal e True Black, persiste e cancela a prévia", a
         .trim(),
     ),
   ).toBe("#7c3aed");
-  await expect(page.locator(".page-footer")).toContainText("v1.9.0");
+  await expect(page.locator(".page-footer")).toContainText("v1.9.1");
 });
 
 test("categorias, módulos e número aparecem nos cartões; prioridade ordena todas as fases", async ({

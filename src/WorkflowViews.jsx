@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { projectColor } from "./project-identity";
+import { orderedProjects } from "./project-order";
 import {
   ArrowLeft,
   ArrowRight,
@@ -14,6 +15,7 @@ import {
   Clock3,
   FileCheck2,
   GraduationCap,
+  GripVertical,
   LayoutDashboard,
   List,
   Plus,
@@ -99,6 +101,8 @@ export function ValidationBadge({ task }) {
 
 export function ProjectsHome({
   canManage = true,
+  saving = false,
+  onReorder,
   data,
   onOpen,
   onAdd,
@@ -111,9 +115,24 @@ export function ProjectsHome({
   onContextMenu,
 }) {
   const [query, setQuery] = useState("");
+  const [sorting, setSorting] = useState(false);
+  const [dragged, setDragged] = useState(null);
+  const [dropTarget, setDropTarget] = useState(null);
+  const [orderMessage, setOrderMessage] = useState("");
+  const moveProject = async (source, target) => {
+    if (saving || source === target) return;
+    setDragged(null);
+    setDropTarget(null);
+    if (await onReorder(source, target))
+      setOrderMessage("Ordem dos projetos salva.");
+    else setOrderMessage("Não foi possível salvar a ordem. Tente novamente.");
+  };
   const active = data.projects.filter((p) => !isProjectClosed(p));
   const closed = data.projects.filter(isProjectClosed);
-  const projects = (filter === "closed" ? closed : active).filter((p) =>
+  const projects = orderedProjects(
+    filter === "closed" ? closed : active,
+    data.projectOrder,
+  ).filter((p) =>
     `${p.name} ${p.dream} ${p.state}`
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
@@ -206,18 +225,43 @@ export function ProjectsHome({
           Suas implantações{" "}
           <span className="count-badge">{projects.length}</span>
         </h2>
-        <label className="search-input">
-          <Search size={16} />
-          <input
-            placeholder="Buscar município ou código Dream..."
-            aria-label="Buscar município"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </label>
+        <div className="home-project-tools">
+          <button
+            className="button secondary"
+            aria-pressed={sorting}
+            disabled={saving || (projects.length < 2 && !sorting)}
+            onClick={() => {
+              setSorting(!sorting);
+              setDragged(null);
+              setDropTarget(null);
+              setOrderMessage("");
+            }}
+          >
+            {sorting ? <CheckCheck size={16} /> : <GripVertical size={16} />}
+            {sorting ? "Concluir ordenação" : "Ordenar projetos"}
+          </button>
+          <label className="search-input">
+            <Search size={16} />
+            <input
+              placeholder="Buscar município ou código Dream..."
+              aria-label="Buscar município"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+        </div>
       </div>
+      {sorting && (
+        <p className="project-order-hint">
+          Arraste pelo ícone do card ou use os botões para mover antes ou
+          depois. A ordem é salva automaticamente.
+        </p>
+      )}
+      <p className="project-order-status" aria-live="polite">
+        {orderMessage}
+      </p>
       <div className="municipality-grid">
-        {projects.map((p) => {
+        {projects.map((p, index) => {
           const done = p.tasks.filter(
             (t) => t.stage === "concluido" && isValidated(t),
           ).length;
@@ -227,11 +271,68 @@ export function ProjectsHome({
           const waiting = p.tasks.filter((t) => t.stage === "waiting").length;
           return (
             <article
-              className="project-home-card"
+              className={`project-home-card ${dragged === p.id ? "project-order-dragging" : ""} ${dropTarget === p.id ? "project-order-target" : ""}`}
+              data-project-id={p.id}
               style={{ "--project-color": projectColor(p) }}
               key={p.id}
               onContextMenu={(e) => onContextMenu?.(e, p)}
+              onDragOver={(event) => {
+                if (!sorting || saving || !dragged || dragged === p.id) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                setDropTarget(p.id);
+              }}
+              onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget))
+                  setDropTarget(null);
+              }}
+              onDrop={(event) => {
+                if (!sorting || saving || !dragged) return;
+                event.preventDefault();
+                moveProject(dragged, p.id);
+              }}
             >
+              {sorting && (
+                <div
+                  className="project-order-controls"
+                  role="group"
+                  aria-label={`Ordenar ${p.name}`}
+                >
+                  <button
+                    className="project-order-handle"
+                    aria-label={`Arrastar projeto ${p.name}`}
+                    draggable={!saving}
+                    disabled={saving}
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData("text/plain", p.id);
+                      event.dataTransfer.effectAllowed = "move";
+                      setDragged(p.id);
+                      setOrderMessage("");
+                    }}
+                    onDragEnd={() => {
+                      setDragged(null);
+                      setDropTarget(null);
+                    }}
+                  >
+                    <GripVertical size={18} />
+                    <span>Mover</span>
+                  </button>
+                  <button
+                    aria-label={`Mover projeto ${p.name} antes`}
+                    disabled={saving || index === 0}
+                    onClick={() => moveProject(p.id, projects[index - 1].id)}
+                  >
+                    <ArrowLeft size={16} />
+                  </button>
+                  <button
+                    aria-label={`Mover projeto ${p.name} depois`}
+                    disabled={saving || index === projects.length - 1}
+                    onClick={() => moveProject(p.id, projects[index + 1].id)}
+                  >
+                    <ArrowRight size={16} />
+                  </button>
+                </div>
+              )}
               <button
                 className="municipality-card"
                 onClick={() => onOpen(p.id)}
