@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## 1.8.2 — 09/10/2026
+
+- Bloco do projeto ativo na barra lateral mostra somente o nome do município, sem subtítulo e sem seta para baixo.
+
 ## 1.8.1 — 09/10/2026
 
 - Capacitação incluída na barra de navegação do projeto e nas ações rápidas do município, para acessar treinamentos e atendimentos remotos.

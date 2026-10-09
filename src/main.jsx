@@ -453,9 +453,7 @@ function App() {
             <strong title={project?.name}>
               {project?.name || "Projetos e municípios"}
             </strong>
-            <small>Gestão de implantação</small>
           </div>
-          <ChevronDown size={15} />
         </div>
         <div className="nav-label">WORKSPACE</div>
         <nav>
