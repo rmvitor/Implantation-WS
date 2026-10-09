@@ -131,6 +131,7 @@ function fakeClient(initial) {
       return query;
     },
     async rpc(name, args) {
+      if (name === "implanta_read_v2") return { error: { code: "PGRST202" } };
       this.calls++;
       if (this.conflictNext) {
         this.conflictNext = false;

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { projectRecords, assembleRecords, recordKey } from "../src/records.js";
 import { createDemo } from "./fixtures/workspace.js";
 
 // Browser contract tests use a controlled Supabase HTTP double. The database
@@ -17,7 +18,10 @@ const jsonb = (value) =>
             .map((key) => [key, jsonb(value[key])]),
         )
       : value;
-async function setup(page, { role = "editor", loggedIn = true } = {}) {
+async function setup(
+  page,
+  { role = "editor", loggedIn = true, normalized = false } = {},
+) {
   const demo = createDemo();
   const state = {
     row: { id: demo.projects[0].id, data: demo.projects[0], version: 1 },
@@ -31,6 +35,18 @@ async function setup(page, { role = "editor", loggedIn = true } = {}) {
     commits: [],
     grants: [],
   };
+  const records = projectRecords(state.row.data).map((r) => ({
+    ...r,
+    revision: 1,
+  }));
+  const modernRead = () => ({
+    records:
+      role === "admin" ? records : records.filter((r) => r.kind !== "personal"),
+    projects: [{ id: state.row.id, version: state.row.version }],
+    access: [{ project_id: state.row.id, user_id: userId, role }],
+    preferences: state.preferences,
+    admin: role === "admin",
+  });
   const user = {
     id: userId,
     email: "teste@example.invalid",
@@ -68,7 +84,30 @@ async function setup(page, { role = "editor", loggedIn = true } = {}) {
       path = url.pathname;
     let data = null,
       status = 200;
-    if (path === "/auth/v1/token") data = session;
+    if (path.endsWith("/rpc/implanta_read_v2")) {
+      if (normalized) data = modernRead();
+      else {
+        status = 404;
+        data = { code: "PGRST202", message: "Migration not applied" };
+      }
+    } else if (path.endsWith("/rpc/implanta_commit_v2")) {
+      const args = req.postDataJSON();
+      state.commits.push(args);
+      for (const r of args.p_changes) {
+        const index = records.findIndex((x) => recordKey(x) === recordKey(r));
+        if (index >= 0) records[index] = { ...r, revision: r.revision + 1 };
+        else records.push({ ...r, revision: 1 });
+      }
+      for (const r of args.p_removed) {
+        const index = records.findIndex((x) => recordKey(x) === recordKey(r));
+        if (index >= 0) records.splice(index, 1);
+      }
+      if (args.p_preferences) state.preferences = args.p_preferences;
+      state.row.data = assembleRecords(records)[0];
+      state.row.version++;
+      state.writes++;
+      data = modernRead();
+    } else if (path === "/auth/v1/token") data = session;
     else if (path === "/auth/v1/user") data = user;
     else if (path === "/auth/v1/signup") data = { user, session: null };
     else if (path === "/auth/v1/logout") {
@@ -164,6 +203,22 @@ async function setup(page, { role = "editor", loggedIn = true } = {}) {
             ]);
     else if (path.endsWith("/implanta_preferences"))
       data = { data: state.preferences };
+    else if (
+      path.endsWith("/implanta_audit") ||
+      path.endsWith("/implanta_record_audit")
+    )
+      data = [
+        {
+          id: 1,
+          project_id: state.row.id,
+          actor_name: "Colega teste",
+          at: "2026-10-09T12:00:00Z",
+          action: "atualizado",
+          kind: "activity",
+          record_id: state.row.data.tasks[0].id,
+          changed_fields: ["title"],
+        },
+      ];
     else if (path === "/auth/v1/recover") data = {};
     else throw new Error(`Unexpected test request: ${path}`);
     await route.fulfill({
@@ -661,3 +716,117 @@ test("agenda geral do visualizador grava só preferências pessoais, mantém edi
     "Viagem privada",
   );
 });
+
+test("validação online usa a conta autenticada e deixa autoria no histórico", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  await openProject(page);
+  await page
+    .getByRole("button", { name: /Corrigir baixas e depreciações/ })
+    .click();
+  await page.getByLabel("Situação", { exact: true }).selectOption("concluido");
+  await expect(page.getByLabel("Validado por")).toHaveValue("Colega teste");
+  await expect(page.getByLabel("Validado por")).toHaveAttribute("readonly", "");
+  await page
+    .getByLabel("Evidência da validação")
+    .fill("Saldo conferido com o fiscal");
+  await page
+    .getByRole("button", { name: "Salvar alterações", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const task = state.row.data.tasks.find((t) => t.ticket === "872797");
+  expect(task.validation.actorId).toBe(userId);
+  expect(task.validation.by).toBe("Colega teste");
+  expect(task.validation.at).toContain("T");
+  expect(state.row.data.logs[0].actorId).toBe(userId);
+});
+for (const role of ["editor", "admin"])
+  test(`backup com CPF restrito e exportação comum sem anexos para ${role}`, async ({
+    page,
+  }) => {
+    const state = await setup(page, { role });
+    state.row.data.cpf = "123.456.789-00";
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "Dados e backup", exact: true })
+      .click();
+    const full = page.getByRole("button", { name: /Backup completo restrito/ });
+    await expect(full).toHaveCount(role === "admin" ? 1 : 0);
+    const promise = page.waitForEvent("download");
+    await page.getByRole("button", { name: /Exportar backup/ }).click();
+    const stream = await (await promise).createReadStream();
+    let body = "";
+    for await (const chunk of stream) body += chunk.toString();
+    const safe = JSON.parse(body);
+    expect(safe.projects[0].cpf).toBe("");
+    expect(safe.privacy.cpfOmitted).toBe(true);
+    expect(safe.projects[0].tasks.every((t) => !t.attachments.length)).toBe(
+      true,
+    );
+    if (role === "admin") {
+      const fullPromise = page.waitForEvent("download");
+      await full.click();
+      const stream = await (await fullPromise).createReadStream();
+      let body = "";
+      for await (const chunk of stream) body += chunk.toString();
+      expect(JSON.parse(body).projects[0].cpf).toBe("123.456.789-00");
+    }
+  });
+
+test("cliente publicado usa registros separados quando a migração está ativa e mostra auditoria do banco", async ({
+  page,
+}) => {
+  const state = await setup(page, { normalized: true });
+  await openProject(page);
+  await page
+    .getByRole("button", { name: /Corrigir baixas e depreciações/ })
+    .click();
+  await page.getByLabel("Título da atividade").fill("Conferir saldo revisado");
+  await page
+    .getByRole("button", { name: "Salvar alterações", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(
+    state.commits
+      .at(-1)
+      .p_changes.map((r) => r.kind)
+      .sort(),
+  ).toEqual(["activity", "history"]);
+  expect(
+    state.commits.at(-1).p_changes.some((r) => Array.isArray(r.data.tasks)),
+  ).toBe(false);
+  await page
+    .locator(".board-tabs")
+    .getByRole("button", { name: "Histórico", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Alterações do banco", exact: true })
+    .click();
+  await expect(page.locator(".audit-history")).toContainText("Colega teste");
+  await expect(page.locator(".audit-history")).toContainText("Campos: title");
+});
+
+for (const role of ["editor", "viewer"])
+  test(`consulta CPF na tela respeita o acesso ${role}`, async ({ page }) => {
+    const state = await setup(page, { role });
+    state.row.data.cpf = "123.456.789-00";
+    await openProject(page);
+    await page
+      .getByRole("button", { name: "Dados do município", exact: true })
+      .click();
+    const eye = page.getByRole("button", {
+      name: "Mostrar CPF do fiscal",
+      exact: true,
+    });
+    await expect(eye).toHaveCount(role === "editor" ? 1 : 0);
+    if (role === "editor") {
+      await eye.click();
+      await expect(page.locator(".cpf-display")).toContainText(
+        "123.456.789-00",
+      );
+    } else
+      await expect(page.locator(".details-grid")).toContainText(
+        "Acesso restrito a administradores e editores",
+      );
+  });

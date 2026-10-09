@@ -282,7 +282,7 @@ test("lista, tabela e calendário compartilham atividades, filtros e datas", asy
   );
 });
 
-test("contexto e anexos são preservados no backup; conclusão registra validação e reabertura", async ({
+test("contexto é preservado e backup comum omite anexos; conclusão registra validação e reabertura", async ({
   page,
 }) => {
   await openProject(page);
@@ -323,7 +323,8 @@ test("contexto e anexos são preservados no backup; conclusão registra validaç
   const saved = workspace.projects[0].tasks.find((t) => t.ticket === "872797");
   expect(workspace.version).toBe(2);
   expect(saved.nextOwner).toBe("Ana — consultoria");
-  expect(saved.attachments[0].data).toContain("data:text/plain;base64,");
+  expect(saved.attachments).toEqual([]);
+  expect(workspace.privacy.attachmentsOmitted).toBe(true);
   expect(saved.validation.by).toBe("Ana");
   await page.getByRole("button", { name: "Fechar", exact: true }).click();
   await page
@@ -469,7 +470,7 @@ test("perfil aplica cor principal e True Black, persiste e cancela a prévia", a
         .trim(),
     ),
   ).toBe("#7c3aed");
-  await expect(page.locator(".page-footer")).toContainText("v1.10.3");
+  await expect(page.locator(".page-footer")).toContainText("v1.11.0");
 });
 
 test("categorias, módulos e número aparecem nos cartões; prioridade ordena todas as fases", async ({

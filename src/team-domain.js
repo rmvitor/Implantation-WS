@@ -29,6 +29,7 @@ const itemKey = (v) => (object(v) ? (v.id ?? v.entity) : undefined);
 // Three-way merge: independent fields and items are combined. A simultaneous
 // change to the same field, or deletion of an edited item, stays a conflict.
 export function mergeProject(base, local, remote, path = "projeto") {
+  if (/\.(updatedAt|updatedBy)$/.test(path)) return same(local, base) ? remote : local;
   if (same(local, base)) return remote;
   if (same(remote, base) || same(local, remote)) return local;
   if (object(base) && object(local) && object(remote)) {

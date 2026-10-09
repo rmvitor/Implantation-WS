@@ -66,10 +66,10 @@ export function isValidated(task) {
   const v = task.validation;
   return Boolean(
     task.criterion?.trim() &&
-    v?.by?.trim() &&
-    v?.evidence?.trim() &&
-    v?.at &&
-    !Number.isNaN(Date.parse(v.at)),
+      v?.by?.trim() &&
+      v?.evidence?.trim() &&
+      v?.at &&
+      !Number.isNaN(Date.parse(v.at)),
   );
 }
 export function saveActivity(
@@ -235,6 +235,32 @@ export function validateBackup(value) {
       !value.projectOrder.every((id) => typeof id === "string"))
   )
     throw new Error("Backup inválido: ordem dos projetos.");
+  if (
+    value.actionLimits !== undefined &&
+    (!value.actionLimits ||
+      !["nearDays", "staleDays"].every(
+        (k) =>
+          Number.isInteger(value.actionLimits[k]) &&
+          value.actionLimits[k] >= 0 &&
+          value.actionLimits[k] <= 365,
+      ))
+  )
+    throw new Error("Backup inválido: limites de acompanhamento.");
+  if (
+    value.taskTemplates !== undefined &&
+    (!Array.isArray(value.taskTemplates) ||
+      !value.taskTemplates.every(
+        (t) =>
+          t &&
+          typeof t.id === "string" &&
+          typeof t.name === "string" &&
+          t.activity &&
+          typeof t.activity.title === "string" &&
+          Array.isArray(t.checks) &&
+          t.checks.every((v) => typeof v === "string"),
+      ))
+  )
+    throw new Error("Backup inválido: modelos de tarefas.");
   for (const p of value.projects) {
     if (
       !p ||
@@ -260,6 +286,22 @@ export function validateBackup(value) {
       (typeof p.closedAt !== "string" || Number.isNaN(Date.parse(p.closedAt)))
     )
       throw new Error("Backup inválido: data de encerramento do projeto.");
+    if (
+      p.handovers !== undefined &&
+      (!Array.isArray(p.handovers) ||
+        !p.handovers.every(
+          (h) =>
+            h &&
+            typeof h.id === "string" &&
+            typeof h.at === "string" &&
+            !Number.isNaN(Date.parse(h.at)) &&
+            ["currentState", "pending", "nextStep", "responsible"].every(
+              (k) => typeof h[k] === "string",
+            ) &&
+            (h.risks === undefined || typeof h.risks === "string"),
+        ))
+    )
+      throw new Error("Backup inválido: passagens de trabalho.");
     if (p.homologation !== undefined) validateHomologation(p.homologation);
     for (const event of p.trainings) validateAppointment(event);
     ids.add(p.id);

@@ -1,4 +1,5 @@
 import pg from "pg";
+import { testRecords } from "./test-records.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
@@ -310,6 +311,7 @@ try {
   console.log(
     `${checks} verificações PostgreSQL: permissões, isolamento, concorrência e importação atômica aprovadas.`,
   );
+  await testRecords({root,admin,editor,viewer,other,ids,denied});
 } finally {
   await Promise.all(clients.map((c) => c.end()));
   await owner.query(`drop database if exists ${database}`);

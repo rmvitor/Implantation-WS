@@ -1,0 +1,61 @@
+.kanban {
+  --board-height: clamp(240px, calc(100dvh - 160px), 720px);
+  align-items: start;
+  overflow-y: hidden;
+}
+.kanban-column {
+  display: flex;
+  flex-direction: column;
+  height: var(--board-height);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.kanban-column > .column-heading,
+.kanban-column > .column-subtitle,
+.kanban-column > .add-card {
+  flex: 0 0 auto;
+}
+.column-subtitle {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.column-cards {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  padding: 3px 2px 8px;
+  scrollbar-gutter: stable;
+}
+.column-cards > * {
+  flex-shrink: 0;
+  min-width: 0;
+}
+.column-cards .task-card h4 {
+  display: block;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: unset;
+}
+.column-cards .task-tag-row {
+  flex-wrap: wrap;
+}
+.column-cards .module-tag {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.kanban-column.collapsed-column {
+  height: auto;
+  min-height: 0;
+  max-height: var(--board-height);
+}
+.collapsed-column .column-overview {
+  min-height: 0;
+  overflow-y: auto;
+}

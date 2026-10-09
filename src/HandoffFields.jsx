@@ -10,15 +10,17 @@ import {
   X,
 } from "lucide-react";
 import { localDate, uid } from "./domain";
+import { useTeam } from "./Team.jsx";
 import { handoffGaps } from "./WorkflowViews";
 
 export function HandoffFields({ draft, patch, Field, onBusy }) {
+  const { actor, normalized } = useTeam();
   const [uploadError, setUploadError] = useState("");
   const [busy, setBusy] = useState(false);
   const gaps = handoffGaps(draft);
   const completed = draft.stage === "concluido";
   const validation = draft.validation || {
-    by: "",
+    by: actor?.name || "",
     at: localDate(),
     evidence: "",
   };
@@ -251,7 +253,8 @@ export function HandoffFields({ draft, patch, Field, onBusy }) {
               <input
                 required
                 pattern=".*[^ ].*"
-                value={validation.by}
+                value={actor?.name || validation.by}
+                readOnly={!!actor}
                 onChange={(e) => patchValidation("by", e.target.value)}
                 placeholder="Nome de quem conferiu"
               />
@@ -260,7 +263,8 @@ export function HandoffFields({ draft, patch, Field, onBusy }) {
               <input
                 type="date"
                 required
-                value={validation.at?.slice(0, 10)}
+                value={validation.at?.slice(0, 10) || localDate()}
+                readOnly={!!actor}
                 onChange={(e) => patchValidation("at", e.target.value)}
               />
             </Field>
@@ -275,8 +279,11 @@ export function HandoffFields({ draft, patch, Field, onBusy }) {
             </Field>
           </div>
           <small>
-            Registro informado manualmente. Ao salvar, também ficará no
-            histórico.
+            {actor
+              ? normalized
+                ? "Autor e horário serão confirmados pelo banco ao salvar."
+                : "Usuário da sessão registrado automaticamente. Horário do servidor depende da migração do banco."
+              : "Registro manual local, sem identidade autenticada. Ao salvar, ficará no histórico."}
           </small>
         </div>
       )}

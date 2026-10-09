@@ -5,11 +5,22 @@ export function BoardScroller({ children, columns }) {
   const mirror = useRef();
   const dragFrame = useRef();
   const dragSpeed = useRef(0);
+  const dragColumn = useRef(null);
+  const verticalSpeed = useRef(0);
   const [scroll, setScroll] = useState({ left: 0, max: 0, mirrorWidth: 0 });
   const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
   const update = () => {
     const el = ref.current;
     if (el) {
+      const viewport = window.visualViewport?.height || innerHeight;
+      const height = Math.max(
+        Math.min(280, viewport - 70),
+        Math.min(
+          720,
+          viewport - Math.max(0, el.getBoundingClientRect().top) - 20,
+        ),
+      );
+      el.style.setProperty("--board-height", `${Math.round(height)}px`);
       if (
         mirror.current &&
         Math.abs(mirror.current.scrollLeft - el.scrollLeft) > 1
@@ -26,15 +37,29 @@ export function BoardScroller({ children, columns }) {
     cancelAnimationFrame(dragFrame.current);
     dragFrame.current = null;
     dragSpeed.current = 0;
+    verticalSpeed.current = 0;
+    dragColumn.current = null;
   };
   useEffect(() => {
     const observer = new ResizeObserver(update);
     observer.observe(ref.current);
     observer.observe(mirror.current);
     update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, { passive: true });
+    window.visualViewport?.addEventListener("resize", update);
+    window.addEventListener("drop", stop);
+    window.addEventListener("dragend", stop);
+    window.addEventListener("blur", stop);
     return () => {
       observer.disconnect();
       stop();
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update);
+      window.visualViewport?.removeEventListener("resize", update);
+      window.removeEventListener("drop", stop);
+      window.removeEventListener("dragend", stop);
+      window.removeEventListener("blur", stop);
     };
   }, []);
   useEffect(update, [children]);
@@ -47,12 +72,27 @@ export function BoardScroller({ children, columns }) {
     const bounds = ref.current.getBoundingClientRect();
     dragSpeed.current =
       e.clientX < bounds.left + 45 ? -8 : e.clientX > bounds.right - 45 ? 8 : 0;
-    if (dragSpeed.current && !dragFrame.current) {
+    dragColumn.current =
+      e.target.closest?.(".kanban-column")?.querySelector(".column-cards") ||
+      null;
+    const cards = dragColumn.current?.getBoundingClientRect();
+    verticalSpeed.current =
+      cards && e.clientY >= cards.top && e.clientY <= cards.bottom
+        ? e.clientY < cards.top + 45
+          ? -8
+          : e.clientY > cards.bottom - 45
+            ? 8
+            : 0
+        : 0;
+    if ((dragSpeed.current || verticalSpeed.current) && !dragFrame.current) {
       const frame = () => {
         ref.current.scrollLeft += dragSpeed.current;
-        dragFrame.current = dragSpeed.current
-          ? requestAnimationFrame(frame)
-          : null;
+        if (dragColumn.current)
+          dragColumn.current.scrollTop += verticalSpeed.current;
+        dragFrame.current =
+          dragSpeed.current || verticalSpeed.current
+            ? requestAnimationFrame(frame)
+            : null;
       };
       dragFrame.current = requestAnimationFrame(frame);
     }

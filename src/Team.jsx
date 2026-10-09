@@ -231,6 +231,8 @@ export function TeamHost({ children }) {
     online: !!client,
     client,
     profile,
+    actor: session?.user && profile ? { id: session.user.id, name: profile.name } : null,
+    normalized: service?.normalized || false,
     workspace,
     stale,
     error,
@@ -242,8 +244,8 @@ export function TeamHost({ children }) {
       editing.current = value;
       if (!value && stale) refreshRef.current?.();
     },
-    async commit(base, next) {
-      const result = await service.commit(base, next);
+    async commit(base, next, options) {
+      const result = await service.commit(base, next, options);
       setWorkspace(result);
       setPermissions(service.access);
       setStale(false);
@@ -604,6 +606,7 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
             <div>
               <strong>{team.profile.email}</strong>
               <p>Conectado ao banco da equipe.</p>
+              {team.profile.admin && <small>{team.normalized ? "Registros separados e validação de autoria no servidor ativos." : "Migração de registros e CPF privado pendente. Consulte o guia antes de ativar."}</small>}
             </div>
             <button
               className="button secondary"

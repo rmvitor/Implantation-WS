@@ -19,6 +19,8 @@ import {
   uid,
 } from "./domain";
 
+import { useTeam } from "./Team.jsx";
+
 const dateTime = (value) =>
   new Date(value).toLocaleString("pt-BR", {
     dateStyle: "short",
@@ -35,6 +37,7 @@ export function Homologation({
   Modal,
   Field,
 }) {
+  const { actor } = useTeam();
   const [dialog, setDialog] = useState(null);
   useEffect(() => {
     onEditing(!!dialog);
@@ -247,6 +250,7 @@ export function Homologation({
       {dialog?.type === "entry" && (
         <EntryModal
           readOnly={readOnly}
+          actor={actor}
           entry={dialog.entry}
           project={project}
           Modal={Modal}
@@ -265,6 +269,7 @@ export function Homologation({
         <ReleaseModal
           Modal={Modal}
           Field={Field}
+          actor={actor}
           count={progress.total}
           onClose={() => setDialog(null)}
           onSave={(by) => perform((p) => releaseHomologation(p, by))}
@@ -357,6 +362,7 @@ function ScopeModal({ project, Modal, onClose, onSave }) {
   );
 }
 function EntryModal({
+  actor,
   readOnly = false,
   entry,
   project,
@@ -391,7 +397,19 @@ function EntryModal({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            onSave(draft, issue);
+            onSave(
+              {
+                ...draft,
+                ...(actor && draft.status === "ok"
+                  ? {
+                      validatedBy: actor.name,
+                      validatedActorId: actor.id,
+                      validationSource: "authenticated-client",
+                    }
+                  : {}),
+              },
+              issue,
+            );
           }}
         >
           <div className="migration-checks">
@@ -467,7 +485,8 @@ function EntryModal({
             </Field>
             <Field label="Validado por" hint="Obrigatório para registrar o OK.">
               <input
-                value={draft.validatedBy}
+                value={actor?.name || draft.validatedBy}
+                readOnly={!!actor}
                 required={draft.status === "ok"}
                 onChange={(e) => patch("validatedBy", e.target.value)}
                 placeholder="Quem conferiu os dados"
@@ -536,8 +555,8 @@ function EntryModal({
     </Modal>
   );
 }
-function ReleaseModal({ Modal, Field, count, onClose, onSave }) {
-  const [by, setBy] = useState("");
+function ReleaseModal({ actor, Modal, Field, count, onClose, onSave }) {
+  const [by, setBy] = useState(actor?.name || "");
   return (
     <Modal
       title="Liberar homologação"
@@ -554,6 +573,7 @@ function ReleaseModal({ Modal, Field, count, onClose, onSave }) {
           <input
             required
             value={by}
+            readOnly={!!actor}
             onChange={(e) => setBy(e.target.value)}
             placeholder="Responsável pela liberação"
           />

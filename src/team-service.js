@@ -1,4 +1,5 @@
 import { validateBackup } from "./domain.js";
+import { assembleRecords, recordChanges } from "./records.js";
 import { mergeProject, same, workspacePreferences } from "./team-domain.js";
 
 function check(result) {
@@ -26,7 +27,11 @@ export function createTeamService(client, onRefresh) {
   let access = [];
   let committing = false;
   let warning = "";
+  let normalized = false;
   const service = {
+    get normalized() {
+      return normalized;
+    },
     get warning() {
       return warning;
     },
@@ -40,6 +45,29 @@ export function createTeamService(client, onRefresh) {
       return committing;
     },
     async read() {
+      const modern = await client.rpc("implanta_read_v2");
+      if (!modern.error) {
+        if (!modern.data || !Array.isArray(modern.data.records))
+          throw new Error(
+            "Resposta incompleta do banco; nenhum dado foi substituído.",
+          );
+        normalized = true;
+        const projects = assembleRecords(modern.data.records);
+        return {
+          ...modern.data,
+          rows: projects.map((data) => ({
+            id: data.id,
+            data,
+            version: modern.data.projects.find((p) => p.id === data.id)
+              ?.version,
+          })),
+        };
+      }
+      if (modern.error.code !== "PGRST202") throw modern.error;
+      if (normalized)
+        throw new Error(
+          "A estrutura do banco mudou. Atualize o aplicativo antes de salvar.",
+        );
       const [projects, members, preferences] = await Promise.all([
         client
           .from("implanta_projects")
@@ -67,7 +95,7 @@ export function createTeamService(client, onRefresh) {
     async load() {
       return service.apply(await service.read());
     },
-    async commit(base, next) {
+    async commit(base, next, options = {}) {
       if (committing)
         throw new Error(
           "Um salvamento está em andamento. Aguarde a confirmação.",
@@ -75,6 +103,7 @@ export function createTeamService(client, onRefresh) {
       committing = true;
       warning = "";
       try {
+        if (normalized) return await commitRecords(base, next, options);
         const before = new Map(base.projects.map((p) => [p.id, p]));
         const after = new Map(next.projects.map((p) => [p.id, p]));
         const changes = [...after].filter(
@@ -179,5 +208,98 @@ export function createTeamService(client, onRefresh) {
       return () => client.removeChannel(channel);
     },
   };
+  async function commitRecords(base, next, options) {
+    const before = new Map(base.projects.map((p) => [p.id, p]));
+    const after = new Map(next.projects.map((p) => [p.id, p]));
+    const deleted = [...before.keys()]
+      .filter((id) => !after.has(id))
+      .map((id) => ({ id, version: rows.get(id)?.version }));
+    const preferences = same(
+      workspacePreferences(base),
+      workspacePreferences(next),
+    )
+      ? null
+      : workspacePreferences(next);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const current = await service.read();
+      const remote = validateBackup({
+        version: 2,
+        projects: current.rows.map((r) => r.data),
+      }).projects;
+      const latest = new Map(remote.map((p) => [p.id, p]));
+      const merged = remote.filter((p) => !deleted.some((d) => d.id === p.id));
+      const created = [];
+      for (const [id, desired] of after) {
+        if (same(before.get(id), desired)) continue;
+        if (!before.has(id) && latest.has(id))
+          throw new Error(
+            "Outro colega criou um projeto com esta identificação. Seu formulário foi mantido; carregue os projetos atuais antes de importar novamente.",
+          );
+        if (before.has(id) && !latest.has(id))
+          throw new Error(
+            "O projeto foi excluído por outro colega. Seu formulário foi mantido.",
+          );
+        const result = before.has(id)
+          ? mergeProject(before.get(id), desired, latest.get(id))
+          : desired;
+        validateBackup({ version: 2, projects: [result] });
+        const index = merged.findIndex((p) => p.id === id);
+        if (index >= 0) merged[index] = result;
+        else {
+          merged.push(result);
+          created.push({
+            id,
+            data: {
+              id,
+              name: result.name,
+              status: result.status || "active",
+              entities: result.entities,
+              tasks: [],
+              trainings: [],
+              logs: [],
+            },
+          });
+        }
+      }
+      const diff = recordChanges(
+        remote.filter((p) => !deleted.some((d) => d.id === p.id)),
+        merged,
+        current.records,
+        current.admin || current.records.some((r) => r.kind === "personal"),
+      );
+      const response = await client.rpc("implanta_commit_v2", {
+        p_changes: diff.changes,
+        p_removed: diff.removed,
+        p_created: created,
+        p_deleted: deleted,
+        p_preferences: preferences,
+        p_import: options.import === true,
+      });
+      if (response.error?.code === "40001") continue;
+      check(response);
+      try {
+        return service.apply(await service.read());
+      } catch {
+        // A committed transaction cannot be reported as unsaved. Keep the returned
+        // canonical server snapshot (including validation stamps) until refresh.
+        warning = "Alteração salva. Reconectando para atualizar a equipe.";
+        if (response.data?.records) {
+          const result = response.data;
+          result.rows = assembleRecords(result.records).map((data) => ({
+            id: data.id,
+            data,
+            version: result.projects.find((p) => p.id === data.id)?.version,
+          }));
+          return service.apply(result);
+        }
+        throw new Error(
+          "Salvamento confirmado no banco. Reabra o aplicativo para carregar os dados antes de editar novamente.",
+        );
+      }
+    }
+    throw new Error(
+      "Novas alterações chegaram durante o salvamento. Seu formulário foi mantido; atualize os dados antes de tentar novamente.",
+    );
+  }
   return service;
 }

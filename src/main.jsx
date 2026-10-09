@@ -99,6 +99,7 @@ import "./homologation.css";
 import "./pwa.css";
 import "./projects.css";
 import "./app-usability.css";
+import "./board-height.css";
 import { CardMenu } from "./CardMenu";
 import {
   ProjectNavigation,
@@ -114,6 +115,11 @@ import { TeamHost, TeamSettings, useTeam } from "./Team";
 import { same } from "./team-domain";
 import { friendlyTeamError } from "./team-service";
 import { usePwa, PwaControls, InstallModal } from "./PwaControls";
+import { stampChanges } from "./operations.js";
+import { publicBackup, preserveOmittedData } from "./privacy.js";
+import { AuditHistory } from "./AuditHistory.jsx";
+import { Operations } from "./Operations.jsx";
+import "./operations.css";
 import { Homologation } from "./Homologation";
 import { BoardScroller } from "./BoardScroller";
 import { ProfileSettings, applyAppearance } from "./ProfileSettings";
@@ -155,6 +161,7 @@ function App() {
   const savingRef = useRef(false);
   const pwa = usePwa();
   const [homologationEditing, setHomologationEditing] = useState(false);
+  const [operationsEditing, setOperationsEditing] = useState(false);
   const [view, setView] = useState("municipalities");
   const [projectFilter, setProjectFilter] = useState("active");
   const [modal, setModal] = useState(null);
@@ -172,14 +179,17 @@ function App() {
   const [cardMenu, setCardMenu] = useState(null);
   const [projectMenu, setProjectMenu] = useState(null);
   useEffect(() => {
-    team.setEditing?.(!!modal || homologationEditing || saving);
-  }, [modal, homologationEditing, saving]);
+    team.setEditing?.(
+      !!modal || homologationEditing || operationsEditing || saving,
+    );
+  }, [modal, homologationEditing, operationsEditing, saving]);
   useEffect(() => {
     if (!team.online || !team.workspace) return;
     if (
       data.selectedId &&
       !team.workspace.projects.some((p) => p.id === data.selectedId) &&
-      view !== "personalAgenda"
+      view !== "personalAgenda" &&
+      view !== "operations"
     ) {
       setModal(null);
       setView("municipalities");
@@ -295,15 +305,17 @@ function App() {
   const openTickets = projectTasks.filter(
     (t) => t.type === "chamado" && t.stage !== "concluido",
   ).length;
-  const setData = async (update) => {
+  const setData = async (update, options = {}) => {
     if (savingRef.current) {
       setToast("Aguarde a confirmação do salvamento em andamento.");
       return false;
     }
-    const next = typeof update === "function" ? update(data) : update;
+    const raw = typeof update === "function" ? update(data) : update;
+    const next = options.import ? raw : stampChanges(data, raw, team.actor);
     try {
       const serialized = JSON.stringify(next);
-      if (serialized.length > 4 * 1024 * 1024) throw new Error("quota");
+      if (!team.online && serialized.length > 4 * 1024 * 1024)
+        throw new Error("quota");
       if (team.online) {
         for (const p of next.projects) {
           const original = data.projects.find((old) => old.id === p.id);
@@ -317,7 +329,7 @@ function App() {
         }
         savingRef.current = true;
         setSaving(true);
-        applyData(await team.commit(data, next));
+        applyData(await team.commit(data, next, options));
       } else {
         localStorage.setItem(STORAGE, serialized);
         applyData(next);
@@ -383,6 +395,24 @@ function App() {
   const saveTask = async (task, isNew) => {
     try {
       captureCards();
+      const original = projectTasks.find((t) => t.id === task.id);
+      if (
+        team.actor &&
+        task.stage === "concluido" &&
+        (original?.stage !== "concluido" ||
+          !same(original?.validation, task.validation) ||
+          original?.criterion !== task.criterion)
+      )
+        task = {
+          ...task,
+          validation: {
+            ...task.validation,
+            by: team.actor.name,
+            actorId: team.actor.id,
+            at: new Date().toISOString(),
+            source: "authenticated-client",
+          },
+        };
       if (await updateProject((p) => saveActivity(p, task))) {
         setModal(null);
         setToast(isNew ? "Atividade criada." : "Alterações salvas.");
@@ -391,16 +421,26 @@ function App() {
       setToast(error.message);
     }
   };
-  const exportData = () => {
+  const exportData = (full = false) => {
+    full = full === true;
+    if (full && !(team.online && team.profile?.admin)) {
+      setToast("CPF completo: somente administradores autenticados.");
+      return;
+    }
+    const exported = full ? data : publicBackup(data);
     const url = URL.createObjectURL(
-      new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
+      new Blob([JSON.stringify(exported, null, 2)], {
+        type: "application/json",
+      }),
     );
     const link = document.createElement("a");
     link.href = url;
     link.download = `implanta-backup-${today}.json`;
     link.click();
     URL.revokeObjectURL(url);
-    setToast("Backup exportado. Guarde o arquivo em um local seguro.");
+    setToast(
+      "Backup exportado. Revise contatos e textos antes de compartilhar.",
+    );
   };
   const importData = async (event) => {
     const file = event.target.files[0];
@@ -433,14 +473,17 @@ function App() {
     history: "Histórico de execução",
     details: "Dados do município",
     personalAgenda: "Agenda geral",
+    operations: "Acompanhamento geral",
   };
   useEffect(() => {
     document.title =
-      view === "personalAgenda"
-        ? "Agenda geral · Implanta"
-        : view === "municipalities" || !project
-          ? "Projetos e municípios · Implanta"
-          : `${project.name} · ${pageNames[view]} · Implanta`;
+      view === "operations"
+        ? "Acompanhamento geral · Implanta"
+        : view === "personalAgenda"
+          ? "Agenda geral · Implanta"
+          : view === "municipalities" || !project
+            ? "Projetos e municípios · Implanta"
+            : `${project.name} · ${pageNames[view]} · Implanta`;
     return () => {
       document.title = "Implanta";
     };
@@ -525,6 +568,12 @@ function App() {
             active={view === "personalAgenda"}
             onClick={() => changeView("personalAgenda")}
           />
+          <NavItem
+            icon={LayoutDashboard}
+            text="Acompanhamento geral"
+            active={view === "operations"}
+            onClick={() => changeView("operations")}
+          />
         </nav>
         <div className="sidebar-bottom">
           <div className="nav-label management-label">GERENCIAMENTO</div>
@@ -549,7 +598,9 @@ function App() {
           </button>
           <PwaControls
             pwa={pwa}
-            editing={!!modal || homologationEditing || saving}
+            editing={
+              !!modal || homologationEditing || operationsEditing || saving
+            }
             onInstall={() => setModal({ type: "install" })}
           />
           <button
@@ -621,7 +672,22 @@ function App() {
                     : "Este projeto está liberado somente para leitura.")}
               </div>
             )}
-          {view === "personalAgenda" ? (
+          {view === "operations" ? (
+            <Operations
+              onEditing={setOperationsEditing}
+              data={data}
+              saving={saving}
+              canEdit={(id) => !team.online || team.canEdit(id)}
+              actor={team.actor}
+              onChange={setData}
+              onOpen={async (id, task) => {
+                if (await selectProject(id)) {
+                  changeView("board");
+                  if (task) setModal({ type: "task", task, isNew: false });
+                }
+              }}
+            />
+          ) : view === "personalAgenda" ? (
             <PersonalAgenda
               events={data.personalAgenda || []}
               saving={saving}
@@ -1129,7 +1195,12 @@ function App() {
                                   </dl>
                                 </div>
                               ) : (
-                                <div className="column-cards">
+                                <div
+                                  className="column-cards"
+                                  role="region"
+                                  aria-label={`Cartões em ${stage.label}`}
+                                  tabIndex={0}
+                                >
                                   {items.map((t) => (
                                     <TaskCard
                                       readOnly={!canEdit}
@@ -1603,16 +1674,25 @@ function App() {
               {team.online
                 ? "Os dados ficam no banco da equipe e são compartilhados conforme as permissões de cada projeto. Você também pode exportar um backup."
                 : "Os dados ficam neste navegador. Para usar em outro computador ou evitar perda ao limpar o navegador, exporte um backup."}{" "}
-              O arquivo inclui contatos e CPF, se cadastrados.
+              A exportação comum omite CPF e anexos e mascara padrões de CPF em
+              textos. Contatos e outros dados pessoais ainda exigem revisão
+              antes de compartilhar.
             </p>
           </div>
           <div className="backup-options">
             <button onClick={exportData}>
               <Download size={24} />
               <strong>Exportar backup</strong>
-              <span>Baixar todos os dados em JSON</span>
+              <span>JSON sem CPF e sem anexos</span>
               <ArrowUpRight size={17} />
             </button>
+            {team.online && team.profile?.admin && (
+              <button onClick={() => exportData(true)}>
+                <ShieldCheck size={24} />
+                <strong>Backup completo restrito</strong>
+                <span>Inclui CPF e anexos · guardar em local protegido</span>
+              </button>
+            )}
             <button
               disabled={!canManage}
               onClick={() => fileRef.current.click()}
@@ -1673,7 +1753,11 @@ function App() {
                   modal.data.personalAgenda === undefined && data.personalAgenda
                     ? { ...imported, personalAgenda: data.personalAgenda }
                     : imported;
-                if (await setData(restored)) {
+                if (
+                  await setData(preserveOmittedData(restored, data), {
+                    import: true,
+                  })
+                ) {
                   setModal(null);
                   changeView("municipalities");
                   setToast("Backup restaurado.");
@@ -2006,6 +2090,7 @@ function TaskModal({
   onDelete,
 }) {
   const formId = useId();
+  const { actor } = useTeam();
   const [draft, setDraft] = useState(() => structuredClone(task));
   const [entity, setEntity] = useState(entities[0] || "");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -2056,7 +2141,19 @@ function TaskModal({
         id={formId}
         onSubmit={(e) => {
           e.preventDefault();
-          onSave({ ...draft, title: draft.title.trim() });
+          const activity = { ...draft, title: draft.title.trim() };
+          if (
+            actor &&
+            draft.stage === "concluido" &&
+            (task.stage !== "concluido" || !draft.validation?.by)
+          )
+            activity.validation = {
+              ...draft.validation,
+              by: actor.name,
+              actorId: actor.id,
+              at: new Date().toISOString(),
+            };
+          onSave(activity);
         }}
       >
         <fieldset disabled={readOnly} className="readonly-fields">
@@ -2391,6 +2488,11 @@ function TaskModal({
   );
 }
 function ProjectModal({ readOnly = false, project, onClose, onSave }) {
+  const team = useTeam();
+  const cpfAllowed =
+    !team.online ||
+    !!team.profile?.admin ||
+    (project && team.canEdit(project.id));
   const [draft, setDraft] = useState(
     project || {
       id: uid(),
@@ -2508,9 +2610,14 @@ function ProjectModal({ readOnly = false, project, onClose, onSave }) {
             </Field>
             <Field label="CPF do fiscal">
               <input
-                value={draft.cpf}
+                value={cpfAllowed ? draft.cpf : ""}
+                disabled={!cpfAllowed}
+                placeholder={
+                  cpfAllowed
+                    ? "000.000.000-00"
+                    : "Acesso restrito a administradores e editores"
+                }
                 onChange={(e) => patch("cpf", e.target.value)}
-                placeholder="000.000.000-00"
                 maxLength={14}
                 inputMode="numeric"
               />
@@ -3054,6 +3161,7 @@ function History({ project, onOpen }) {
           />
         </label>
       </div>
+      <AuditHistory project={project} />
       <div className="timeline">
         {logs.map((l) => {
           const task = project.tasks.find((t) => t.id === l.taskId);
@@ -3071,6 +3179,16 @@ function History({ project, onOpen }) {
               <div>
                 <strong>{l.title}</strong>
                 <p>{l.action.charAt(0).toUpperCase() + l.action.slice(1)}</p>
+                <small>
+                  {l.actorName
+                    ? `Por ${l.actorName}`
+                    : "Autoria histórica não verificada"}
+                  {l.source === "local"
+                    ? " · dispositivo local"
+                    : l.source === "imported-unverified"
+                      ? " · importado; autoria histórica não verificada"
+                      : ""}
+                </small>
                 {l.appointment && typeof l.appointment.date === "string" && (
                   <p className="appointment-range">
                     {appointmentRange(l.appointment)} · {l.appointment.status}
@@ -3127,6 +3245,11 @@ function History({ project, onOpen }) {
   );
 }
 function ProjectDetails({ readOnly = false, project, onEdit }) {
+  const team = useTeam();
+  const cpfAllowed =
+    !team.online ||
+    !!team.profile?.admin ||
+    (project && team.canEdit(project.id));
   const [showCpf, setShowCpf] = useState(false);
   useEffect(() => setShowCpf(false), [project.id, project.cpf]);
   const info = (label, value, email = false) => (
@@ -3176,7 +3299,11 @@ function ProjectDetails({ readOnly = false, project, onEdit }) {
           {info("Nome", project.fiscal)}
           <div className="detail-field">
             <span>CPF</span>
-            {project.cpf ? (
+            {!cpfAllowed ? (
+              <strong className="not-informed">
+                Acesso restrito a administradores e editores
+              </strong>
+            ) : project.cpf ? (
               <div className="cpf-display">
                 <strong>
                   {showCpf ? project.cpf : project.cpf.replace(/\d/g, "*")}

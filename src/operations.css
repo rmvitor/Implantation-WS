@@ -1,0 +1,132 @@
+.operations-page {
+  min-width: 0;
+}
+.operations-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin: 20px 0;
+  padding-bottom: 6px;
+}
+.operations-tabs button {
+  flex-shrink: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+}
+.operations-tabs button[aria-selected="true"] {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.operations-page label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13px;
+}
+.operations-page input,
+.operations-page select,
+.operations-page textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+}
+.operations-page textarea {
+  resize: vertical;
+}
+.operations-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: end;
+  margin: 20px 0;
+}
+.operations-settings label {
+  flex: 1 1 180px;
+  max-width: 300px;
+}
+.operations-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 20px 0;
+}
+.operations-rows {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+.operations-row {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.operations-row p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.operations-row small,
+.operations-row > span {
+  color: var(--muted);
+}
+.operations-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.operations-metrics span {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.operations-metrics b {
+  font-size: 23px;
+}
+.project-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--text);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+}
+.operations-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.bulletin-text {
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+.operations-scope {
+  max-width: 290px;
+}
+@media (max-width: 600px) {
+  .operations-form {
+    grid-template-columns: 1fr;
+  }
+  .operations-settings label {
+    max-width: none;
+  }
+  .operations-metrics {
+    gap: 12px;
+  }
+}

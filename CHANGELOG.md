@@ -1,5 +1,14 @@
 # Histórico de versões
 
+## 1.11.0 — Acompanhamento e registros separados
+
+- Quadros com altura limitada à tela, rolagem vertical independente e cabeçalhos fixos; cartões longos quebram linha; rolagem horizontal e durante o arraste preservadas.
+- Acompanhamento geral: Ação agora (1 dia / 5 dias, configuráveis), comparação de municípios, passagens estruturadas, modelos pessoais e boletim semanal revisável em Markdown.
+- Validação online identifica a conta autenticada; histórico mostra autoria e permite consultar a auditoria do banco.
+- Exportação comum omite CPF e anexos, mascara padrões de CPF em textos e preserva dados omitidos já existentes ao restaurar. Backup completo disponível apenas para administradores autenticados.
+- Cliente compatível com banco atual e protocolo novo; migração aditiva separa municípios, atividades, contexto, chamados, passagens, capacitação, homologação e histórico. Versões por registro, transações e auditoria com usuário/horário do servidor.
+- Migração preparada e validada em PostgreSQL descartável; ativação em produção depende de backup administrado, revisão e execução do guia no Supabase. Dados de produção não foram alterados automaticamente.
+
 ## 1.10.3 — 09/10/2026
 
 - Logo Sofrimentação. aplicado no menu lateral e na tela de login, a partir da imagem fornecida.
