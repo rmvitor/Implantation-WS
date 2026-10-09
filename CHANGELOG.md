@@ -1,5 +1,10 @@
 # Histórico de versões
 
+## 1.10.3 — 09/10/2026
+
+- Logo Sofrimentação. aplicado no menu lateral e na tela de login, a partir da imagem fornecida.
+- Fundo transparente e contraste em preto no tema claro e branco no tema escuro; marca responsiva no celular e computador.
+
 ## 1.10.2 — 09/10/2026
 
 - Data de término opcional na agenda geral, vazia por padrão. Projetos e outros compromissos podem registrar apenas o início e completar o período depois.

@@ -1,0 +1,16 @@
+.brand-logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: #000;
+}
+:root[data-theme="dark"] .brand-logo {
+  color: #fff;
+}
+.sidebar .brand {
+  padding: 0 0 32px;
+  width: 100%;
+}
+.auth-brand {
+  width: min(300px, 100%);
+}

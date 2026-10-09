@@ -13,6 +13,7 @@ import { validateConnection, resolveConnection, same } from "./team-domain";
 import defaultConnection from "./team-config.json";
 import { version as appVersion } from "../package.json";
 import { validateBackup } from "./domain";
+import { BrandLogo } from "./BrandLogo";
 import "./team.css";
 
 const CONNECTION = "implanta.team.connection.v1";
@@ -387,7 +388,7 @@ function AuthScreen({
     <main className="auth-page">
       <section className="auth-box">
         <a className="auth-brand" href="#">
-          implanta<span>.</span>
+          <BrandLogo />
         </a>
         <h1>
           {setup

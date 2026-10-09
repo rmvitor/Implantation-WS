@@ -108,6 +108,7 @@ import {
 import { projectColor, PROJECT_COLORS } from "./project-identity";
 import { orderedProjects, reorderProjects } from "./project-order";
 import { PersonalAgenda, PersonalEventModal } from "./PersonalAgenda";
+import { BrandLogo } from "./BrandLogo";
 import "./project-controls.css";
 import { TeamHost, TeamSettings, useTeam } from "./Team";
 import { same } from "./team-domain";
@@ -461,12 +462,7 @@ function App() {
             changeView("municipalities");
           }}
         >
-          <span className="brand-mark">
-            <i />
-            <i />
-            <i />
-          </span>
-          implanta<span className="brand-dot">.</span>
+          <BrandLogo />
         </a>
         <ProjectSwitcher
           project={project}
