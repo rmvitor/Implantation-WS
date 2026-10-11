@@ -134,12 +134,14 @@ test("salvamento usa a confirmação canônica com autoria do banco sem depender
   const p = createDemo().projects[0];
   let records = projectRecords(p).map((r) => ({ ...r, revision: 1 }));
   let committed = false;
+  let reads = 0;
   const at = "2026-10-11T20:30:00.000Z";
   const author = "00000000-0000-4000-8000-000000000001";
   const read = () => ({ records: structuredClone(records), projects: [{ id: p.id, version: committed ? 2 : 1 }], access: [], preferences: {}, admin: true });
   const client = {
     async rpc(name, args) {
       if (name === "implanta_read_v2") {
+        reads++;
         assert.equal(committed, false, "Não fazer uma segunda consulta após a confirmação");
         return { data: read() };
       }
@@ -163,6 +165,7 @@ test("salvamento usa a confirmação canônica com autoria do banco sem depender
     validation: { by: "Nome no cliente", at: "2026-10-10T00:00:00.000Z", evidence: "Relatório conferido" },
   });
   const saved = await service.commit(base, next);
+  assert.equal(reads, 2, "Somente carga inicial e consulta de concorrência antes de gravar");
   assert.equal(saved.projects[0].tasks[0].validation.by, "Conta do banco");
   assert.equal(saved.projects[0].tasks[0].validation.at, at);
   assert.equal(saved.projects[0].tasks[0].updatedBy, author);
