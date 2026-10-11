@@ -807,6 +807,42 @@ test("cliente publicado usa registros separados quando a migração está ativa 
   await expect(page.locator(".audit-history")).toContainText("Campos: title");
 });
 
+for (const normalized of [false, true])
+  test(`visualização e fases ficam neste aparelho sem gravações online (${normalized ? "registros" : "legado"})`, async ({ page, browser }) => {
+    const state = await setup(page, { normalized });
+    // Old cloud preferences must not dictate a fresh device's display.
+    state.preferences = { boardViews: { "quatro-barras": "table" }, boardCollapsed: { "quatro-barras": ["todo"] } };
+    await openProject(page);
+    await expect(page.locator(".kanban")).toBeVisible();
+    await expect(page.locator(".collapsed-column")).toHaveCount(0);
+    const commits = state.commits.length;
+    await page.getByRole("button", { name: "Recolher fases", exact: true }).click();
+    await page.getByRole("button", { name: "Lista", exact: true }).click();
+    await page.getByLabel("Ordenar cartões").selectOption("priority");
+    await expect(page.locator(".activity-list-row")).toHaveCount(0);
+    expect(state.commits.length).toBe(commits);
+    await page.reload();
+    await page.locator(".municipality-card").click();
+    await expect(page.getByRole("region", { name: "Lista de atividades" })).toBeVisible();
+    await expect(page.getByLabel("Ordenar cartões")).toHaveValue("priority");
+    await page.getByRole("button", { name: "Quadro", exact: true }).click();
+    await expect(page.locator(".collapsed-column")).toHaveCount(5);
+    const latest = state.commits.at(-1);
+    expect(latest.p_preferences?.boardViews).toBeUndefined();
+    expect(latest.p_preferences?.boardCollapsed).toBeUndefined();
+    expect(latest.p_preferences?.boardOrders).toBeUndefined();
+    // A second isolated browser, using the same account, starts expanded.
+    const otherContext = await browser.newContext();
+    try {
+      const other = await otherContext.newPage();
+      await setup(other, { normalized });
+      await openProject(other);
+      await expect(other.locator(".kanban")).toBeVisible();
+      await expect(other.locator(".collapsed-column")).toHaveCount(0);
+      await expect(other.getByLabel("Ordenar cartões")).toHaveValue("manual");
+    } finally { await otherContext.close(); }
+  });
+
 for (const role of ["editor", "viewer"])
   test(`consulta CPF na tela respeita o acesso ${role}`, async ({ page }) => {
     const state = await setup(page, { role });

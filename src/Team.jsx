@@ -13,6 +13,7 @@ import { validateConnection, resolveConnection, same } from "./team-domain";
 import defaultConnection from "./team-config.json";
 import { version as appVersion } from "../package.json";
 import { validateBackup } from "./domain";
+import { withoutDevicePreferences } from "./device-preferences.js";
 import { BrandLogo } from "./BrandLogo";
 import "./team.css";
 
@@ -191,7 +192,7 @@ export function TeamHost({ children }) {
         );
         const changed = !same(
           validateBackup({
-            ...result.preferences,
+            ...withoutDevicePreferences(result.preferences || {}),
             version: 2,
             projects: result.rows.map((r) => r.data),
           }),

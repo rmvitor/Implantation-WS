@@ -126,7 +126,8 @@ export function validateConnection({ url, key }) {
 
 export function workspacePreferences(data) {
   const { projects, version, ...preferences } = data;
-  return preferences;
+  const { boardViews, boardCollapsed, boardOrders, ...shared } = preferences;
+  return shared;
 }
 
 // Saved connections explicitly chosen on this device take precedence. The

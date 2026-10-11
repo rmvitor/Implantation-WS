@@ -2,6 +2,7 @@
   --board-height: clamp(240px, calc(100dvh - 160px), 720px);
   align-items: start;
   overflow-y: hidden;
+  touch-action: pan-x pan-y pinch-zoom;
 }
 .kanban-column {
   display: flex;
@@ -27,6 +28,8 @@
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior-y: contain;
+  overscroll-behavior-x: auto;
+  touch-action: pan-x pan-y pinch-zoom;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
   padding: 3px 2px 8px;

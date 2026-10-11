@@ -1,4 +1,5 @@
 import { validateBackup } from "./domain.js";
+import { withoutDevicePreferences } from "./device-preferences.js";
 import { assembleRecords, recordChanges } from "./records.js";
 import { mergeProject, same, workspacePreferences } from "./team-domain.js";
 
@@ -86,7 +87,7 @@ export function createTeamService(client, onRefresh) {
       rows = new Map(result.rows.map((row) => [row.id, row]));
       access = result.access;
       snapshot = validateBackup({
-        ...result.preferences,
+        ...withoutDevicePreferences(result.preferences || {}),
         version: 2,
         projects: result.rows.map((row) => row.data),
       });

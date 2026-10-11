@@ -1,14 +1,29 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef } from "react";
 
 export function BoardScroller({ children, columns }) {
   const ref = useRef();
   const mirror = useRef();
+  const mirrorTrack = useRef();
+  const synchronized = useRef(new WeakMap());
+  const measureFrame = useRef();
   const dragFrame = useRef();
   const dragSpeed = useRef(0);
   const dragColumn = useRef(null);
   const verticalSpeed = useRef(0);
-  const [scroll, setScroll] = useState({ left: 0, max: 0, mirrorWidth: 0 });
   const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const syncScroll = (source) => {
+    // Native scrolling (including touch inertia) owns the source. Ignore the
+    // target's generated scroll event so it cannot rewind the source later.
+    const expected = synchronized.current.get(source);
+    synchronized.current.delete(source);
+    if (expected !== undefined && Math.abs(source.scrollLeft - expected) <= 1)
+      return;
+    const target = source === ref.current ? mirror.current : ref.current;
+    if (target && Math.abs(target.scrollLeft - source.scrollLeft) > 1) {
+      target.scrollLeft = source.scrollLeft;
+      synchronized.current.set(target, target.scrollLeft);
+    }
+  };
   const update = () => {
     const el = ref.current;
     if (el) {
@@ -20,18 +35,28 @@ export function BoardScroller({ children, columns }) {
           viewport - Math.max(0, el.getBoundingClientRect().top) - 20,
         ),
       );
-      el.style.setProperty("--board-height", `${Math.round(height)}px`);
+      const value = `${Math.round(height)}px`;
+      if (el.style.getPropertyValue("--board-height") !== value)
+        el.style.setProperty("--board-height", value);
+      const max = Math.max(0, el.scrollWidth - el.clientWidth);
+      const width = `${max + (mirror.current?.clientWidth || 0)}px`;
+      if (mirrorTrack.current.style.width !== width)
+        mirrorTrack.current.style.width = width;
       if (
         mirror.current &&
         Math.abs(mirror.current.scrollLeft - el.scrollLeft) > 1
-      )
+      ) {
         mirror.current.scrollLeft = el.scrollLeft;
-      setScroll({
-        left: el.scrollLeft,
-        max: Math.max(0, el.scrollWidth - el.clientWidth),
-        mirrorWidth: mirror.current?.clientWidth || 0,
-      });
+        synchronized.current.set(mirror.current, mirror.current.scrollLeft);
+      }
     }
+  };
+  const scheduleMeasure = () => {
+    if (measureFrame.current) return;
+    measureFrame.current = requestAnimationFrame(() => {
+      measureFrame.current = null;
+      update();
+    });
   };
   const stop = () => {
     cancelAnimationFrame(dragFrame.current);
@@ -41,28 +66,50 @@ export function BoardScroller({ children, columns }) {
     dragColumn.current = null;
   };
   useEffect(() => {
-    const observer = new ResizeObserver(update);
+    const observer = new ResizeObserver(scheduleMeasure);
     observer.observe(ref.current);
     observer.observe(mirror.current);
     update();
-    window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, { passive: true });
-    window.visualViewport?.addEventListener("resize", update);
+    window.addEventListener("resize", scheduleMeasure);
+    window.addEventListener("scroll", scheduleMeasure, { passive: true });
+    window.visualViewport?.addEventListener("resize", scheduleMeasure);
+    const onWheel = (e) => {
+      if (e.ctrlKey || e.deltaX || !e.deltaY) return;
+      const source = e.currentTarget;
+      // On card lists a normal wheel still scrolls vertically. Shift+wheel,
+      // column headings and the top bar navigate horizontally with a mouse.
+      if (
+        source === ref.current && !e.shiftKey &&
+        e.target.closest?.(".column-cards, .column-overview")
+      ) return;
+      const unit = e.deltaMode === 1 ? 16
+        : e.deltaMode === 2 ? source.clientWidth : 1;
+      const before = source.scrollLeft;
+      source.scrollLeft += e.deltaY * unit;
+      if (source.scrollLeft !== before) e.preventDefault();
+    };
+    ref.current.addEventListener("wheel", onWheel, { passive: false });
+    mirror.current.addEventListener("wheel", onWheel, { passive: false });
+    const board = ref.current;
+    const top = mirror.current;
     window.addEventListener("drop", stop);
     window.addEventListener("dragend", stop);
     window.addEventListener("blur", stop);
     return () => {
       observer.disconnect();
       stop();
-      window.removeEventListener("resize", update);
-      window.removeEventListener("scroll", update);
-      window.visualViewport?.removeEventListener("resize", update);
+      cancelAnimationFrame(measureFrame.current);
+      board.removeEventListener("wheel", onWheel);
+      top.removeEventListener("wheel", onWheel);
+      window.removeEventListener("resize", scheduleMeasure);
+      window.removeEventListener("scroll", scheduleMeasure);
+      window.visualViewport?.removeEventListener("resize", scheduleMeasure);
       window.removeEventListener("drop", stop);
       window.removeEventListener("dragend", stop);
       window.removeEventListener("blur", stop);
     };
   }, []);
-  useEffect(update, [children]);
+  useLayoutEffect(update, [children]);
   const step = (direction) =>
     ref.current.scrollBy({
       left: direction * 270,
@@ -106,22 +153,17 @@ export function BoardScroller({ children, columns }) {
           role="region"
           aria-label="Rolar quadro horizontalmente"
           tabIndex={0}
-          onScroll={(e) => {
-            if (
-              Math.abs(ref.current.scrollLeft - e.currentTarget.scrollLeft) > 1
-            )
-              ref.current.scrollLeft = e.currentTarget.scrollLeft;
-          }}
+          onScroll={(e) => syncScroll(e.currentTarget)}
           onKeyDown={(e) => {
             if (["Home", "End", "ArrowLeft", "ArrowRight"].includes(e.key)) {
               e.preventDefault();
               if (e.key === "Home" || e.key === "End")
-                ref.current.scrollLeft = e.key === "Home" ? 0 : scroll.max;
+                ref.current.scrollLeft = e.key === "Home" ? 0 : ref.current.scrollWidth;
               else step(e.key === "ArrowLeft" ? -1 : 1);
             }
           }}
         >
-          <div style={{ width: scroll.max + scroll.mirrorWidth, height: 1 }} />
+          <div ref={mirrorTrack} style={{ height: 1 }} />
         </div>
       </div>
       <section
@@ -130,7 +172,9 @@ export function BoardScroller({ children, columns }) {
         tabIndex={0}
         ref={ref}
         style={columns ? { gridTemplateColumns: columns } : undefined}
-        onScroll={update}
+        onScroll={(e) => {
+          if (e.target === e.currentTarget) syncScroll(e.currentTarget);
+        }}
         onDragOver={onDragOver}
         onDrop={stop}
         onDragEnd={stop}

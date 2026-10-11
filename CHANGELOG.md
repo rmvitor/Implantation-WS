@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 1.11.1 — 11/10/2026
+
+- Rolagem horizontal do quadro sem atualizações React a cada movimento e sem retorno de eventos entre as barras espelhadas, preservando gestos e inércia nativos.
+- Mouse: roda na barra superior ou nos cabeçalhos navega entre fases; Shift + roda funciona sobre os cartões. A roda comum nas listas mantém a rolagem vertical, e o arraste continua rolando entre colunas.
+- Quadro/Lista/Tabela/Calendário, fases recolhidas e ordenação ficam somente no navegador, por conta e município. Não gravam no Supabase nem entram nos backups de projetos, e cada aparelho pode manter escolhas diferentes.
+- Preferências de visualização antigas do banco são ignoradas. Preferências do modo local anterior são preservadas neste navegador; não há alteração na estrutura do banco.
+
 ## 1.11.0 — Acompanhamento e registros separados
 
 - Quadros com altura limitada à tela, rolagem vertical independente e cabeçalhos fixos; cartões longos quebram linha; rolagem horizontal e durante o arraste preservadas.

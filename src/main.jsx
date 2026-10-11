@@ -122,6 +122,11 @@ import { Operations } from "./Operations.jsx";
 import "./operations.css";
 import { Homologation } from "./Homologation";
 import { BoardScroller } from "./BoardScroller";
+import {
+  devicePreferencesKey,
+  readDevicePreferences,
+  withoutDevicePreferences,
+} from "./device-preferences.js";
 import { ProfileSettings, applyAppearance } from "./ProfileSettings";
 import { version as appVersion } from "../package.json";
 
@@ -171,6 +176,19 @@ function App() {
   const [typeFilter, setTypeFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [toast, setToast] = useState("");
+  const displayKey = devicePreferencesKey(team.actor?.id);
+  const [display, setDisplay] = useState(() =>
+    readDevicePreferences(localStorage, displayKey, team.online ? {} : data),
+  );
+  useEffect(() => {
+    try {
+      localStorage.setItem(displayKey, JSON.stringify(display));
+    } catch {
+      setToast(
+        "A visualização foi ajustada nesta sessão, mas o navegador não permitiu salvar a preferência neste aparelho.",
+      );
+    }
+  }, [display, displayKey]);
   const [sidebar, setSidebar] = useState(false);
   const [dragging, setDragging] = useState(null);
   const fileRef = useRef();
@@ -229,7 +247,7 @@ function App() {
       });
     }
     cardPositions.current.clear();
-  }, [data]);
+  }, [data, display]);
   const project =
     data.projects.find((p) => p.id === data.selectedId) ||
     data.projects.find((p) => !isProjectClosed(p)) ||
@@ -239,11 +257,11 @@ function App() {
   const projectTrainings = project?.trainings || [];
   const canManage = !team.online || !!team.profile?.admin;
   const canEdit = !team.online || team.canEdit(projectId);
-  const collapsedStages = Array.isArray(data.boardCollapsed?.[projectId])
-    ? data.boardCollapsed[projectId]
+  const collapsedStages = Array.isArray(display.boardCollapsed?.[projectId])
+    ? display.boardCollapsed[projectId]
     : [];
   const setCollapsedStages = (stages) =>
-    setData((d) => ({
+    setDisplay((d) => ({
       ...d,
       boardCollapsed: { ...d.boardCollapsed, [projectId]: stages },
     }));
@@ -266,7 +284,7 @@ function App() {
       y: event.clientY || bounds.top + 25,
     });
   };
-  const taskOrder = data.boardOrders?.[projectId] || "manual";
+  const taskOrder = display.boardOrders?.[projectId] || "manual";
   const tasks = sortActivities(
     projectTasks.filter(
       (t) =>
@@ -276,12 +294,12 @@ function App() {
     taskOrder,
   );
   const boardView = ["kanban", "list", "table", "calendar"].includes(
-    data.boardViews?.[projectId],
+    display.boardViews?.[projectId],
   )
-    ? data.boardViews[projectId]
+    ? display.boardViews[projectId]
     : "kanban";
   const setBoardView = (value) =>
-    setData((d) => ({
+    setDisplay((d) => ({
       ...d,
       boardViews: { ...d.boardViews, [projectId]: value },
     }));
@@ -310,7 +328,9 @@ function App() {
       setToast("Aguarde a confirmação do salvamento em andamento.");
       return false;
     }
-    const raw = typeof update === "function" ? update(data) : update;
+    const raw = withoutDevicePreferences(
+      typeof update === "function" ? update(data) : update,
+    );
     const next = options.import ? raw : stampChanges(data, raw, team.actor);
     try {
       const serialized = JSON.stringify(next);
@@ -427,7 +447,8 @@ function App() {
       setToast("CPF completo: somente administradores autenticados.");
       return;
     }
-    const exported = full ? data : publicBackup(data);
+    const workspace = withoutDevicePreferences(data);
+    const exported = full ? workspace : publicBackup(workspace);
     const url = URL.createObjectURL(
       new Blob([JSON.stringify(exported, null, 2)], {
         type: "application/json",
@@ -983,7 +1004,7 @@ function App() {
                         value={taskOrder}
                         onChange={(e) => {
                           captureCards();
-                          setData((d) => ({
+                          setDisplay((d) => ({
                             ...d,
                             boardOrders: {
                               ...d.boardOrders,

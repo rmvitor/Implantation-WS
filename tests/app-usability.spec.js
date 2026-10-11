@@ -52,7 +52,7 @@ test("controles compactos mantêm as visualizações em uma linha e o nome da fa
   await page.screenshot({ path: ".local/compact-mobile.png", fullPage: true });
 });
 
-test("recolher fases no celular mantém resumo, dados e preferência por projeto no backup", async ({
+test("recolher fases no celular mantém resumo e preferência local, sem levar a escolha no backup", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -117,7 +117,9 @@ test("recolher fases no celular mantém resumo, dados e preferência por projeto
   await page.locator(".backup-options button").first().click();
   const file = await promise;
   const backup = JSON.parse(await readFile(await file.path(), "utf8"));
-  expect(backup.boardCollapsed[before.projects[0].id]).toEqual(["todo"]);
+  expect(backup.boardCollapsed).toBeUndefined();
+  const display = await page.evaluate(() => JSON.parse(localStorage.getItem("implanta.display.v1:local")));
+  expect(display.boardCollapsed[before.projects[0].id]).toEqual(["todo"]);
 });
 
 test("barras nativas se espelham nos dois sentidos e ajustam ao recolher e redimensionar", async ({
