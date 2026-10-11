@@ -1508,7 +1508,12 @@ function App() {
       {modal?.type === "profile" && (
         <ProfileSettings
           Modal={Modal}
+          account={team.online ? team.profile : null}
+          client={team.client}
+          accesses={data.projects.map((p) => ({ ...p, role: team.profile?.admin ? "Administrador" : team.canEdit(p.id) ? "Edição" : "Leitura" }))}
+          onTeamSettings={() => setModal({ type: "team" })}
           appearance={data.appearance}
+          saving={saving}
           email={team.profile?.email}
           onSignOut={team.online ? team.signOut : undefined}
           onClose={() => setModal(null)}
@@ -2019,6 +2024,8 @@ function Modal({
   headerAction,
 }) {
   const ref = useRef();
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useLayoutEffect(() => {
     const previous = document.activeElement;
     const oldOverflow = document.body.style.overflow;
@@ -2030,11 +2037,11 @@ function Modal({
       preventScroll: true,
     });
     const key = (e) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") closeRef.current();
       if (e.key === "Tab") {
         const focusables = [
           ...ref.current.querySelectorAll(
-            "button, input, select, textarea, a[href]",
+            "button, input, select, textarea, a[href], summary",
           ),
         ].filter((n) => !n.disabled && n.offsetParent !== null);
         const first = focusables[0],

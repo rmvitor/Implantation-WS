@@ -51,6 +51,16 @@ Cada colega abre o site, que já usa a conexão da equipe, cria uma conta e conf
 
 As restrições são verificadas no banco. Esconder ou desabilitar um botão não é a proteção principal. Cadastro de usuário não concede acesso a projetos. O administrador não pode remover seu próprio acesso administrativo pela aplicação.
 
+## Senhas e consulta de acessos
+
+Em **Perfil** e **Equipe e acessos**, cada conta pode consultar seus projetos e alterar a própria senha. Informe a nova senha duas vezes (mínimo de 10 caracteres; regras adicionais do Supabase também se aplicam). Se o servidor exigir reautenticação, solicite o código e informe-o no campo exibido. A senha é enviada somente ao Supabase Auth e não é salva nas preferências, no conteúdo dos projetos ou nos backups.
+
+Administradores consultam os municípios de cada usuário em **Ver projetos**, alteram Leitura/Edição/Sem acesso e podem buscar por nome/e-mail ou filtrar por situação/projeto. Contas sem liberação podem ter permissões configuradas, mas só usam os projetos após a aprovação. Administradores acessam todos os municípios, inclusive novos; não dependem de concessões individuais.
+
+Para recuperar a senha de um colega, o ADM usa **Recuperar senha**, confere o destinatário e confirma **Enviar recuperação**. O usuário recebe o link para escolher sua senha; o ADM não define nem vê a senha de outra conta. O pedido usa um cliente de autenticação separado, sem sessão persistida e sem vincular o link ao verificador PKCE do aparelho do ADM. O retorno de recuperação é tratado pelo Supabase Auth e remove os tokens da URL. Isso não altera aprovação, função ou permissões. A desativação da conta retira o acesso ao sistema conforme as restrições existentes; não equivale a apagar a conta ou encerrar todas as sessões no serviço de autenticação.
+
+No painel Supabase, confira **Authentication → URL Configuration**: Site URL e Redirect URLs devem aceitar `https://rmvitor.github.io/Implantation-WS/` (e os endereços de teste, quando necessários). Verifique as configurações de e-mail/SMTP, modelos e limites de envio do projeto. O aceite de uma solicitação pelo Auth não comprova entrega; confirme o recebimento e teste o link com uma conta de teste. A recuperação e a troca de senha usam somente a conexão pública existente; não há nova migração nem chave administrativa no navegador.
+
 ## Dados locais, importação e colaboração
 
 Conectar não envia seus projetos locais automaticamente. Antes da conexão, use **Dados e backup → Exportar backup**. Se a tela de login já estiver aberta, use **Exportar dados deste aparelho**, disponível quando houver projetos locais anteriores. Depois de entrar como administrador, use **Importar dados** para enviar esse arquivo ao banco. No modo online a importação acrescenta os novos projetos e atualiza projetos com a mesma identificação; preserva outros projetos existentes. A transação inteira falha se qualquer alteração não puder ser salva.

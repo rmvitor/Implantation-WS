@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 1.11.3 — 11/10/2026
+
+- Equipe e acessos com resumo, busca por nome/e-mail e filtros por situação e projeto. Cada usuário permite expandir os municípios e consultar ou alterar Leitura/Edição/Sem acesso; a visão por projeto também mostra administradores com acesso total.
+- Perfil e Equipe e acessos mostram os projetos liberados para a conta e permitem alterar a própria senha pelo Supabase Auth, com confirmação da senha e suporte ao código de reautenticação quando exigido pelo servidor. Senhas não entram em preferências, projetos ou backups.
+- Administradores podem solicitar recuperação de senha por e-mail, com confirmação do destinatário. A recuperação não libera contas nem modifica permissões. Aprovação, desativação, administração e liberações continuam exclusivas do ADM, com as restrições existentes no banco.
+- Layout compacto e responsivo; filtros e alterações de acesso preservam rascunhos de usuário ainda não salvos. Falhas mostram erro e conservam os dados anteriores. Não exige novo SQL. Envio real dos e-mails depende da configuração de autenticação do Supabase.
+
 ## 1.11.2 — 11/10/2026
 
 - Criação, edição, exclusão e movimentação atualizam o app atual assim que o banco confirma o salvamento, sem esperar uma segunda consulta.

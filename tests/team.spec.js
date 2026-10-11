@@ -113,7 +113,27 @@ async function setup(
       state.writes++;
       data = modernRead();
     } else if (path === "/auth/v1/token") data = session;
-    else if (path === "/auth/v1/user") data = user;
+    else if (path === "/auth/v1/user") {
+      data = user;
+      if (req.method() === "PUT") {
+        const args = req.postDataJSON();
+        (state.passwordUpdates ||= []).push(args);
+        if (state.holdPassword) {
+          state.holdPassword = false;
+          state.passwordHeld = true;
+          await new Promise((resolve) => { state.releasePassword = resolve; });
+        }
+        if (state.passwordFail || state.needNonce && args.nonce !== "123456") {
+          status = 400;
+          data = state.needNonce
+            ? { code: "reauthentication_needed", msg: "Reauthentication needed" }
+            : { msg: "Update unavailable" };
+        }
+      }
+    } else if (path === "/auth/v1/reauthenticate") {
+      state.reauthentications = (state.reauthentications || 0) + 1;
+      data = {};
+    }
     else if (path === "/auth/v1/signup") data = { user, session: null };
     else if (path === "/auth/v1/logout") {
       status = state.logoutFail ? 400 : 204;
@@ -162,9 +182,12 @@ async function setup(
     } else if (path.endsWith("/rpc/implanta_grant_project")) {
       const args = req.postDataJSON();
       state.grants.push(args);
-      state.members = [
-        { project_id: args.p_project, user_id: args.p_user, role: args.p_role },
-      ];
+      if (state.grantFail) {
+        status = 503; data = { message: "Grant unavailable" };
+      } else {
+        state.members = (state.members || []).filter((m) => !(m.project_id === args.p_project && m.user_id === args.p_user));
+        if (args.p_role) state.members.push({ project_id: args.p_project, user_id: args.p_user, role: args.p_role });
+      }
     } else if (path.endsWith("/rpc/implanta_commit")) {
       const args = req.postDataJSON();
       state.commits.push(args);
@@ -224,7 +247,10 @@ async function setup(
           changed_fields: ["title"],
         },
       ];
-    else if (path === "/auth/v1/recover") data = {};
+    else if (path === "/auth/v1/recover") {
+      (state.recoveries ||= []).push({ ...req.postDataJSON(), redirectTo: url.searchParams.get("redirect_to") });
+      data = {};
+    }
     else throw new Error(`Unexpected test request: ${path}`);
     const body = status === 204 ? "" : JSON.stringify(jsonb(data));
     if (state.holdRead && (
@@ -238,6 +264,7 @@ async function setup(
     await route.fulfill({
       status,
       contentType: "application/json",
+      headers: { "x-supabase-api-version": "2024-01-01", "access-control-expose-headers": "X-Supabase-Api-Version" },
       body,
     });
   });
@@ -939,3 +966,206 @@ for (const role of ["editor", "viewer"])
         "Acesso restrito a administradores e editores",
       );
   });
+
+for (const width of [360, 1440]) {
+  test(`ADM consulta acessos por usuário, filtra e altera projetos independentemente em ${width}px`, async ({ page }) => {
+    const state = await setup(page, { role: "admin" });
+    const colleague = "00000000-0000-4000-8000-000000000002";
+    state.extraRows = [{ id: "pinhais", data: { ...structuredClone(state.row.data), id: "pinhais", name: "Pinhais" }, version: 1 }];
+    state.members = [
+      { project_id: state.row.id, user_id: colleague, role: "viewer" },
+      { project_id: "pinhais", user_id: colleague, role: "editor" },
+    ];
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto("/");
+    if (width === 360) await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
+    await page.getByRole("button", { name: "Equipe e acessos", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    const row = dialog.locator(".team-user").filter({ hasText: "colega@example.invalid" });
+    await expect(row).toContainText("2 projetos configurados");
+    await expect(row).toContainText("Sem liberação");
+    await row.getByRole("button", { name: "Ver projetos", exact: true }).click();
+    const first = row.getByLabel("Acesso de Nova colega a Quatro Barras", { exact: true });
+    const second = row.getByLabel("Acesso de Nova colega a Pinhais", { exact: true });
+    await expect(first).toHaveValue("viewer");
+    await expect(second).toHaveValue("editor");
+    await expect(row).toContainText("só ficam disponíveis após a liberação");
+    await row.getByLabel("Nome de colega@example.invalid").fill("Rascunho não salvo");
+    await first.selectOption("editor");
+    await expect(dialog.getByText("Acesso ao projeto atualizado.", { exact: true })).toBeVisible();
+    await expect(second).toHaveValue("editor");
+    await expect(row.getByLabel("Nome de colega@example.invalid")).toHaveValue("Rascunho não salvo");
+    state.grantFail = true;
+    await first.selectOption("");
+    await expect(dialog.locator(".team-error")).toBeVisible();
+    await expect(first).toHaveValue("editor");
+    expect(state.members).toHaveLength(2);
+    state.grantFail = false;
+    await first.selectOption("");
+    await expect(row).toContainText("1 projeto configurado");
+    expect(state.members).toEqual([{ project_id: "pinhais", user_id: colleague, role: "editor" }]);
+    expect(state.userUpdates || []).toHaveLength(0);
+    await dialog.getByLabel("Buscar usuário").fill("COLEGA@EXAMPLE");
+    await expect(dialog.locator(".team-user:visible")).toHaveCount(1);
+    await dialog.getByLabel("Buscar usuário").fill("");
+    await dialog.getByLabel("Situação do usuário").selectOption("active");
+    await expect(dialog.locator(".team-user:visible")).toHaveCount(1);
+    await expect(dialog.locator(".team-user:visible")).toContainText("Todos os projetos");
+    await dialog.getByLabel("Situação do usuário").selectOption("");
+    await dialog.getByLabel("Filtrar acesso ao projeto").selectOption("pinhais");
+    await expect(dialog.locator(".team-user:visible")).toHaveCount(2);
+    await dialog.getByLabel("Filtrar acesso ao projeto").selectOption(state.row.id);
+    await expect(dialog.locator(".team-user:visible")).toHaveCount(1);
+    await dialog.getByLabel("Filtrar acesso ao projeto").selectOption("none");
+    await expect(dialog.getByText("Nenhum usuário corresponde aos filtros.")).toBeVisible();
+    await dialog.getByLabel("Filtrar acesso ao projeto").selectOption("");
+    await expect(row.getByLabel("Nome de colega@example.invalid")).toHaveValue("Rascunho não salvo");
+    await dialog.screenshot({ path: `/tmp/implanta-users-matrix-1113-${width}.png` });
+    await dialog.getByRole("tab", { name: "Acessos por projeto", exact: true }).click();
+    await expect(dialog.getByText("Administrador · acesso total")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await dialog.screenshot({ path: `/tmp/implanta-users-1113-${width}.png` });
+  });
+}
+
+for (const area of ["perfil", "equipe"]) {
+  test(`usuário altera a própria senha no ${area} sem modificar acessos; falha preserva os campos`, async ({ page }) => {
+    const state = await setup(page, { role: "viewer" });
+    await page.goto("/");
+    await page.getByRole("button", { name: area === "perfil" ? "Abrir configurações do perfil" : "Equipe e acessos", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.locator(".own-accesses summary").click();
+    await expect(dialog.locator(".own-accesses")).toContainText("Quatro Barras");
+    await expect(dialog.locator(".own-accesses")).toContainText("Leitura");
+    await expect(dialog.getByLabel("Buscar usuário")).toHaveCount(0);
+    await expect(dialog.getByRole("button", { name: /^Recuperar senha de/ })).toHaveCount(0);
+    await dialog.locator(".account-password summary").click();
+    const form = dialog.locator(".account-password");
+    const password = "nova-senha-teste-1113";
+    await form.getByLabel("Nova senha", { exact: true }).fill(password);
+    await form.getByLabel("Confirmar nova senha", { exact: true }).fill("diferente-senha");
+    await form.getByRole("button", { name: "Alterar senha", exact: true }).click();
+    await expect(form.getByRole("alert")).toContainText("não coincide");
+    expect(state.passwordUpdates || []).toHaveLength(0);
+    await form.getByLabel("Confirmar nova senha", { exact: true }).fill(password);
+    state.passwordFail = true;
+    await form.getByRole("button", { name: "Alterar senha", exact: true }).click();
+    await expect(form.getByRole("alert")).toContainText("Não foi possível alterar");
+    await expect(form.getByLabel("Nova senha", { exact: true })).toHaveValue(password);
+    state.passwordFail = false;
+    await form.getByRole("button", { name: "Alterar senha", exact: true }).click();
+    await expect(form.getByRole("status")).toHaveText("Senha alterada com sucesso.");
+    await expect(form.getByLabel("Nova senha", { exact: true })).toHaveValue("");
+    await expect(form.getByLabel("Confirmar nova senha", { exact: true })).toHaveValue("");
+    expect(state.passwordUpdates.map((u) => u.password)).toEqual([password, password]);
+    expect(state.grants).toHaveLength(0);
+    expect(state.userUpdates || []).toHaveLength(0);
+    expect(state.writes).toBe(0);
+    expect(await page.evaluate((password) => JSON.stringify(localStorage).includes(password), password)).toBe(false);
+    await expect(page.locator(".municipality-card")).toHaveCount(1);
+  });
+}
+
+test("troca de senha permite confirmar identidade quando o Supabase exige código", async ({ page }) => {
+  const state = await setup(page);
+  state.needNonce = true;
+  await page.goto("/");
+  await page.getByRole("button", { name: "Abrir configurações do perfil", exact: true }).click();
+  const form = page.locator(".account-password");
+  await form.locator("summary").click();
+  await form.getByLabel("Nova senha", { exact: true }).fill("senha-nova-com-codigo");
+  await form.getByLabel("Confirmar nova senha", { exact: true }).fill("senha-nova-com-codigo");
+  await form.getByRole("button", { name: "Alterar senha", exact: true }).click();
+  await expect(form.getByLabel("Código de confirmação")).toBeVisible();
+  await form.getByRole("button", { name: "Enviar código de confirmação", exact: true }).click();
+  await expect(form.getByRole("status")).toContainText("Código solicitado");
+  expect(state.reauthentications).toBe(1);
+  await form.getByLabel("Código de confirmação").fill("123456");
+  await form.getByRole("button", { name: "Alterar senha", exact: true }).click();
+  await expect(form.getByRole("status")).toHaveText("Senha alterada com sucesso.");
+  expect(state.passwordUpdates.at(-1)).toMatchObject({ nonce: "123456" });
+});
+
+test("ADM confirma recuperação de senha por email sem mudar situação ou permissões", async ({ page }) => {
+  const state = await setup(page, { role: "admin" });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Equipe e acessos", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Recuperar senha de Nova colega", exact: true }).click();
+  const confirm = dialog.getByRole("region", { name: "Confirmar recuperação de senha" });
+  await expect(confirm).toContainText("colega@example.invalid");
+  expect(state.recoveries || []).toHaveLength(0);
+  await confirm.getByRole("button", { name: "Cancelar recuperação" }).click();
+  expect(state.recoveries || []).toHaveLength(0);
+  await dialog.getByRole("button", { name: "Recuperar senha de Nova colega", exact: true }).click();
+  await confirm.getByRole("button", { name: "Enviar recuperação" }).click();
+  await expect(dialog.getByRole("status")).toContainText("Recuperação solicitada");
+  expect(state.recoveries).toHaveLength(1);
+  expect(state.recoveries[0]).toMatchObject({ email: "colega@example.invalid", code_challenge: null, code_challenge_method: null, redirectTo: "http://127.0.0.1:5173/" });
+  expect(await page.evaluate(() => localStorage.getItem("sb-test-auth-token-code-verifier"))).toBeNull();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("sb-test-auth-token")).user.email)).toBe("teste@example.invalid");
+  expect(state.users[1]).toMatchObject({ active: false, admin: false });
+  expect(state.userUpdates || []).toHaveLength(0);
+  expect(state.grants).toHaveLength(0);
+});
+
+test("perfil permite consultar acessos e abrir equipe descartando prévia de aparência", async ({ page }) => {
+  const state = await setup(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Abrir configurações do perfil", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Cor principal", { exact: true }).fill("#be185d");
+  await dialog.getByRole("button", { name: "Equipe e acessos", exact: true }).click();
+  await expect(dialog.getByRole("heading", { name: "Equipe e acessos", exact: true })).toBeVisible();
+  expect(state.writes).toBe(0);
+  expect(state.preferences.appearance).toBeUndefined();
+});
+
+test("link de recuperação solicitado pelo ADM funciona em navegador sem verificador do remetente", async ({ page }) => {
+  const state = await setup(page, { loggedIn: false, role: "pending" });
+  const fragment = new URLSearchParams({
+    access_token: jwt("authenticated"), refresh_token: "recipient-recovery-refresh",
+    token_type: "bearer", expires_in: "3600", type: "recovery",
+  });
+  await page.goto(`/#${fragment}`);
+  await expect(page.getByRole("heading", { name: "Definir nova senha", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => location.hash)).toBe("");
+  await page.getByLabel("Nova senha", { exact: true }).fill("senha-recuperada-1113");
+  await page.getByRole("button", { name: "Salvar nova senha", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Entrar na equipe", exact: true })).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("Senha atualizada");
+  expect(state.passwordUpdates).toHaveLength(1);
+  expect(state.active).toBe(false);
+  expect(state.grants).toHaveLength(0);
+  expect(state.writes).toBe(0);
+});
+
+for (const area of ["perfil", "equipe"]) {
+  test(`troca de senha pendente no ${area} bloqueia saída e operações concorrentes`, async ({ page }) => {
+    const state = await setup(page, { role: "admin" });
+    await page.goto("/");
+    await page.getByRole("button", { name: area === "perfil" ? "Abrir configurações do perfil" : "Equipe e acessos", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("button", { name: area === "perfil" ? "Salvar aparência" : "Sair", exact: true })).toBeEnabled();
+    const form = dialog.locator(".account-password");
+    await form.locator("summary").click();
+    await form.getByLabel("Nova senha", { exact: true }).fill("senha-em-andamento-1113");
+    await form.getByLabel("Confirmar nova senha", { exact: true }).fill("senha-em-andamento-1113");
+    state.holdPassword = true;
+    await form.getByRole("button", { name: "Alterar senha", exact: true }).click();
+    await expect.poll(() => state.passwordHeld).toBe(true);
+    try {
+      await expect(dialog.getByRole("button", { name: area === "perfil" ? "Finalizar sessão" : "Sair", exact: true })).toBeDisabled();
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole("button", { name: "Fechar", exact: true }).click();
+      await expect(dialog).toBeVisible();
+      if (area === "perfil") await expect(dialog.getByRole("button", { name: "Salvar aparência", exact: true })).toBeDisabled();
+      else await expect(dialog.getByLabel("Nome de colega@example.invalid")).toBeDisabled();
+      expect(state.passwordUpdates).toHaveLength(1);
+    } finally { state.releasePassword(); }
+    await expect(form.getByRole("status")).toHaveText("Senha alterada com sucesso.");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+  });
+}

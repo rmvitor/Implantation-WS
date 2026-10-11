@@ -24,6 +24,8 @@
 }
 .team-form input,
 .team-user input:not([type="checkbox"]),
+.team-filters input,
+.account-password input,
 .team-project-select select,
 .team-project-member select {
   min-width: 0;
@@ -128,7 +130,7 @@
   font-size: 15px;
 }
 .team-user {
-  padding: 12px 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--border);
   display: grid;
   grid-template-columns: minmax(150px, 1fr) auto auto;
@@ -158,6 +160,56 @@
 .team-user button {
   justify-self: end;
   padding: 8px 12px;
+}
+.team-user[hidden] { display: none; }
+.team-user-badges, .team-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 6px;
+}
+.team-status {
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 10px;
+}
+.team-user-actions { display: flex; flex-direction: column; gap: 4px; }
+.team-user-actions button { padding: 5px 8px; font-size: 11px; min-height: 30px; }
+.team-user-projects { grid-column: 1 / -1; min-width: 0; }
+.team-user-projects > p { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.team-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  margin: 14px 0;
+}
+.team-filters label, .account-password label {
+  display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px;
+}
+.team-filters input, .team-filters select, .account-password input { width: 100%; min-width: 0; }
+.account-password, .own-accesses { margin: 16px 0; font-size: 12px; }
+.account-password summary, .own-accesses summary { cursor: pointer; padding: 8px 0; color: var(--accent-text); }
+.account-password fieldset { border: 0; padding: 12px 0; display: grid; gap: 12px; min-width: 0; }
+.account-password p { color: var(--muted); line-height: 1.6; }
+.account-password .team-error { color: var(--danger, #b91c1c); }
+.account-code { display: grid; gap: 12px; }
+.profile-account-info { display: grid; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid var(--border); margin-bottom: 18px; overflow-wrap: anywhere; font-size: 12px; }
+.profile-account-info > span { color: var(--muted); }
+.profile-account-info > button { justify-self: start; }
+.own-accesses > div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.own-accesses > div > strong { flex-shrink: 0; }
+.team-reset-confirm { border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-size: 12px; margin: 14px 0; overflow-wrap: anywhere; }
+.team-reset-confirm p { color: var(--muted); line-height: 1.6; margin: 8px 0; }
+.team-reset-confirm > div { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 600px) {
+  .team-filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .team-filters > label:first-child { grid-column: 1 / -1; }
+  .team-user-actions { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+  .team-user-actions button { min-height: 36px; }
 }
 .team-management-tabs {
   display: flex;

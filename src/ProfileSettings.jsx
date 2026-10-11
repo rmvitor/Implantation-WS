@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
 import { friendlyTeamError } from "./team-service";
+import { AccountPassword } from "./AccountPassword";
 
 export const DEFAULT_APPEARANCE = { theme: "light", primary: "#2563eb" };
 export function safeAppearance(value) {
@@ -37,19 +38,25 @@ export function applyAppearance(value) {
 export function ProfileSettings({
   Modal,
   appearance,
+  saving = false,
   onClose,
   onSave,
   onSignOut,
   email,
+  account,
+  client,
+  accesses = [],
+  onTeamSettings,
 }) {
   const [draft, setDraft] = useState(() => safeAppearance(appearance));
   const [ending, setEnding] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
     applyAppearance(draft);
   }, [draft]);
   const close = () => {
-    if (ending) return;
+    if (ending || changingPassword || saving) return;
     applyAppearance(appearance);
     onClose();
   };
@@ -59,10 +66,22 @@ export function ProfileSettings({
       subtitle="Deixe seu workspace com a sua cara."
       onClose={close}
     >
+      {account && <section className="profile-account-info">
+        <strong>{account.name}</strong>
+        <span>{account.email} · {account.admin ? "Administrador" : "Colaborador"}</span>
+        <details className="own-accesses">
+          <summary>Meus acessos ({accesses.length})</summary>
+          {accesses.map((p) => <div key={p.id}><span>{p.name}{p.status === "closed" ? " · encerrado" : ""}</span><strong>{p.role}</strong></div>)}
+          {!accesses.length && <p>Nenhum projeto liberado. Solicite o acesso ao administrador.</p>}
+        </details>
+        <button type="button" className="button secondary" disabled={ending || changingPassword || saving} onClick={() => {
+          applyAppearance(appearance); onTeamSettings();
+        }}>Equipe e acessos</button>
+      </section>}
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (ending) return;
+          if (ending || changingPassword || saving) return;
           onSave(draft);
         }}
       >
@@ -109,8 +128,7 @@ export function ProfileSettings({
             )}
           </div>
           <p className="muted">
-            Veja a prévia enquanto escolhe. Suas preferências ficam salvas neste
-            navegador.
+            Veja a prévia enquanto escolhe. Salve para aplicar.
           </p>
         </div>
         {onSignOut && (
@@ -122,7 +140,7 @@ export function ProfileSettings({
             <button
               type="button"
               className="button secondary"
-              disabled={ending}
+              disabled={ending || changingPassword || saving}
               onClick={async () => {
                 setEnding(true);
                 setError("");
@@ -150,16 +168,17 @@ export function ProfileSettings({
           <button
             type="button"
             className="button secondary"
-            disabled={ending}
+            disabled={ending || changingPassword || saving}
             onClick={close}
           >
             Cancelar
           </button>
-          <button type="submit" className="button primary" disabled={ending}>
+          <button type="submit" className="button primary" disabled={ending || changingPassword || saving}>
             Salvar aparência
           </button>
         </div>
       </form>
+      {client && <AccountPassword client={client} disabled={ending || saving} onBusyChange={setChangingPassword} />}
     </Modal>
   );
 }

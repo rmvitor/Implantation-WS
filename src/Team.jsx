@@ -15,6 +15,7 @@ import { version as appVersion } from "../package.json";
 import { validateBackup } from "./domain";
 import { withoutDevicePreferences } from "./device-preferences.js";
 import { BrandLogo } from "./BrandLogo";
+import { AccountPassword } from "./AccountPassword";
 import "./team.css";
 
 const CONNECTION = "implanta.team.connection.v1";
@@ -109,6 +110,7 @@ function ConnectForm({ onCancel }) {
 
 export function TeamHost({ children }) {
   const [config] = useState(connection);
+  const recoveryClientRef = useRef(null);
   const client = useMemo(
     () =>
       config
@@ -117,7 +119,10 @@ export function TeamHost({ children }) {
               persistSession: true,
               autoRefreshToken: true,
               detectSessionInUrl: true,
-              flowType: "pkce",
+              // A recovery requested by an ADM must be redeemable in the
+              // recipient's browser, without the ADM's PKCE verifier.
+              flowType: new URLSearchParams(location.hash.slice(1)).get("type") === "recovery"
+                ? "implicit" : "pkce",
             },
           })
         : null,
@@ -259,6 +264,18 @@ export function TeamHost({ children }) {
       return result;
     },
     refresh: () => refreshRef.current?.(),
+    requestPasswordReset(email) {
+      if (!profile?.admin) throw new Error("Somente administradores podem gerenciar outras contas.");
+      recoveryClientRef.current ||= createClient(config.url, config.key, {
+        auth: {
+          flowType: "implicit", persistSession: false, autoRefreshToken: false,
+          detectSessionInUrl: false, storageKey: "implanta.auth.recovery-request",
+        },
+      });
+      return recoveryClientRef.current.auth.resetPasswordForEmail(email, {
+        redirectTo: new URL(import.meta.env.BASE_URL, location.href).href,
+      });
+    },
     async signOut() {
       const { error: e } = await client.auth.signOut({ scope: "local" });
       if (e) throw e;
@@ -573,20 +590,40 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
     setUsers(list.data);
     setMembers(access.data);
   };
-  const act = async (fn) => {
+  const [message, setMessage] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [projectFilter, setProjectFilter] = useState("");
+  const [resetTarget, setResetTarget] = useState(null);
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const busyRef = useRef(false);
+  const configured = (user, project) => user.admin ? "admin" :
+    members.find((m) => m.user_id === user.id && m.project_id === project)?.role || "";
+  const normalize = (value) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const matches = (user) => normalize(`${user.name} ${user.email}`).includes(normalize(search.trim())) &&
+    (!statusFilter || (statusFilter === "active" ? user.active : statusFilter === "inactive" ? !user.active : user.admin)) &&
+    (!projectFilter || (projectFilter === "none" ? !user.admin && !projects.some((p) => configured(user, p.id)) : !!configured(user, projectFilter)));
+  const act = async (fn, { reload = true, success = "" } = {}) => {
+    if (busyRef.current || passwordBusy) return false;
+    busyRef.current = true;
     setBusy(true);
     setError("");
+    setMessage("");
     try {
       const result = await fn();
       if (result?.error) throw result.error;
-      if (fn !== team.signOut) {
+      if (fn !== team.signOut && reload) {
         await load();
         team.refresh();
       }
+      setMessage(success);
+      return true;
     } catch (err) {
       setError(friendlyTeamError(err));
+      return false;
     } finally {
       setBusy(false);
+      busyRef.current = false;
     }
   };
   useEffect(() => {
@@ -600,7 +637,7 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
           ? `${team.profile.name} · ${team.profile.admin ? "Administrador" : "Colaborador"}`
           : "Login, banco online e projetos compartilhados."
       }
-      onClose={onClose}
+      onClose={() => { if (!busyRef.current && !passwordBusy) onClose(); }}
       wide
     >
       {!team.online ? (
@@ -616,7 +653,7 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
             </div>
             <button
               className="button secondary"
-              disabled={busy}
+              disabled={busy || passwordBusy}
               onClick={() => act(team.signOut)}
             >
               <LogOut size={16} /> Sair
@@ -628,13 +665,46 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
               colega pode visualizar ou editar.
             </p>
           )}
+          <details className="own-accesses">
+            <summary>Meus acessos ({projects.length})</summary>
+            {projects.map((p) => <div key={p.id}><span>{p.name}{p.status === "closed" ? " · encerrado" : ""}</span><strong>{team.profile.admin ? "Administrador" : team.canEdit(p.id) ? "Edição" : "Leitura"}</strong></div>)}
+            {!projects.length && <p>Nenhum projeto liberado.</p>}
+          </details>
+          <AccountPassword client={team.client} disabled={busy} onBusyChange={setPasswordBusy} />
           {error && (
             <p role="alert" className="team-error">
               {error}
             </p>
           )}
+          {message && <p role="status" className="team-message">{message}</p>}
+          {resetTarget && <section className="team-reset-confirm" aria-label="Confirmar recuperação de senha">
+            <strong>Recuperar senha de {resetTarget.name}?</strong>
+            <p>Solicitar um link para {resetTarget.email}. O próprio usuário define a nova senha; permissões e situação da conta permanecem iguais.</p>
+            <div>
+              <button className="button secondary" disabled={busy || passwordBusy} onClick={() => setResetTarget(null)}>Cancelar recuperação</button>
+              <button className="button primary" disabled={busy || passwordBusy} onClick={async () => {
+                if (!team.profile.admin) return;
+                if (await act(() => team.requestPasswordReset(resetTarget.email), { reload: false, success: "Recuperação solicitada. Confira o recebimento no e-mail do usuário." })) setResetTarget(null);
+              }}>Enviar recuperação</button>
+            </div>
+          </section>}
           {team.profile.admin && (
-            <fieldset disabled={busy} className="team-management">
+            <fieldset disabled={busy || passwordBusy} className="team-management">
+              <div className="team-summary" aria-label="Resumo de usuários">
+                <span>{users.filter((u) => u.active).length} ativos</span>
+                <span>{users.filter((u) => !u.active).length} sem liberação</span>
+                <span>{users.filter((u) => u.admin).length} administradores</span>
+              </div>
+              <div className="team-filters">
+                <label>Buscar usuário<input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nome ou e-mail" /></label>
+                <label>Situação do usuário<select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                  <option value="">Todos</option><option value="active">Ativos</option><option value="inactive">Sem liberação</option><option value="admin">Administradores</option>
+                </select></label>
+                <label>Filtrar acesso ao projeto<select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
+                  <option value="">Todos</option><option value="none">Sem projeto</option>
+                  {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select></label>
+              </div>
               <div
                 className="team-management-tabs"
                 role="tablist"
@@ -701,6 +771,13 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
                   <UserAccess
                     key={user.id}
                     user={user}
+                    hidden={!matches(user)}
+                    projects={projects}
+                    members={members}
+                    onRecover={() => { setResetTarget(user); setMessage(""); }}
+                    onGrant={(project, role) => act(() => team.client.rpc("implanta_grant_project", {
+                      p_project: project, p_user: user.id, p_role: role || null,
+                    }), { success: "Acesso ao projeto atualizado." })}
                     self={user.id === team.profile.id}
                     onSave={(draft) =>
                       act(() =>
@@ -710,11 +787,12 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
                           p_active: draft.active,
                           p_admin: draft.admin,
                         }),
-                      )
+                        { success: "Usuário atualizado." })
                     }
                   />
                 ))}
                 {!users.length && <p>Carregando usuários…</p>}
+                {!!users.length && !users.some(matches) && <p>Nenhum usuário corresponde aos filtros.</p>}
               </section>
               <section
                 role="tabpanel"
@@ -738,7 +816,7 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
                 </label>
                 {selected &&
                   users
-                    .filter((user) => !user.admin)
+                    .filter(matches)
                     .map((user) => (
                       <div className="team-project-member" key={user.id}>
                         <div>
@@ -748,7 +826,7 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
                             {!user.active && " · cadastro pendente/inativo"}
                           </small>
                         </div>
-                        <select
+                        {user.admin ? <span className="team-status">Administrador · acesso total</span> : <select
                           aria-label={`Acesso de ${user.name}`}
                           value={
                             members.find(
@@ -770,7 +848,7 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
                           <option value="">Sem acesso</option>
                           <option value="viewer">Leitura</option>
                           <option value="editor">Edição</option>
-                        </select>
+                        </select>}
                       </div>
                     ))}
                 {!projects.length && (
@@ -784,12 +862,20 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
     </Modal>
   );
 }
-function UserAccess({ user, self, onSave }) {
+function UserAccess({ user, self, onSave, hidden, projects, members, onGrant, onRecover }) {
   const [draft, setDraft] = useState(user);
-  useEffect(() => setDraft(user), [user]);
+  const [expanded, setExpanded] = useState(false);
+  const previous = useRef(user);
+  useEffect(() => {
+    // Refreshing project grants must not discard an unsaved name/role draft.
+    if (!same(previous.current, user)) setDraft(user);
+    previous.current = user;
+  }, [user]);
+  const accesses = projects.filter((p) => user.admin || members.some((m) => m.project_id === p.id && m.user_id === user.id));
   return (
     <form
       className="team-user"
+      hidden={hidden}
       onSubmit={(e) => {
         e.preventDefault();
         onSave(draft);
@@ -806,6 +892,10 @@ function UserAccess({ user, self, onSave }) {
           />
         </label>
         <small>{user.email}</small>
+        <div className="team-user-badges">
+          <span className="team-status">{user.active ? "Ativo" : "Sem liberação"}</span>
+          <span>{user.admin ? "Todos os projetos" : `${accesses.length} ${accesses.length === 1 ? "projeto configurado" : "projetos configurados"}`}</span>
+        </div>
       </div>
       <div className="team-user-permissions">
         <label className="team-checkbox">
@@ -839,12 +929,31 @@ function UserAccess({ user, self, onSave }) {
           Administrador
         </label>
       </div>
-      <button
+      <div className="team-user-actions">
+        <button type="button" className="button secondary" aria-expanded={expanded} aria-controls={`user-projects-${user.id}`} onClick={() => setExpanded(!expanded)}>Ver projetos</button>
+        <button type="button" className="button secondary" aria-label={`Recuperar senha de ${user.name}`} onClick={onRecover}>Recuperar senha</button>
+        <button
+        type="submit"
         className="button secondary"
         aria-label={`Salvar usuário ${user.name}`}
       >
         Salvar
       </button>
+      </div>
+      {expanded && <div className="team-user-projects" id={`user-projects-${user.id}`}>
+        {!user.active && <p>Os acessos configurados só ficam disponíveis após a liberação da conta.</p>}
+        {user.admin && <p>Administradores têm acesso total a todos os projetos, inclusive aos novos.</p>}
+        {projects.map((p) => <div className="team-project-member" key={p.id}>
+          <div><strong>{p.name}</strong><small>{p.status === "closed" ? "Projeto encerrado" : "Projeto ativo"}</small></div>
+          {user.admin ? <span className="team-status">Administrador</span> : <select
+            aria-label={`Acesso de ${user.name} a ${p.name}`}
+            value={members.find((m) => m.user_id === user.id && m.project_id === p.id)?.role || ""}
+            onChange={(e) => onGrant(p.id, e.target.value)}>
+            <option value="">Sem acesso</option><option value="viewer">Leitura</option><option value="editor">Edição</option>
+          </select>}
+        </div>)}
+        {!projects.length && <p>Nenhum projeto cadastrado.</p>}
+      </div>}
     </form>
   );
 }
