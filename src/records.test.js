@@ -130,6 +130,45 @@ test("falha de rede no protocolo v2 nunca retorna ao salvamento legado", async (
   );
 });
 
+test("salvamento usa a confirmação canônica com autoria do banco sem depender de outra consulta", async () => {
+  const p = createDemo().projects[0];
+  let records = projectRecords(p).map((r) => ({ ...r, revision: 1 }));
+  let committed = false;
+  const at = "2026-10-11T20:30:00.000Z";
+  const author = "00000000-0000-4000-8000-000000000001";
+  const read = () => ({ records: structuredClone(records), projects: [{ id: p.id, version: committed ? 2 : 1 }], access: [], preferences: {}, admin: true });
+  const client = {
+    async rpc(name, args) {
+      if (name === "implanta_read_v2") {
+        assert.equal(committed, false, "Não fazer uma segunda consulta após a confirmação");
+        return { data: read() };
+      }
+      assert.equal(name, "implanta_commit_v2");
+      for (const change of args.p_changes) {
+        const index = records.findIndex((r) => recordKey(r) === recordKey(change));
+        const saved = { ...structuredClone(change), revision: change.revision + 1, updated_at: at, updated_by: author };
+        if (saved.kind === "activity" && saved.data.stage === "concluido")
+          saved.data.validation = { ...saved.data.validation, by: "Conta do banco", actorId: author, at, source: "authenticated-server" };
+        if (index >= 0) records[index] = saved;
+        else records.push(saved);
+      }
+      committed = true;
+      return { data: read() };
+    },
+  };
+  const service = createTeamService(client, () => {});
+  const base = await service.load(), next = structuredClone(base);
+  Object.assign(next.projects[0].tasks[0], {
+    stage: "concluido", criterion: "Conferir migração",
+    validation: { by: "Nome no cliente", at: "2026-10-10T00:00:00.000Z", evidence: "Relatório conferido" },
+  });
+  const saved = await service.commit(base, next);
+  assert.equal(saved.projects[0].tasks[0].validation.by, "Conta do banco");
+  assert.equal(saved.projects[0].tasks[0].validation.at, at);
+  assert.equal(saved.projects[0].tasks[0].updatedBy, author);
+  assert.equal(saved.projects[0].tasks[0].updatedAt, at);
+});
+
 test("criação com ID recebido de um colega não substitui um município ausente na base local", async () => {
   const p = createDemo().projects[0];
   const records = projectRecords(p).map((r) => ({ ...r, revision: 1 }));

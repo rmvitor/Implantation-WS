@@ -84,6 +84,11 @@ async function setup(
       path = url.pathname;
     let data = null,
       status = 200;
+    if (state.holdCommit && /\/rpc\/implanta_commit(?:_v2)?$/.test(path)) {
+      state.holdCommit = false;
+      state.commitHeld = true;
+      await new Promise((resolve) => { state.releaseCommit = resolve; });
+    }
     if (path.endsWith("/rpc/implanta_read_v2")) {
       if (normalized) data = modernRead();
       else {
@@ -221,10 +226,19 @@ async function setup(
       ];
     else if (path === "/auth/v1/recover") data = {};
     else throw new Error(`Unexpected test request: ${path}`);
+    const body = status === 204 ? "" : JSON.stringify(jsonb(data));
+    if (state.holdRead && (
+      normalized && path.endsWith("/rpc/implanta_read_v2") ||
+      !normalized && path.endsWith("/implanta_projects") && !url.searchParams.has("id")
+    )) {
+      state.holdRead = false;
+      state.readHeld = true;
+      await new Promise((resolve) => { state.releaseRead = resolve; });
+    }
     await route.fulfill({
       status,
       contentType: "application/json",
-      body: status === 204 ? "" : JSON.stringify(jsonb(data)),
+      body,
     });
   });
   return state;
@@ -806,6 +820,65 @@ test("cliente publicado usa registros separados quando a migração está ativa 
   await expect(page.locator(".audit-history")).toContainText("Colega teste");
   await expect(page.locator(".audit-history")).toContainText("Campos: title");
 });
+
+for (const normalized of [false, true]) {
+  test(`tarefa só aparece salva depois da confirmação do banco (${normalized ? "registros" : "legado"})`, async ({ page }) => {
+    const state = await setup(page, { normalized });
+    await openProject(page);
+    await expect(page.locator(".kanban")).toBeVisible();
+    const writes = state.writes;
+    state.holdCommit = true;
+    await page.getByRole("button", { name: "Nova atividade", exact: true }).click();
+    await page.getByLabel("Título da atividade").fill("Aguardar confirmação");
+    await page.getByRole("button", { name: "Criar atividade", exact: true }).click();
+    await expect.poll(() => state.commitHeld).toBe(true);
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByText("Salvando no banco…")).toBeVisible();
+    expect(state.writes).toBe(writes);
+    expect(state.row.data.tasks.some((t) => t.title === "Aguardar confirmação")).toBe(false);
+    await expect(page.locator(".task-card").filter({ hasText: "Aguardar confirmação" })).toHaveCount(0);
+    state.releaseCommit();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.locator(".task-card").filter({ hasText: "Aguardar confirmação" })).toBeVisible();
+    expect(state.row.data.tasks.some((t) => t.title === "Aguardar confirmação")).toBe(true);
+  });
+
+  test(`criar, editar e mover atualiza a tela; consulta antiga não desfaz o salvamento (${normalized ? "registros" : "legado"})`, async ({ page }) => {
+    const state = await setup(page, { normalized });
+    await openProject(page);
+    await expect(page.locator(".kanban")).toBeVisible();
+    await expect.poll(() => state.commits.length).toBeGreaterThan(0);
+    state.holdRead = true;
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect.poll(() => state.readHeld).toBe(true);
+    await page.getByRole("button", { name: "Nova atividade", exact: true }).click();
+    await page.getByLabel("Título da atividade").fill("Tarefa criada sem recarregar");
+    await page.getByRole("button", { name: "Criar atividade", exact: true }).click();
+    const card = page.locator(".task-card").filter({ hasText: "Tarefa criada sem recarregar" });
+    await expect(card).toBeVisible();
+    expect(state.row.data.tasks.some((t) => t.title === "Tarefa criada sem recarregar")).toBe(true);
+    const oldResponse = page.waitForResponse((r) => normalized
+      ? r.url().includes("/rpc/implanta_read_v2")
+      : r.url().includes("/implanta_projects"));
+    state.releaseRead();
+    await oldResponse;
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(card).toBeVisible();
+    await card.click();
+    await page.getByLabel("Título da atividade").fill("Tarefa editada sem recarregar");
+    await page.getByRole("button", { name: "Salvar atividade no topo", exact: true }).click();
+    const edited = page.locator(".task-card").filter({ hasText: "Tarefa editada sem recarregar" });
+    await expect(edited).toBeVisible();
+    expect(state.row.data.tasks.some((t) => t.title === "Tarefa editada sem recarregar")).toBe(true);
+    const id = state.row.data.tasks.find((t) => t.title === "Tarefa editada sem recarregar").id;
+    const transfer = await page.evaluateHandle((id) => {
+      const dt = new DataTransfer(); dt.setData("text/plain", id); return dt;
+    }, id);
+    await page.locator("#column-progress").dispatchEvent("drop", { dataTransfer: transfer });
+    await expect(page.locator("#column-progress .task-card").filter({ hasText: "Tarefa editada sem recarregar" })).toBeVisible();
+    expect(state.row.data.tasks.find((t) => t.id === id).stage).toBe("progress");
+  });
+}
 
 for (const normalized of [false, true])
   test(`visualização e fases ficam neste aparelho sem gravações online (${normalized ? "registros" : "legado"})`, async ({ page, browser }) => {

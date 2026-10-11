@@ -183,7 +183,10 @@ test("conflito de campo não grava; queda depois da confirmação não apresenta
   client.failAfterCommit = true;
   const saved = await service.commit(current, updated);
   assert.equal(saved.projects[0].tasks[0].title, "Confirmado");
-  assert.match(service.warning, /Alteração salva/);
+  assert.equal(service.warning, "");
+  // No extra read is needed after confirmation. A later offline refresh is
+  // independent of the saved result and cannot make the save fail retroactively.
+  await assert.rejects(service.load(), /./);
 });
 
 test("comparação de dados ignora a ordem das propriedades do JSONB e conserva a ordem das listas", () => {

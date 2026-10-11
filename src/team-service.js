@@ -7,6 +7,18 @@ function check(result) {
   if (result.error) throw result.error;
   return result.data;
 }
+function recordResult(data) {
+  if (!data || !Array.isArray(data.records) || !Array.isArray(data.projects))
+    throw new Error("Resposta incompleta do banco; nenhum dado foi substituído.");
+  return {
+    ...data,
+    rows: assembleRecords(data.records).map((project) => ({
+      id: project.id,
+      data: project,
+      version: data.projects.find((p) => p.id === project.id)?.version,
+    })),
+  };
+}
 export function friendlyTeamError(error) {
   if (["PGRST202", "PGRST205", "42P01"].includes(error?.code))
     return "A estrutura do banco ainda não foi aplicada. Execute o SQL do guia de ativação no painel Supabase e verifique o acesso novamente.";
@@ -29,7 +41,11 @@ export function createTeamService(client, onRefresh) {
   let committing = false;
   let warning = "";
   let normalized = false;
+  let generation = 0;
   const service = {
+    get generation() {
+      return generation;
+    },
     get normalized() {
       return normalized;
     },
@@ -48,21 +64,9 @@ export function createTeamService(client, onRefresh) {
     async read() {
       const modern = await client.rpc("implanta_read_v2");
       if (!modern.error) {
-        if (!modern.data || !Array.isArray(modern.data.records))
-          throw new Error(
-            "Resposta incompleta do banco; nenhum dado foi substituído.",
-          );
+        const result = recordResult(modern.data);
         normalized = true;
-        const projects = assembleRecords(modern.data.records);
-        return {
-          ...modern.data,
-          rows: projects.map((data) => ({
-            id: data.id,
-            data,
-            version: modern.data.projects.find((p) => p.id === data.id)
-              ?.version,
-          })),
-        };
+        return result;
       }
       if (modern.error.code !== "PGRST202") throw modern.error;
       if (normalized)
@@ -102,6 +106,7 @@ export function createTeamService(client, onRefresh) {
           "Um salvamento está em andamento. Aguarde a confirmação.",
         );
       committing = true;
+      generation++;
       warning = "";
       try {
         if (normalized) return await commitRecords(base, next, options);
@@ -167,27 +172,22 @@ export function createTeamService(client, onRefresh) {
           throw new Error(
             "O projeto recebeu novas alterações. Seu formulário foi mantido; feche a edição para carregar a atualização e tente novamente.",
           );
-        // The transaction is confirmed. A failed refresh must not report the
-        // confirmed write as unsaved or make a project import run twice.
-        try {
-          return service.apply(await service.read());
-        } catch {
-          const known = new Map(rows);
-          for (const id of removed) known.delete(id);
-          for (const item of confirmed)
-            known.set(item.id, {
-              id: item.id,
-              data: item.data,
-              version: item.create ? 1 : item.version + 1,
-            });
-          warning =
-            "Alteração salva. A conexão caiu ao atualizar a tela; reconectando ao banco.";
-          return service.apply({
-            rows: [...known.values()],
-            access,
-            preferences: preferences || workspacePreferences(snapshot),
+        // CAS/transaction confirmation makes the merged payload authoritative.
+        // Show it immediately; a second network read is not needed to display
+        // this write. Background refresh still loads colleagues' changes.
+        const known = new Map(rows);
+        for (const id of removed) known.delete(id);
+        for (const item of confirmed)
+          known.set(item.id, {
+            id: item.id,
+            data: item.data,
+            version: item.create ? 1 : item.version + 1,
           });
-        }
+        return service.apply({
+          rows: [...known.values()],
+          access,
+          preferences: preferences || workspacePreferences(snapshot),
+        });
       } finally {
         committing = false;
       }
@@ -278,21 +278,13 @@ export function createTeamService(client, onRefresh) {
       });
       if (response.error?.code === "40001") continue;
       check(response);
+      // The RPC returns the canonical snapshot from the same transaction,
+      // including server-generated validation identity and time.
+      if (response.data?.records)
+        return service.apply(recordResult(response.data));
       try {
         return service.apply(await service.read());
       } catch {
-        // A committed transaction cannot be reported as unsaved. Keep the returned
-        // canonical server snapshot (including validation stamps) until refresh.
-        warning = "Alteração salva. Reconectando para atualizar a equipe.";
-        if (response.data?.records) {
-          const result = response.data;
-          result.rows = assembleRecords(result.records).map((data) => ({
-            id: data.id,
-            data,
-            version: result.projects.find((p) => p.id === data.id)?.version,
-          }));
-          return service.apply(result);
-        }
         throw new Error(
           "Salvamento confirmado no banco. Reabra o aplicativo para carregar os dados antes de editar novamente.",
         );

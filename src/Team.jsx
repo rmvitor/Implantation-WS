@@ -171,21 +171,26 @@ export function TeamHost({ children }) {
     const refresh = async () => {
       if (!active || refreshing || service.committing) return;
       refreshing = true;
+      const generation = service.generation;
+      const current = () =>
+        active && !service.committing && service.generation === generation;
       try {
         const access = await client.rpc("implanta_access");
+        if (!current()) return;
         if (access.error) throw access.error;
         if (!access.data)
           throw new Error(
             "A estrutura do banco ainda precisa ser aplicada. Consulte o guia de ativação.",
           );
-        if (!active) return;
         setProfile(access.data);
         if (!access.data.active) {
           setWorkspace(null);
           return;
         }
         const result = await service.read();
-        if (!active) return;
+        // A read begun before a save may finish after it. It must not replace
+        // the newly confirmed workspace or re-open a dismissed stale warning.
+        if (!current()) return;
         setPermissions(result.access);
         const removed = service.snapshot.projects.some(
           (p) => !result.rows.some((r) => r.id === p.id),
@@ -205,7 +210,7 @@ export function TeamHost({ children }) {
         }
         setError("");
       } catch (e) {
-        if (active) setError(friendlyTeamError(e));
+        if (current()) setError(friendlyTeamError(e));
       } finally {
         refreshing = false;
         if (active) setLoading(false);

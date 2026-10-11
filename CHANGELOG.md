@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 1.11.2 — 11/10/2026
+
+- Criação, edição, exclusão e movimentação atualizam o app atual assim que o banco confirma o salvamento, sem esperar uma segunda consulta.
+- Consultas de sincronização iniciadas antes de um salvamento são descartadas se chegarem depois, evitando que dados antigos façam tarefas recém-salvas desaparecer da tela.
+- No banco com registros separados, a tela usa diretamente a resposta da transação, preservando usuário e horário da validação definidos pelo servidor. O formato anterior usa o conteúdo combinado e confirmado pelo controle de versão.
+- Falhas mantêm o formulário e não apresentam alterações como salvas. Preferências de visualização continuam locais; esta correção não exige novo SQL.
+
 ## 1.11.1 — 11/10/2026
 
 - Rolagem horizontal do quadro sem atualizações React a cada movimento e sem retorno de eventos entre as barras espelhadas, preservando gestos e inércia nativos.
