@@ -19,6 +19,7 @@ import {
   Check,
 } from "lucide-react";
 import { isProjectClosed } from "./domain";
+import { useBackLayer } from "./Navigation.jsx";
 import { projectColor } from "./project-identity";
 
 export function ProjectSwitcher({ project, projects, busy, onSelect }) {
@@ -32,6 +33,10 @@ export function ProjectSwitcher({ project, projects, busy, onSelect }) {
     setOpen(false);
     if (restoreFocus) trigger.current?.focus({ preventScroll: true });
   };
+  useBackLayer(open, () => {
+    if (busy || switching) return false;
+    close(true);
+  });
   useEffect(() => {
     if (!open) return;
     const dismiss = (event) => {
@@ -201,6 +206,7 @@ export function ProjectMenu({
   onDelete,
 }) {
   const ref = useRef();
+  useBackLayer(true, onClose);
   const [position, setPosition] = useState({ left: anchor.x, top: anchor.y });
   useLayoutEffect(() => {
     const el = ref.current;

@@ -1,3 +1,4 @@
+import { useBackLayer } from "./Navigation.jsx";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Check, Pencil } from "lucide-react";
 import { STAGES, PRIORITIES } from "./domain";
@@ -11,6 +12,7 @@ export function CardMenu({
   onMove,
   onPriority,
 }) {
+  useBackLayer(true, onClose);
   const ref = useRef();
   const [position, setPosition] = useState({ left: anchor.x, top: anchor.y });
   useLayoutEffect(() => {

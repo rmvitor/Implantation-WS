@@ -56,7 +56,7 @@ export function ProfileSettings({
     applyAppearance(draft);
   }, [draft]);
   const close = () => {
-    if (ending || changingPassword || saving) return;
+    if (ending || changingPassword || saving) return false;
     applyAppearance(appearance);
     onClose();
   };

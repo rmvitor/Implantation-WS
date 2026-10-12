@@ -1158,6 +1158,13 @@ for (const area of ["perfil", "equipe"]) {
       await expect(dialog.getByRole("button", { name: area === "perfil" ? "Finalizar sessão" : "Sair", exact: true })).toBeDisabled();
       await page.keyboard.press("Escape");
       await expect(dialog).toBeVisible();
+      const position = await page.evaluate(() => history.state["implanta.navigation.v1"].index);
+      await page.evaluate(() => new Promise((resolve) => {
+        addEventListener("popstate", () => setTimeout(resolve, 0), { once: true });
+        history.back();
+      }));
+      await expect.poll(() => page.evaluate(() => history.state["implanta.navigation.v1"].index)).toBe(position);
+      await expect(dialog).toBeVisible();
       await dialog.getByRole("button", { name: "Fechar", exact: true }).click();
       await expect(dialog).toBeVisible();
       if (area === "perfil") await expect(dialog.getByRole("button", { name: "Salvar aparência", exact: true })).toBeDisabled();
@@ -1169,3 +1176,22 @@ for (const area of ["perfil", "equipe"]) {
     await expect(dialog).toHaveCount(0);
   });
 }
+
+test("Voltar restaura o município anterior sem gravar preferências ou desfazer dados no banco", async ({ page }) => {
+  const state = await setup(page, { role: "admin" });
+  state.extraRows = [{ id: "pinhais", data: { ...structuredClone(state.row.data), id: "pinhais", name: "Pinhais" }, version: 1 }];
+  await openProject(page);
+  await page.getByRole("button", { name: "Trocar projeto ativo", exact: true }).click();
+  await page.getByRole("option", { name: "Pinhais", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Pinhais", exact: true })).toBeVisible();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  const writes = state.writes;
+  const project = structuredClone(state.row.data);
+  await page.evaluate(() => history.back());
+  await expect(page.getByRole("heading", { name: "Quatro Barras", exact: true })).toBeVisible();
+  expect(state.writes).toBe(writes);
+  expect(state.row.data).toEqual(project);
+  await page.evaluate(() => history.back());
+  await expect(page.getByRole("heading", { name: "Projetos e municípios", exact: true })).toBeVisible();
+  expect(state.writes).toBe(writes);
+});

@@ -637,7 +637,10 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
           ? `${team.profile.name} · ${team.profile.admin ? "Administrador" : "Colaborador"}`
           : "Login, banco online e projetos compartilhados."
       }
-      onClose={() => { if (!busyRef.current && !passwordBusy) onClose(); }}
+      onClose={() => {
+        if (busyRef.current || passwordBusy) return false;
+        onClose();
+      }}
       wide
     >
       {!team.online ? (

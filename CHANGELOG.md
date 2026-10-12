@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 1.11.4 — 12/10/2026
+
+- Botão Voltar do Android e do navegador fecha primeiro janelas, confirmações e menus; depois retorna entre as áreas e municípios visitados, até a tela inicial. Navegação do PWA usa o histórico nativo, mantendo a URL e o escopo da instalação.
+- Salvar, cancelar e fechar menus não deixam etapas vazias no retorno. Avançar restaura telas, sem reabrir formulários já encerrados nem executar novamente alterações no banco.
+- Histórico guarda somente identificadores de tela/projeto, separado por conta; não inclui cartões, rascunhos, senhas ou dados pessoais. Projetos removidos ou revogados não são reconstruídos pelo histórico. Retornar a um município não grava preferências nem altera seus registros.
+- Retorno bloqueado enquanto uma gravação, troca de senha ou operação administrativa estiver em andamento. Na tela inicial, sem janela/menu aberto, o comportamento de saída permanece com o Android/navegador. Não exige novo SQL.
+
 ## 1.11.3 — 11/10/2026
 
 - Equipe e acessos com resumo, busca por nome/e-mail e filtros por situação e projeto. Cada usuário permite expandir os municípios e consultar ou alterar Leitura/Edição/Sem acesso; a visão por projeto também mostra administradores com acesso total.

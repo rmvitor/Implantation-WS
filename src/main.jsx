@@ -128,6 +128,8 @@ import {
   withoutDevicePreferences,
 } from "./device-preferences.js";
 import { ProfileSettings, applyAppearance } from "./ProfileSettings";
+import { NavigationContext, useBackLayer, useScreenNavigation } from "./Navigation.jsx";
+import { screenRoute } from "./navigation.js";
 import { version as appVersion } from "../package.json";
 
 const STORAGE = "implanta.workspace.v1";
@@ -167,6 +169,8 @@ function App() {
   const pwa = usePwa();
   const [homologationEditing, setHomologationEditing] = useState(false);
   const [operationsEditing, setOperationsEditing] = useState(false);
+  const navigationScope = team.actor?.id || "local";
+  const [selectedProjectId, setSelectedProjectId] = useState(data.selectedId);
   const [view, setView] = useState("municipalities");
   const [projectFilter, setProjectFilter] = useState("active");
   const [modal, setModal] = useState(null);
@@ -204,14 +208,15 @@ function App() {
   useEffect(() => {
     if (!team.online || !team.workspace) return;
     if (
-      data.selectedId &&
-      !team.workspace.projects.some((p) => p.id === data.selectedId) &&
+      selectedProjectId &&
+      !team.workspace.projects.some((p) => p.id === selectedProjectId) &&
       view !== "personalAgenda" &&
       view !== "operations"
     ) {
       setModal(null);
       setView("municipalities");
       setHomologationEditing(false);
+      setSelectedProjectId(team.workspace.selectedId);
     }
     applyData(team.workspace);
   }, [team.workspace]);
@@ -249,10 +254,28 @@ function App() {
     cardPositions.current.clear();
   }, [data, display]);
   const project =
-    data.projects.find((p) => p.id === data.selectedId) ||
+    data.projects.find((p) => p.id === selectedProjectId) ||
     data.projects.find((p) => !isProjectClosed(p)) ||
     null;
   const projectId = project?.id || "";
+  const navigation = useScreenNavigation({
+    scope: navigationScope,
+    route: screenRoute(view, projectId),
+    projects: data.projects,
+    blocked: () => savingRef.current,
+    onRestore: (route) => {
+      setView(route.view);
+      if (route.projectId) setSelectedProjectId(route.projectId);
+      setCardMenu(null);
+      setProjectMenu(null);
+      setSidebar(false);
+      setSearch("");
+      setModule("");
+      setPriority("");
+      setTypeFilter("");
+    },
+  });
+  useBackLayer(sidebar, () => setSidebar(false), navigation);
   const projectTasks = project?.tasks || [];
   const projectTrainings = project?.trainings || [];
   const canManage = !team.online || !!team.profile?.admin;
@@ -476,6 +499,7 @@ function App() {
   };
   const selectProject = async (id) => {
     const selected = await setData((d) => ({ ...d, selectedId: id }));
+    if (selected) setSelectedProjectId(id);
     setSearch("");
     setModule("");
     setPriority("");
@@ -510,6 +534,7 @@ function App() {
     };
   }, [project?.name, view]);
   return (
+    <NavigationContext.Provider value={navigation}>
     <div
       className={`app-shell ${project && view !== "personalAgenda" ? "has-active-project" : ""} ${saving ? "app-saving" : ""}`}
       style={{ "--project-color": projectColor(project) }}
@@ -1624,7 +1649,10 @@ function App() {
                 }))
               : await updateProject(updateProjectEntities(project, p));
             if (saved) {
-              if (modal.isNew) setView("board");
+              if (modal.isNew) {
+                setSelectedProjectId(p.id);
+                setView("board");
+              }
               setModal(null);
               setToast("Município salvo.");
             }
@@ -1838,6 +1866,7 @@ function App() {
         </Modal>
       )}
     </div>
+    </NavigationContext.Provider>
   );
 }
 
@@ -2026,6 +2055,7 @@ function Modal({
   const ref = useRef();
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+  useBackLayer(true, () => closeRef.current());
   useLayoutEffect(() => {
     const previous = document.activeElement;
     const oldOverflow = document.body.style.overflow;
@@ -2122,6 +2152,7 @@ function TaskModal({
   const [draft, setDraft] = useState(() => structuredClone(task));
   const [entity, setEntity] = useState(entities[0] || "");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  useBackLayer(deleteConfirm, () => setDeleteConfirm(false));
   const [checkText, setCheckText] = useState({});
   const [uploading, setUploading] = useState(false);
   const patch = (key, value) => setDraft((d) => ({ ...d, [key]: value }));

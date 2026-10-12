@@ -1,3 +1,4 @@
+import { useBackLayer } from "./Navigation.jsx";
 import React, { useState } from "react";
 import {
   ArrowLeft,
@@ -323,6 +324,7 @@ export function PersonalEventModal({
   );
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState(false);
+  useBackLayer(deleting, () => { if (saving) return false; setDeleting(false); });
   const patch = (key, value) =>
     setDraft((current) => ({ ...current, [key]: value }));
   return (
