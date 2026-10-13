@@ -51,6 +51,13 @@ test("PWA tem identidade, ícones válidos, escopo do Pages e abre offline prese
     "/Implantation-WS/",
   );
   expect(details.scope).toBe(url);
+  // id resolves against the origin, not the manifest directory. './' would
+  // identify this app as the domain root and collide with other Pages PWAs.
+  const origin = new URL(url).origin;
+  expect(new URL(details.manifest.id, origin).pathname).toBe("/Implantation-WS/");
+  expect(new URL(details.manifest.id, origin).href).not.toBe(
+    new URL("/Video_Translate/", origin).href,
+  );
   expect(details.manifest.display).toBe("standalone");
   expect(details.images).toEqual([
     { width: 192, height: 192, purpose: "any" },
@@ -58,6 +65,9 @@ test("PWA tem identidade, ícones válidos, escopo do Pages e abre offline prese
     { width: 512, height: 512, purpose: "maskable" },
   ]);
   const cdp = await context.newCDPSession(page);
+  const processed = await cdp.send("Page.getAppManifest");
+  expect(processed.manifest.id).toBe(`${origin}/Implantation-WS/`);
+  expect(processed.manifest.scope).toBe(url);
   const installability = await cdp.send("Page.getInstallabilityErrors");
   expect(installability.installabilityErrors.map((e) => e.errorId)).toEqual([
     "in-incognito",

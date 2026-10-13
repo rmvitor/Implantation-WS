@@ -58,6 +58,8 @@ Abra o site publicado em HTTPS e use **Instalar app**, no menu lateral:
 
 A primeira abertura com internet prepara o acesso offline, incluindo as fontes. No modo local, depois disso é possível abrir o app e registrar atividades ou conferências sem conexão. O modo de equipe usa o Supabase e exige internet para entrar, carregar e salvar. A instalação usa um manifesto com ícones PNG 192/512, ícone maskable e ícone Apple. O ID, a URL inicial e o service worker respeitam o caminho `/Implantation-WS/` no GitHub Pages.
 
+O ID explícito de instalação é `/Implantation-WS/`, diferente de `/Video_Translate/` usado pelo Entrelinhas. Não use `id: "./"`: esse membro é resolvido contra a origem do site e faria as duas PWAs compartilharem a identidade. Se uma instalação antiga ficou com o nome de outro app, remova somente o aplicativo/atalho antigo, sem marcar opções de apagar dados do site, e instale novamente cada projeto pelo seu endereço. Não limpe o armazenamento de `rmvitor.github.io`, pois os projetos compartilham a origem e têm dados locais independentes nela.
+
 Novas versões exibem **Atualizar app**. A atualização aguarda o fechamento de formulários e não apaga o armazenamento local. Os arquivos do app ficam em cache. No modo local, os cadastros ficam em `localStorage` e não sincronizam entre aparelhos. No modo de equipe, os dados vêm do Supabase conforme as permissões e não são incluídos no cache offline. Se o sistema separar o armazenamento do app instalado e do navegador (como pode ocorrer no iOS), exporte um backup no navegador e restaure no app.
 
 ## Dados e equipe
