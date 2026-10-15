@@ -8,7 +8,7 @@ export default defineConfig({
       registerType: "prompt",
       injectRegister: null,
       manifest: {
-        id: "./",
+        id: "/Implantation-WS/",
         name: "Implanta — Gestão de implantação",
         short_name: "Implanta",
         description:
