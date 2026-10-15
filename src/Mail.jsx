@@ -148,7 +148,7 @@ function ConnectMail({ onConnect, online, email: initialEmail }) {
       try { await onConnect(email, password); setPassword(""); } catch (err) { setError(err.message); setActivationHelp(err.code === "MAIL_UNAVAILABLE"); } finally { lock.current = false; setBusy(false); }
     }}><fieldset disabled={busy}><label>E-mail da caixa<input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} /></label><label>Senha de aplicativo ActiveSync<input type="password" required autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} /></label><button className="button primary" type="submit">{busy ? "Conectando…" : "Conectar e-mail"}</button></fieldset></form>}
     {error && <p role="alert" className="mail-error">{error}</p>}
-    {activationHelp && <p><a href="https://github.com/rmvitor/Implantation-WS/blob/main/docs/EMAIL.md#ativar-a-função-no-projeto-existente" target="_blank" rel="noopener noreferrer" className="mail-webmail">Guia para ativar a integração no Supabase</a></p>}
+    {activationHelp && <p><a href="./setup/implanta-mail.ts" download="implanta-mail.ts" className="mail-webmail">Baixar código para o editor web</a><br /><a href="https://github.com/rmvitor/Implantation-WS/blob/main/docs/EMAIL.md#ativar-pelo-navegador-sem-instalar-programas" target="_blank" rel="noopener noreferrer" className="mail-webmail">Guia para ativar a integração no Supabase</a></p>}
     <a href="https://mail.ipm.com.br/SOGo/" target="_blank" rel="noopener noreferrer" className="mail-webmail">Abrir webmail em outra janela</a>
   </section>;
 }

@@ -114,6 +114,13 @@ test("serviço não ativado e senha recusada não apresentam caixas fictícias n
   await page.getByRole("button", { name: "Conectar e-mail", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("Solicite a ativação ao administrador");
   await expect(page.getByRole("link", { name: "Guia para ativar a integração no Supabase" })).toBeVisible();
+  const download = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Baixar código para o editor web" }).click();
+  const source = await readFile(await (await download).path(), "utf8");
+  expect(source).toContain("Deno.serve(handler)");
+  expect(source).toContain("client.auth.getUser(token)");
+  expect(source).toContain('client.rpc("implanta_access")');
+  expect(source).not.toContain("senha-ficticia-mail-123");
   expect(state.calls).toHaveLength(0); await expect(page.locator(".mail-message")).toHaveCount(0);
   state.unavailable = false; state.networkFailure = true;
   await page.getByRole("button", { name: "Conectar e-mail", exact: true }).click();

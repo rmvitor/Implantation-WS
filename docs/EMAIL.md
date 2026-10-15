@@ -4,7 +4,25 @@ A área **E-mails** fica na navegação geral, independente de município. A int
 
 O frontend no GitHub Pages e a função no Supabase têm publicações separadas. **Publicar o site não ativa a função.** Sem ela, Conectar mostra que a conexão ainda não está disponível; não há mensagens de exemplo em produção. Abrir e salvar arquivos locais `.eml` funciona independentemente da ponte.
 
-## Ativar a função no projeto existente
+## Ativar pelo navegador, sem instalar programas
+
+É possível fazer toda a ativação inicial no **painel web do Supabase**, com a conta administradora do projeto. Depois disso, cada colega conecta sua caixa no Implanta usando o próprio e-mail e senha de aplicativo. A conta/senha do e-mail e a chave publicável não substituem o acesso administrativo ao painel.
+
+1. Abra [Edge Functions deste projeto](https://supabase.com/dashboard/project/hlwtswrgepsmyoghsghv/functions) e entre na sua conta do Supabase.
+2. Clique em **Deploy a new function → Via Editor**. Pode escolher o modelo **Hello World** para abrir o editor.
+3. Em outra aba, abra o [código completo, pronto para copiar](https://raw.githubusercontent.com/rmvitor/Implantation-WS/main/public/setup/implanta-mail.ts). Selecione tudo (`Ctrl+A`) e copie (`Ctrl+C`). Também é possível usar **Baixar código para o editor web** na tela de conexão do Implanta e abrir o arquivo como texto.
+4. Volte ao editor do Supabase. No arquivo **index.ts**, substitua **todo** o conteúdo pelo código copiado. Ele já reúne os cinco arquivos da integração; não é preciso criar arquivos adicionais ou digitar credenciais no código.
+5. Use exatamente **mail** como nome da função e clique em **Deploy function**. Aguarde a confirmação.
+6. Nas configurações da função `mail`, desative **Verify JWT / Verify JWT with legacy secret** (o nome pode variar na interface) e salve. Esse ajuste corresponde a `verify_jwt = false` no projeto. **O código continua exigindo login válido e conta liberada no Implanta**, verificando ambos a cada operação. Não remova essas verificações do código.
+7. Volte ao Implanta, atualize o app, entre na sua conta aprovada e abra **E-mails → Conectar sua caixa**. Informe o e-mail e a senha de aplicativo ActiveSync somente nesse formulário. Siga a homologação abaixo para confirmar pastas, leitura e envio reais.
+
+Não há SQL, nova tabela ou mudança nos municípios. As variáveis `SUPABASE_URL` e `SUPABASE_ANON_KEY` já são fornecidas pelo Supabase. Não é necessário inserir senha de e-mail ou chave privada como configuração da função.
+
+O arquivo único é gerado a partir de `supabase/functions/mail/index.ts` e seus módulos pelo script `npm run build:mail-dashboard`, também executado em cada build do site. Ele usa o mesmo código da publicação por CLI. Para atualizar a função futuramente, copie a versão atual para o editor e publique novamente; atualizar apenas o site não atualiza a função.
+
+Referência oficial: [criar e publicar Edge Functions pelo Dashboard](https://supabase.com/docs/guides/functions/quickstart-dashboard).
+
+## Alternativa: ativar a função pelo terminal
 
 Não execute código deste guia no SQL Editor: **não há migração SQL, nova tabela ou alteração em dados existentes**. São necessários acesso de publicação de Edge Functions ao projeto Supabase e a estrutura de usuários do Implanta já instalada.
 
@@ -22,11 +40,11 @@ O login do CLI é feito pelo administrador no próprio terminal/navegador. Não 
 
 A origem permitida por padrão é `https://rmvitor.github.io`. Se o site mudar de domínio, configure `MAIL_ALLOWED_ORIGINS` com as origens HTTPS autorizadas, separadas por vírgula. Não use `*`. Desenvolvimento local requer adicionar explicitamente a origem local na função de teste; não é necessário alterar a produção.
 
-A publicação administrativa do Supabase não estava disponível no ambiente que implementou a funcionalidade. A função está pronta no repositório, mas sua implantação e a conexão autenticada com o servidor IPM precisam ser concluídas pelo responsável.
+A publicação administrativa do Supabase não estava disponível no ambiente que implementou a funcionalidade. A função está pronta no repositório e em arquivo único para o editor web, mas sua implantação (pelo navegador ou CLI) e a conexão autenticada com o servidor IPM precisam ser concluídas pelo responsável.
 
 ### Mensagem de serviço indisponível ao conectar
 
-A verificação pública em 15/10/2026 retornou **HTTP 404, `NOT_FOUND`, `Requested function was not found`** em `/functions/v1/mail`: a função ainda não estava publicada. Isso ocorre antes de qualquer validação da senha no servidor IPM. A chave publicável usada pelo site não tem autorização administrativa para publicar a função; use o login administrativo do CLI indicado acima.
+A verificação pública em 15/10/2026 retornou **HTTP 404, `NOT_FOUND`, `Requested function was not found`** em `/functions/v1/mail`: a função ainda não estava publicada. Isso ocorre antes de qualquer validação da senha no servidor IPM. A chave publicável usada pelo site não tem autorização administrativa para publicar a função; use o login administrativo do painel web ou do CLI, conforme os caminhos acima.
 
 O navegador pode mostrar uma falha de rede em vez do 404 porque a resposta do gateway à verificação CORS não inclui todos os cabeçalhos solicitados. Nesse caso o app orienta conferir a publicação e a origem permitida, com um link para este guia. Uma falha de rede isolada não confirma que a função esteja ausente: também pode significar perda de conexão ou configuração de origem incorreta. Não troque a senha com base nessa mensagem.
 

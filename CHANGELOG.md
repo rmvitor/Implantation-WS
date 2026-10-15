@@ -1,5 +1,10 @@
 # Histórico de versões
 
+## 1.12.2 — 15/10/2026
+
+- Ativação da integração de e-mail documentada pelo painel web do Supabase, sem instalação de programas no computador. Arquivo único pronto para copiar no editor, gerado a partir da mesma implementação ActiveSync em cada build, com download na orientação de falha de conexão.
+- Publicar a função continua exigindo a conta administradora do projeto Supabase. Nenhuma credencial privada é incorporada ao arquivo; a validação obrigatória do login e da liberação do usuário permanece no código. A publicação administrativa da função e a homologação real ainda precisam ser realizadas.
+
 ## 1.12.1 — 15/10/2026
 
 - Falhas de acesso à ponte de e-mail agora orientam conferir a publicação da função `mail` e a origem do site, com acesso ao guia de ativação na própria tela. Falhas de rede/CORS não são apresentadas como senha recusada; o formulário permite nova tentativa.

@@ -1,16 +1,17 @@
 {
   "name": "implanta-workspace",
-  "version": "1.12.1",
+  "version": "1.12.2",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build",
+    "build": "npm run build:mail-dashboard && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --test src/*.test.js",
     "test:e2e": "playwright test",
     "test:pwa:serve": "npm run build && node scripts/pwa-test-server.mjs",
-    "test:db": "node scripts/test-database.mjs"
+    "test:db": "node scripts/test-database.mjs",
+    "build:mail-dashboard": "node scripts/build-mail-dashboard.mjs"
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.3.0",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
+    "esbuild": "^0.28.2",
     "pg": "^8.23.1",
     "vite": "^7.3.1",
     "vite-plugin-pwa": "^2.0.0"
