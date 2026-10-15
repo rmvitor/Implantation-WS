@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 1.12.0 — 15/10/2026
+
+- Área E-mails na navegação geral, independente dos projetos, com caixa por sessão, pastas, leitura/não leitura, busca nas mensagens carregadas, anexos, lixeira e movimentação.
+- Composição com Cc/Cco, ortografia nativa, resposta/encaminhamento, anexos e tratamento de envio sem confirmação. Exportação/importação .eml e rascunhos locais; escolha de pasta no computador compatível e Downloads nos demais aparelhos.
+- Ponte ActiveSync 14.1 como Edge Function autenticada pelo Supabase e pela liberação existente de usuários. Servidor IPM fixo, HTTPS sem redirecionar credenciais, nenhuma chave privada ou senha persistida; dados de e-mail não entram em municípios ou backups. Sem novo SQL.
+- Interface e ponte testadas com servidor simulado. A publicação da função no Supabase e a homologação com a caixa real permanecem necessárias; o site informa a indisponibilidade quando a função ainda não está ativa. Guia em docs/EMAIL.md.
+
 ## 1.11.4 — 12/10/2026
 
 - Botão Voltar do Android e do navegador fecha primeiro janelas, confirmações e menus; depois retorna entre as áreas e municípios visitados, até a tela inicial. Navegação do PWA usa o histórico nativo, mantendo a URL e o escopo da instalação.

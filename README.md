@@ -153,3 +153,7 @@ Backups incluem a agenda geral. Importar um backup antigo sem agenda pessoal con
 ## Versão 1.10.2
 
 A data de término da Agenda geral é opcional e inicia em branco. Sem término, o compromisso mostra **Término a definir**, permanece na lista de próximos e em andamento e marca apenas sua data inicial no calendário. Você pode informar ou retirar o término depois; o horário de término só é solicitado quando há uma data final. Compromissos existentes mantêm seus períodos e a alteração não exige migração SQL.
+
+## E-mail pessoal (1.12.0)
+
+A área **E-mails** fica na navegação geral e usa uma ponte ActiveSync no Supabase. A função tem publicação separada do site e não exige SQL. Consulte [ativação, segurança e validação real](docs/EMAIL.md). Sem a função ativa, o app informa a indisponibilidade; arquivos locais `.eml` podem ser consultados.

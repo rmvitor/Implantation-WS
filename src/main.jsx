@@ -4,6 +4,8 @@ import React, {
   useId,
   useRef,
   useState,
+  lazy,
+  Suspense,
 } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -31,6 +33,7 @@ import {
   ListChecks,
   LoaderCircle,
   MapPin,
+  Mail,
   MessageSquare,
   MoreHorizontal,
   Plus,
@@ -130,6 +133,8 @@ import {
 import { ProfileSettings, applyAppearance } from "./ProfileSettings";
 import { NavigationContext, useBackLayer, useScreenNavigation } from "./Navigation.jsx";
 import { screenRoute } from "./navigation.js";
+import { MailHost, useMail } from "./mail-service.jsx";
+const MailScreen = lazy(() => import("./Mail.jsx").then((module) => ({ default: module.MailScreen })));
 import { version as appVersion } from "../package.json";
 
 const STORAGE = "implanta.workspace.v1";
@@ -161,6 +166,8 @@ function loadState() {
 }
 function App() {
   const team = useTeam();
+  const mail = useMail();
+  const [mailEditing, setMailEditing] = useState(false);
   const [data, applyData] = useState(() =>
     team.online ? team.workspace : loadState(),
   );
@@ -202,16 +209,16 @@ function App() {
   const [projectMenu, setProjectMenu] = useState(null);
   useEffect(() => {
     team.setEditing?.(
-      !!modal || homologationEditing || operationsEditing || saving,
+      !!modal || homologationEditing || operationsEditing || mailEditing || saving,
     );
-  }, [modal, homologationEditing, operationsEditing, saving]);
+  }, [modal, homologationEditing, operationsEditing, mailEditing, saving]);
   useEffect(() => {
     if (!team.online || !team.workspace) return;
     if (
       selectedProjectId &&
       !team.workspace.projects.some((p) => p.id === selectedProjectId) &&
       view !== "personalAgenda" &&
-      view !== "operations"
+      view !== "operations" && view !== "mail"
     ) {
       setModal(null);
       setView("municipalities");
@@ -262,7 +269,7 @@ function App() {
     scope: navigationScope,
     route: screenRoute(view, projectId),
     projects: data.projects,
-    blocked: () => savingRef.current,
+    blocked: () => savingRef.current || mail.isWriting(),
     onRestore: (route) => {
       setView(route.view);
       if (route.projectId) setSelectedProjectId(route.projectId);
@@ -518,11 +525,14 @@ function App() {
     history: "Histórico de execução",
     details: "Dados do município",
     personalAgenda: "Agenda geral",
+    mail: "E-mails",
     operations: "Acompanhamento geral",
   };
   useEffect(() => {
     document.title =
-      view === "operations"
+      view === "mail"
+        ? "E-mails · Implanta"
+        : view === "operations"
         ? "Acompanhamento geral · Implanta"
         : view === "personalAgenda"
           ? "Agenda geral · Implanta"
@@ -536,7 +546,7 @@ function App() {
   return (
     <NavigationContext.Provider value={navigation}>
     <div
-      className={`app-shell ${project && view !== "personalAgenda" ? "has-active-project" : ""} ${saving ? "app-saving" : ""}`}
+      className={`app-shell ${project && !["personalAgenda", "mail"].includes(view) ? "has-active-project" : ""} ${saving ? "app-saving" : ""}`}
       style={{ "--project-color": projectColor(project) }}
     >
       {sidebar && (
@@ -614,6 +624,7 @@ function App() {
             active={view === "personalAgenda"}
             onClick={() => changeView("personalAgenda")}
           />
+          <NavItem icon={Mail} text="E-mails" active={view === "mail"} onClick={() => changeView("mail")} />
           <NavItem
             icon={LayoutDashboard}
             text="Acompanhamento geral"
@@ -645,7 +656,7 @@ function App() {
           <PwaControls
             pwa={pwa}
             editing={
-              !!modal || homologationEditing || operationsEditing || saving
+              !!modal || homologationEditing || operationsEditing || mailEditing || saving
             }
             onInstall={() => setModal({ type: "install" })}
           />
@@ -709,7 +720,7 @@ function App() {
           {team.online &&
             (team.stale ||
               team.error ||
-              (project && !canEdit && view !== "personalAgenda")) && (
+              (project && !canEdit && !["personalAgenda", "mail"].includes(view))) && (
               <div className="team-sync-bar">
                 <Users size={15} />{" "}
                 {team.error ||
@@ -718,7 +729,11 @@ function App() {
                     : "Este projeto está liberado somente para leitura.")}
               </div>
             )}
-          {view === "operations" ? (
+          {view === "mail" ? (
+            <Suspense fallback={<p role="status">Carregando leitor de e-mail…</p>}>
+              <MailScreen Modal={Modal} onEditing={setMailEditing} />
+            </Suspense>
+          ) : view === "operations" ? (
             <Operations
               onEditing={setOperationsEditing}
               data={data}
@@ -1417,7 +1432,9 @@ function App() {
             <span>
               <ShieldCheck size={13} />{" "}
               {team.online
-                ? view === "personalAgenda"
+                ? view === "mail"
+                  ? "E-mail pessoal · separado dos projetos"
+                  : view === "personalAgenda"
                   ? "Agenda pessoal salva na sua conta"
                   : "Dados salvos no banco da equipe"
                 : "Dados salvos neste navegador"}
@@ -3437,7 +3454,7 @@ function Empty({ icon: Icon, title, description, button, onClick }) {
 
 createRoot(document.getElementById("root")).render(
   <TeamHost>
-    <App />
+    <MailHost><App /></MailHost>
   </TeamHost>,
 );
 

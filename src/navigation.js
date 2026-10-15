@@ -1,7 +1,7 @@
 // Only screen identifiers belong in browser history. Drafts, records, credentials
 // and personal data stay out; Back never replays a database operation.
 export const NAVIGATION_KEY = "implanta.navigation.v1";
-const GLOBAL_VIEWS = ["municipalities", "personalAgenda", "operations"];
+const GLOBAL_VIEWS = ["municipalities", "personalAgenda", "operations", "mail"];
 const PROJECT_VIEWS = ["board", "homologation", "agenda", "trainings", "history", "details"];
 export const homeRoute = () => ({ view: "municipalities", projectId: "" });
 export function screenRoute(view, projectId) {
