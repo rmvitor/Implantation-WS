@@ -279,7 +279,10 @@ function App() {
   useBackLayer(sidebar, () => setSidebar(false), navigation);
   const projectTasks = project?.tasks || [];
   const projectTrainings = project?.trainings || [];
-  const canManage = !team.online || !!team.profile?.admin;
+  const canManageProject = (id) => !team.online || team.canManage(id);
+  const canManage = canManageProject(projectId);
+  const canCreate = !team.online || team.canCreate;
+  const canImport = !team.online || !!team.profile?.admin;
   const canEdit = !team.online || team.canEdit(projectId);
   const collapsedStages = Array.isArray(display.boardCollapsed?.[projectId])
     ? display.boardCollapsed[projectId]
@@ -365,7 +368,7 @@ function App() {
           const original = data.projects.find((old) => old.id === p.id);
           if (
             !same(original, p) &&
-            !(original ? team.canEdit(p.id) : canManage)
+            !(original ? team.canEdit(p.id) : canCreate)
           )
             throw new Error(
               "Você tem acesso somente de leitura a este projeto.",
@@ -745,6 +748,10 @@ function App() {
             <>
               <ProjectsHome
                 canManage={canManage}
+                canCreate={canCreate}
+                canImport={canImport}
+                canManageProject={canManageProject}
+                accessLabel={team.online && team.rolesEnabled ? team.accessLabel : undefined}
                 saving={saving}
                 onReorder={(source, target) =>
                   setData((workspace) =>
@@ -1536,7 +1543,7 @@ function App() {
           Modal={Modal}
           account={team.online ? team.profile : null}
           client={team.client}
-          accesses={data.projects.map((p) => ({ ...p, role: team.profile?.admin ? "Administrador" : team.canEdit(p.id) ? "Edição" : "Leitura" }))}
+          accesses={data.projects.map((p) => ({ ...p, role: team.accessLabel(p.id) }))}
           onTeamSettings={() => setModal({ type: "team" })}
           appearance={data.appearance}
           saving={saving}
@@ -1562,7 +1569,7 @@ function App() {
             <ProjectMenu
               anchor={projectMenu}
               project={selected}
-              canManage={canManage}
+              canManage={canManageProject(selected.id)}
               canEdit={!team.online || team.canEdit(selected.id)}
               onClose={() => setProjectMenu(null)}
               onArea={async (area) => {
@@ -1638,7 +1645,7 @@ function App() {
       )}
       {modal?.type === "project" && (
         <ProjectModal
-          readOnly={modal.isNew ? !canManage : !canEdit}
+          readOnly={modal.isNew ? !canCreate : !canEdit}
           project={modal.isNew ? null : project}
           onClose={() => setModal(null)}
           onSave={async (p) => {
@@ -1749,7 +1756,7 @@ function App() {
               </button>
             )}
             <button
-              disabled={!canManage}
+              disabled={!canImport}
               onClick={() => fileRef.current.click()}
             >
               <Upload size={24} />

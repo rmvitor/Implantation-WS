@@ -86,7 +86,7 @@ test("PWA tem identidade, ícones válidos, escopo do Pages e abre offline prese
   await page.getByRole("button", { name: "Salvar escopo" }).click();
   await context.setOffline(true);
   await page.reload();
-  await expect(page.locator(".page-footer")).toContainText("v1.12.3");
+  await expect(page.locator(".page-footer")).toContainText("v1.13.0");
   await page.locator(".municipality-card").click();
   await page
     .locator("nav")

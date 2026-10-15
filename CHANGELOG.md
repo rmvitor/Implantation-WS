@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 1.13.0 — 15/10/2026
+
+- Níveis Master, Gestor do projeto, Editor e Visualizador. Após a aprovação inicial pelo Master, colegas podem criar municípios e gerenciar os acessos aos próprios projetos, sem acesso global ou promoção pelo navegador.
+- Gestão do projeto por busca exata de e-mail, concessão/revogação de Leitura/Edição, transferência de gestor pelo Master e histórico de contas/acessos com autor e horário do servidor. Perfil e cartões identificam o nível em cada projeto.
+- Migração aditiva mantém autoria, dados, versões e concessões existentes, suporta os dois protocolos de banco e conserva a aprovação de contas pelo dono da plataforma. A publicação do app não aplica o SQL; o comportamento anterior permanece até a ativação administrativa descrita em docs/niveis-acesso.md.
+
 ## 1.12.3 — 15/10/2026
 
 - Removida a rotina de e-mail e seus arquivos, dependências, testes específicos e documentação. A atualização limpa os identificadores locais usados pela rotina descontinuada, preservando projetos, preferências, autenticação e dados das outras aplicações na mesma origem.

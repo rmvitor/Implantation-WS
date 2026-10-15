@@ -20,7 +20,7 @@ const jsonb = (value) =>
       : value;
 async function setup(
   page,
-  { role = "editor", loggedIn = true, normalized = false } = {},
+  { role = "editor", loggedIn = true, normalized = false, tiers = false } = {},
 ) {
   const demo = createDemo();
   const state = {
@@ -34,6 +34,7 @@ async function setup(
     preferences: {},
     commits: [],
     grants: [],
+    owners: { [demo.projects[0].id]: role === "owner" ? userId : "00000000-0000-4000-8000-000000000002" },
   };
   const records = projectRecords(state.row.data).map((r) => ({
     ...r,
@@ -147,8 +148,26 @@ async function setup(
         email: user.email,
         active: state.active,
         admin: role === "admin",
+        ...(tiers ? { rolesVersion: 1, master: role === "admin", projectRoles: [state.row, ...(state.extraRows || [])].map((r) => ({ id: r.id, ownerId: state.owners[r.id] || null, ownerName: "Gestor de teste" })) } : {}),
       };
-    else if (path.endsWith("/rpc/implanta_admin_users"))
+    else if (path.endsWith("/rpc/implanta_project_people")) {
+      const args = req.postDataJSON();
+      (state.peopleRequests ||= []).push(args);
+      data = [
+        { id: "platform-master", name: "Dono da plataforma", email: "master@example.invalid", active: true, role: "master" },
+        { id: userId, name: "Colega teste", email: user.email, active: true, role: "owner" },
+      ];
+      const person = { id: "new-colleague", name: "Colega ativo", email: "ativo@example.invalid", active: true };
+      const member = state.members?.find((m) => m.user_id === person.id && m.project_id === args.p_project);
+      if (member || args.p_email === person.email) data.push({ ...person, role: member?.role || null });
+    } else if (path.endsWith("/rpc/implanta_transfer_project")) {
+      const args = req.postDataJSON(); (state.transfers ||= []).push(args); state.owners[args.p_project] = args.p_owner;
+      if (state.users) for (const u of state.users) u.ownedProjects = Object.keys(state.owners).filter((id) => state.owners[id] === u.id);
+    } else if (path.endsWith("/implanta_access_audit")) {
+      (state.auditRequests ||= []).push(url.search);
+      data = [{ id: 1, actor_name: "Colega teste", target_name: "Colega ativo", action: "acesso ao projeto", at: "2026-10-15T12:00:00Z", after_data: { role: "editor" }, project_id: state.row.id }];
+    } else if (path.endsWith("/rpc/implanta_admin_users")) {
+      state.adminReads = (state.adminReads || 0) + 1;
       data = state.users ||= [
         {
           id: userId,
@@ -165,7 +184,7 @@ async function setup(
           admin: false,
         },
       ];
-    else if (path.endsWith("/rpc/implanta_set_user")) {
+    } else if (path.endsWith("/rpc/implanta_set_user")) {
       const args = req.postDataJSON();
       state.userUpdates ||= [];
       state.userUpdates.push(args);
@@ -182,6 +201,7 @@ async function setup(
     } else if (path.endsWith("/rpc/implanta_grant_project")) {
       const args = req.postDataJSON();
       state.grants.push(args);
+      if (state.holdGrant) { state.holdGrant = false; state.grantHeld = true; await new Promise((resolve) => { state.releaseGrant = resolve; }); }
       if (state.grantFail) {
         status = 503; data = { message: "Grant unavailable" };
       } else {
@@ -201,12 +221,19 @@ async function setup(
         data = { code: "40001", message: "version conflict" };
       } else {
         state.writes++;
-        for (const change of args.p_changes)
-          state.row = {
+        for (const change of args.p_changes) {
+          if (tiers && change.create) {
+            (state.extraRows ||= []).push({ id: change.id, data: change.data, version: 1 });
+            state.owners[change.id] = userId;
+          } else if (tiers && change.id !== state.row.id) {
+            const row = state.extraRows.find((r) => r.id === change.id);
+            row.data = change.data; row.version++;
+          } else state.row = {
             id: change.id,
             data: change.data,
             version: state.row.version + 1,
           };
+        }
         if (args.p_preferences) state.preferences = args.p_preferences;
       }
     } else if (path.endsWith("/implanta_projects")) {
@@ -215,7 +242,7 @@ async function setup(
         state.revoked || !state.active
           ? []
           : url.searchParams.has("id")
-            ? state.row
+            ? [state.row, ...(state.extraRows || [])].find((r) => r.id === url.searchParams.get("id").replace(/^eq\./, ""))
             : [state.row, ...(state.extraRows || [])];
     } else if (path.endsWith("/implanta_members"))
       data =
@@ -277,6 +304,77 @@ async function openProject(page) {
     .filter({ hasText: "Quatro Barras" })
     .click();
 }
+
+for (const width of [390, 1440]) {
+  test(`gestor administra só os próprios projetos e bloqueia Voltar durante liberação em ${width}px`, async ({ page }) => {
+    const state = await setup(page, { role: "owner", tiers: true });
+    state.extraRows = [{ id: "shared-readonly", version: 1, data: { ...structuredClone(state.row.data), id: "shared-readonly", name: "Município compartilhado" } }];
+    state.owners["shared-readonly"] = "other-owner";
+    state.members = [{ project_id: "shared-readonly", user_id: userId, role: "viewer" }];
+    await page.setViewportSize({ width, height: 1000 }); await page.goto("/");
+    await expect(page.getByRole("button", { name: "Novo município", exact: true })).toBeEnabled();
+    await expect(page.locator(`[data-project-id="${state.row.id}"]`).getByRole("button", { name: "Encerrar projeto", exact: true })).toBeEnabled();
+    await expect(page.locator('[data-project-id="shared-readonly"]').getByRole("button", { name: "Encerrar projeto", exact: true })).toBeDisabled();
+    if (width === 390) await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
+    await page.getByRole("button", { name: "Equipe e acessos", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByLabel("Projeto sob minha gestão").locator("option")).toHaveCount(1);
+    await expect(dialog.getByLabel("Acesso ativo")).toHaveCount(0);
+    await dialog.getByLabel("E-mail do colega").fill("ativo@example.invalid");
+    await dialog.getByRole("button", { name: "Buscar colega", exact: true }).click();
+    const select = dialog.getByLabel("Acesso de Colega ativo", { exact: true });
+    await expect(select).toHaveValue(""); state.holdGrant = true;
+    await select.selectOption("editor"); await expect.poll(() => state.grantHeld).toBe(true);
+    try { await page.evaluate(() => history.back()); await expect(dialog).toBeVisible(); }
+    finally { state.releaseGrant(); }
+    await expect(select).toHaveValue("editor"); await expect(select).toBeEnabled();
+    expect(state.grants[0]).toEqual({ p_project: state.row.id, p_user: "new-colleague", p_role: "editor" });
+    state.grantFail = true; await select.selectOption("viewer");
+    await expect(dialog.getByRole("alert")).toContainText("Grant unavailable");
+    await expect(select).toHaveValue("editor"); state.grantFail = false;
+    await select.selectOption(""); await expect(select).toHaveValue("");
+    await dialog.getByText("Histórico de acessos", { exact: true }).click();
+    await dialog.getByRole("button", { name: "Consultar alterações", exact: true }).click();
+    await expect(dialog.locator(".access-audit")).toContainText("acesso ao projeto");
+    expect(state.adminReads || 0).toBe(0);
+    expect(state.peopleRequests.every((p) => p.p_project === state.row.id)).toBe(true);
+    expect(state.auditRequests.every((q) => q.includes("project_id=eq."))).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+}
+
+test("colega aprovado cria município e recebe gestão imediatamente após a confirmação", async ({ page }) => {
+  const state = await setup(page, { role: "editor", tiers: true });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Novo município", exact: true }).click();
+  await page.getByLabel("Nome do município").fill("Meu novo projeto");
+  await page.getByRole("button", { name: "Salvar município", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "Início", exact: true }).click();
+  const card = page.locator(".project-home-card").filter({ hasText: "Meu novo projeto" });
+  await expect(card).toContainText("Gestor do projeto");
+  await expect(card.getByRole("button", { name: "Encerrar projeto", exact: true })).toBeEnabled();
+  expect(state.commits[0].p_changes.some((p) => p.create && p.data.name === "Meu novo projeto")).toBe(true);
+  expect(state.users).toBeUndefined();
+});
+
+test("Master mantém gerenciamento global e pode transferir a gestão sem mudar autoria no cliente", async ({ page }) => {
+  const state = await setup(page, { role: "admin", tiers: true });
+  state.owners[state.row.id] = userId;
+  const otherId = "00000000-0000-4000-8000-000000000002";
+  state.users = [{ id: userId, name: "Colega teste", email: "teste@example.invalid", active: true, admin: true }, { id: otherId, name: "Gestor colega", email: "gestor@example.invalid", active: true, admin: false, ownedProjects: [] }];
+  await page.goto("/"); await page.getByRole("button", { name: "Equipe e acessos", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("Colega teste · Master");
+  await expect(dialog.getByLabel("Master", { exact: true })).toHaveCount(0);
+  await dialog.getByRole("tab", { name: "Acessos por projeto", exact: true }).click();
+  await dialog.locator(".project-ownership-control select").selectOption(otherId);
+  await dialog.getByRole("button", { name: "Salvar gestor", exact: true }).click();
+  await expect(dialog.getByRole("status")).toContainText("Gestor do projeto atualizado");
+  expect(state.transfers).toEqual([{ p_project: state.row.id, p_owner: otherId }]);
+  expect(state.commits).toHaveLength(0);
+  await expect(dialog.locator(".team-project-member").filter({ hasText: "Gestor colega" }).getByText("Gestor do projeto", { exact: true })).toBeVisible();
+});
 
 test("login protege os projetos e logout retira os dados online da tela", async ({
   page,

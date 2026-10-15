@@ -56,6 +56,23 @@
   font-size: 12px;
   line-height: 1.65;
 }
+.project-access-manager, .project-ownership-control {
+  border-top: 1px solid var(--border);
+  margin-top: 18px;
+  padding-top: 16px;
+  min-width: 0;
+}
+.project-access-manager h3 { margin-bottom: 14px; font-size: 14px; }
+.project-access-search { display: flex; align-items: end; gap: 10px; margin-top: 14px; }
+.project-access-search label { display: grid; gap: 7px; min-width: 0; flex: 1; font-size: 12px; }
+.project-access-search input { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--palette-bg-ffffff); color: inherit; }
+.project-access-search button { flex-shrink: 0; }
+.project-access-label { display: block; color: var(--accent-text); font-size: 11px; margin: 6px 0; }
+.access-audit > button { margin: 12px 0; }
+.access-audit span { overflow-wrap: anywhere; min-width: 0; }
+@media (max-width: 600px) {
+  .project-access-search { align-items: stretch; flex-direction: column; }
+}
 .auth-page {
   min-height: 100dvh;
   display: grid;

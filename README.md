@@ -64,6 +64,8 @@ Novas versões exibem **Atualizar app**. A atualização aguarda o fechamento de
 
 ## Dados e equipe
 
+Na versão **1.13.0**, a gestão passa a ter Master e gestores por projeto. Após a aprovação inicial pelo Master, colegas criam municípios e liberam Leitura/Edição aos projetos sob sua gestão. A ativação exige a migração aditiva do banco pelo SQL Editor; veja [níveis, preservação de acessos e roteiro de ativação](docs/niveis-acesso.md). Até essa ativação, as permissões anteriores continuam em vigor.
+
 A publicação abre o login usando a conexão pública da equipe. A estrutura do banco e a liberação do primeiro administrador continuam dependendo da ativação no painel Supabase. No modo local de desenvolvimento, os dados ficam em `localStorage` no navegador, vinculados ao endereço/origem. Para ativar a equipe ou usar outro Supabase, siga o [guia de ativação](supabase/README.md). A integração oferece login, cadastro pendente de aprovação, recuperação de senha, administração e permissões de leitura/edição por projeto. Publicar o site não cria esse banco: é necessário criar o projeto Supabase, aplicar a migração e liberar o primeiro administrador.
 
 Use **Dados e backup** para exportar ou restaurar um arquivo JSON. A restauração pede confirmação. No modo local, substitui os dados atuais; no modo online, acrescenta/atualiza os projetos importados sem remover os demais, e exige administrador. O backup pode conter contatos e CPF; conserve-o em um local com acesso restrito. O CPF aparece com asteriscos nos dados do município. Use o olhinho para revelar ou ocultar quando precisar fechar o boletim; ao sair dessa tela ele volta a ficar oculto. O valor original continua no cadastro e no backup.

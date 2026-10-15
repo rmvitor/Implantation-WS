@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
 import { friendlyTeamError } from "./team-service";
 import { AccountPassword } from "./AccountPassword";
+import { accountRole } from "./permissions.js";
 
 export const DEFAULT_APPEARANCE = { theme: "light", primary: "#2563eb" };
 export function safeAppearance(value) {
@@ -68,7 +69,7 @@ export function ProfileSettings({
     >
       {account && <section className="profile-account-info">
         <strong>{account.name}</strong>
-        <span>{account.email} · {account.admin ? "Administrador" : "Colaborador"}</span>
+        <span>{account.email} · {accountRole(account)}</span>
         <details className="own-accesses">
           <summary>Meus acessos ({accesses.length})</summary>
           {accesses.map((p) => <div key={p.id}><span>{p.name}{p.status === "closed" ? " · encerrado" : ""}</span><strong>{p.role}</strong></div>)}

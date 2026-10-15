@@ -16,6 +16,8 @@ import { validateBackup } from "./domain";
 import { withoutDevicePreferences } from "./device-preferences.js";
 import { BrandLogo } from "./BrandLogo";
 import { AccountPassword } from "./AccountPassword";
+import { accountRole, hasProjectRoles, isMaster, canCreateProject, canManageProject, canEditProject, projectAccessLabel } from "./permissions.js";
+import { AccessAudit, ProjectAccessManager } from "./ProjectAccessManager.jsx";
 import "./team.css";
 
 const CONNECTION = "implanta.team.connection.v1";
@@ -247,10 +249,13 @@ export function TeamHost({ children }) {
     workspace,
     stale,
     error,
+    isMaster: isMaster(profile),
+    rolesEnabled: hasProjectRoles(profile),
+    canCreate: !client || canCreateProject(profile),
+    canManage: (id) => !client || canManageProject(profile, id),
+    accessLabel: (id) => projectAccessLabel(profile, permissions, id),
     canEdit: (id) =>
-      !client ||
-      !!profile?.admin ||
-      permissions.some((p) => p.project_id === id && p.role === "editor"),
+      !client || canEditProject(profile, permissions, id),
     setEditing(value) {
       editing.current = value;
       if (!value && stale) refreshRef.current?.();
@@ -259,13 +264,22 @@ export function TeamHost({ children }) {
       const result = await service.commit(base, next, options);
       setWorkspace(result);
       setPermissions(service.access);
+      if (hasProjectRoles(profile)) {
+        // Only after a successful DB transaction. New projects are assigned to
+        // auth.uid() by the server; do not wait for polling to enable their UI.
+        const created = next.projects.filter((p) => !base.projects.some((old) => old.id === p.id) && result.projects.some((saved) => saved.id === p.id));
+        setProfile((current) => ({ ...current, projectRoles: [
+          ...(current.projectRoles || []).filter((r) => result.projects.some((p) => p.id === r.id)),
+          ...created.map((p) => ({ id: p.id, ownerId: current.id, ownerName: current.name })),
+        ] }));
+      }
       setStale(false);
       setError(service.warning);
       return result;
     },
     refresh: () => refreshRef.current?.(),
     requestPasswordReset(email) {
-      if (!profile?.admin) throw new Error("Somente administradores podem gerenciar outras contas.");
+      if (!isMaster(profile)) throw new Error("Somente o responsável pela plataforma pode gerenciar outras contas.");
       recoveryClientRef.current ||= createClient(config.url, config.key, {
         auth: {
           flowType: "implicit", persistSession: false, autoRefreshToken: false,
@@ -595,9 +609,13 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
   const [statusFilter, setStatusFilter] = useState("");
   const [projectFilter, setProjectFilter] = useState("");
   const [resetTarget, setResetTarget] = useState(null);
+  const [nextOwner, setNextOwner] = useState("");
+  const currentOwner = team.profile?.projectRoles?.find((p) => p.id === selected)?.ownerId || "";
+  const globalLabel = team.rolesEnabled ? "Master" : "Administrador";
+  useEffect(() => { setNextOwner(currentOwner); }, [selected, currentOwner]);
   const [passwordBusy, setPasswordBusy] = useState(false);
   const busyRef = useRef(false);
-  const configured = (user, project) => user.admin ? "admin" :
+  const configured = (user, project) => user.admin ? "admin" : user.ownedProjects?.includes(project) ? "owner" :
     members.find((m) => m.user_id === user.id && m.project_id === project)?.role || "";
   const normalize = (value) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const matches = (user) => normalize(`${user.name} ${user.email}`).includes(normalize(search.trim())) &&
@@ -634,7 +652,7 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
       title={team.online ? "Equipe e acessos" : "Trabalho em equipe"}
       subtitle={
         team.online
-          ? `${team.profile.name} · ${team.profile.admin ? "Administrador" : "Colaborador"}`
+          ? `${team.profile.name} · ${accountRole(team.profile)}`
           : "Login, banco online e projetos compartilhados."
       }
       onClose={() => {
@@ -653,6 +671,7 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
               <strong>{team.profile.email}</strong>
               <p>Conectado ao banco da equipe.</p>
               {team.profile.admin && <small>{team.normalized ? "Registros separados e validação de autoria no servidor ativos." : "Migração de registros e CPF privado pendente. Consulte o guia antes de ativar."}</small>}
+              {team.isMaster && !team.rolesEnabled && <p className="team-note">Os níveis Master e Gestor por projeto aguardam a ativação do banco. <a href="https://github.com/rmvitor/Implantation-WS/blob/main/docs/niveis-acesso.md" target="_blank" rel="noreferrer">Abrir guia de ativação pelo navegador</a>.</p>}
             </div>
             <button
               className="button secondary"
@@ -662,7 +681,8 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
               <LogOut size={16} /> Sair
             </button>
           </div>
-          {!team.profile.admin && (
+          {team.rolesEnabled && <p className="team-note">Contas são liberadas pelo Master. Cada colega ativo pode criar projetos e se torna gestor dos projetos que criar. Editores e visualizadores recebem acesso por projeto.</p>}
+          {!team.profile.admin && !team.rolesEnabled && (
             <p className="team-note">
               O administrador libera usuários e define quais projetos cada
               colega pode visualizar ou editar.
@@ -670,10 +690,11 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
           )}
           <details className="own-accesses">
             <summary>Meus acessos ({projects.length})</summary>
-            {projects.map((p) => <div key={p.id}><span>{p.name}{p.status === "closed" ? " · encerrado" : ""}</span><strong>{team.profile.admin ? "Administrador" : team.canEdit(p.id) ? "Edição" : "Leitura"}</strong></div>)}
+            {projects.map((p) => <div key={p.id}><span>{p.name}{p.status === "closed" ? " · encerrado" : ""}</span><strong>{team.accessLabel(p.id)}</strong></div>)}
             {!projects.length && <p>Nenhum projeto liberado.</p>}
           </details>
           <AccountPassword client={team.client} disabled={busy} onBusyChange={setPasswordBusy} />
+          {team.rolesEnabled && !team.isMaster && <ProjectAccessManager team={team} projects={projects.filter((p) => team.canManage(p.id))} disabled={busy || passwordBusy} onBusyChange={(value) => { busyRef.current = value; setBusy(value); }} />}
           {error && (
             <p role="alert" className="team-error">
               {error}
@@ -696,12 +717,12 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
               <div className="team-summary" aria-label="Resumo de usuários">
                 <span>{users.filter((u) => u.active).length} ativos</span>
                 <span>{users.filter((u) => !u.active).length} sem liberação</span>
-                <span>{users.filter((u) => u.admin).length} administradores</span>
+                <span>{users.filter((u) => u.admin).length} {team.rolesEnabled ? "Master" : "administradores"}</span>
               </div>
               <div className="team-filters">
                 <label>Buscar usuário<input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nome ou e-mail" /></label>
                 <label>Situação do usuário<select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                  <option value="">Todos</option><option value="active">Ativos</option><option value="inactive">Sem liberação</option><option value="admin">Administradores</option>
+                  <option value="">Todos</option><option value="active">Ativos</option><option value="inactive">Sem liberação</option><option value="admin">{team.rolesEnabled ? "Master" : "Administradores"}</option>
                 </select></label>
                 <label>Filtrar acesso ao projeto<select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
                   <option value="">Todos</option><option value="none">Sem projeto</option>
@@ -767,8 +788,7 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
                 hidden={section !== "users"}
               >
                 <p>
-                  Novos cadastros aguardam sua aprovação. Administradores têm
-                  acesso a todos os projetos.
+                  Novos cadastros aguardam sua aprovação. {team.rolesEnabled ? "O Master acessa toda a plataforma. Cada colega ativo cria e gerencia seus próprios projetos." : "Administradores têm acesso a todos os projetos."}
                 </p>
                 {users.map((user) => (
                   <UserAccess
@@ -777,6 +797,7 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
                     hidden={!matches(user)}
                     projects={projects}
                     members={members}
+                    globalLabel={globalLabel}
                     onRecover={() => { setResetTarget(user); setMessage(""); }}
                     onGrant={(project, role) => act(() => team.client.rpc("implanta_grant_project", {
                       p_project: project, p_user: user.id, p_role: role || null,
@@ -817,6 +838,15 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
                     ))}
                   </select>
                 </label>
+                {selected && team.rolesEnabled && <section className="project-ownership-control">
+                  <label className="team-project-select">Gestor do projeto<select value={nextOwner} onChange={(e) => setNextOwner(e.target.value)}><option value="">Sem gestor atribuído</option>{users.filter((u) => u.active).map((u) => <option key={u.id} value={u.id}>{u.name} · {u.email}</option>)}</select></label>
+                  <p className="team-note">Somente o Master transfere a gestão. A autoria original e os acessos concedidos são preservados.</p>
+                  <button type="button" className="button secondary" disabled={!nextOwner || nextOwner === currentOwner} onClick={() => act(async () => {
+                    const result = await team.client.rpc("implanta_transfer_project", { p_project: selected, p_owner: nextOwner });
+                    if (result.error) throw result.error;
+                    await team.refresh();
+                  }, { success: "Gestor do projeto atualizado." })}>Salvar gestor</button>
+                </section>}
                 {selected &&
                   users
                     .filter(matches)
@@ -829,7 +859,7 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
                             {!user.active && " · cadastro pendente/inativo"}
                           </small>
                         </div>
-                        {user.admin ? <span className="team-status">Administrador · acesso total</span> : <select
+                        {user.admin || user.ownedProjects?.includes(selected) ? <span className="team-status">{user.admin ? `${globalLabel} · acesso total` : "Gestor do projeto"}</span> : <select
                           aria-label={`Acesso de ${user.name}`}
                           value={
                             members.find(
@@ -860,12 +890,13 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
               </section>
             </fieldset>
           )}
+          {team.isMaster && team.rolesEnabled && <AccessAudit team={team} />}
         </>
       )}
     </Modal>
   );
 }
-function UserAccess({ user, self, onSave, hidden, projects, members, onGrant, onRecover }) {
+function UserAccess({ user, self, onSave, hidden, projects, members, onGrant, onRecover, globalLabel }) {
   const [draft, setDraft] = useState(user);
   const [expanded, setExpanded] = useState(false);
   const previous = useRef(user);
@@ -874,7 +905,7 @@ function UserAccess({ user, self, onSave, hidden, projects, members, onGrant, on
     if (!same(previous.current, user)) setDraft(user);
     previous.current = user;
   }, [user]);
-  const accesses = projects.filter((p) => user.admin || members.some((m) => m.project_id === p.id && m.user_id === user.id));
+  const accesses = projects.filter((p) => user.admin || user.ownedProjects?.includes(p.id) || members.some((m) => m.project_id === p.id && m.user_id === user.id));
   return (
     <form
       className="team-user"
@@ -916,7 +947,7 @@ function UserAccess({ user, self, onSave, hidden, projects, members, onGrant, on
           />{" "}
           Acesso ativo
         </label>
-        <label className="team-checkbox">
+        {globalLabel === "Master" ? <span className="team-status">{user.admin ? "Master" : "Colaborador"}</span> : <label className="team-checkbox">
           <input
             type="checkbox"
             disabled={self}
@@ -929,8 +960,8 @@ function UserAccess({ user, self, onSave, hidden, projects, members, onGrant, on
               })
             }
           />{" "}
-          Administrador
-        </label>
+          {globalLabel}
+        </label>}
       </div>
       <div className="team-user-actions">
         <button type="button" className="button secondary" aria-expanded={expanded} aria-controls={`user-projects-${user.id}`} onClick={() => setExpanded(!expanded)}>Ver projetos</button>
@@ -945,10 +976,10 @@ function UserAccess({ user, self, onSave, hidden, projects, members, onGrant, on
       </div>
       {expanded && <div className="team-user-projects" id={`user-projects-${user.id}`}>
         {!user.active && <p>Os acessos configurados só ficam disponíveis após a liberação da conta.</p>}
-        {user.admin && <p>Administradores têm acesso total a todos os projetos, inclusive aos novos.</p>}
+        {user.admin && <p>{globalLabel} tem acesso total a todos os projetos, inclusive aos novos.</p>}
         {projects.map((p) => <div className="team-project-member" key={p.id}>
           <div><strong>{p.name}</strong><small>{p.status === "closed" ? "Projeto encerrado" : "Projeto ativo"}</small></div>
-          {user.admin ? <span className="team-status">Administrador</span> : <select
+          {user.admin || user.ownedProjects?.includes(p.id) ? <span className="team-status">{user.admin ? globalLabel : "Gestor do projeto"}</span> : <select
             aria-label={`Acesso de ${user.name} a ${p.name}`}
             value={members.find((m) => m.user_id === user.id && m.project_id === p.id)?.role || ""}
             onChange={(e) => onGrant(p.id, e.target.value)}>

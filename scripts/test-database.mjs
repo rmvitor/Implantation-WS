@@ -1,5 +1,6 @@
 import pg from "pg";
 import { testRecords } from "./test-records.mjs";
+import { testProjectRoles } from "./test-project-roles.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
@@ -312,6 +313,7 @@ try {
     `${checks} verificações PostgreSQL: permissões, isolamento, concorrência e importação atômica aprovadas.`,
   );
   await testRecords({root,admin,editor,viewer,other,ids,denied});
+  await testProjectRoles(owner, url.href);
 } finally {
   await Promise.all(clients.map((c) => c.end()));
   await owner.query(`drop database if exists ${database}`);

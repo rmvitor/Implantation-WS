@@ -43,6 +43,8 @@ commit;
 
 ## 3. Liberar os colegas e os projetos
 
+**Atualização 1.13.0:** as instruções desta seção descrevem o banco inicial. Para separar o dono da plataforma (Master) dos colegas que criam/gerenciam os próprios municípios, aplique a [migração de níveis de acesso](../docs/niveis-acesso.md) depois da estrutura inicial. Ela mantém a aprovação inicial pelo Master, limita gestão por autoria/propriedade e registra as mudanças de acesso. Não é necessário reaplicar a estrutura inicial. O guia explica os administradores antigos, a atribuição de projetos existentes e a compatibilidade com registros separados.
+
 Cada colega abre o site, que já usa a conexão da equipe, cria uma conta e confirma o e-mail. Em **Equipe e acessos**, o administrador:
 
 - Aprova ou desativa contas e pode nomear outros administradores.

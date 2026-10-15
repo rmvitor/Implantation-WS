@@ -101,6 +101,10 @@ export function ValidationBadge({ task }) {
 
 export function ProjectsHome({
   canManage = true,
+  canCreate = canManage,
+  canImport = canManage,
+  canManageProject = () => canManage,
+  accessLabel,
   saving = false,
   onReorder,
   data,
@@ -162,14 +166,14 @@ export function ProjectsHome({
         <div className="home-heading-actions">
           <button
             className="button secondary"
-            disabled={!canManage}
+            disabled={!canImport}
             onClick={onImport}
           >
             Importar dados
           </button>
           <button
             className="button primary"
-            disabled={!canManage}
+            disabled={!canCreate}
             onClick={onAdd}
           >
             <Plus size={17} /> Novo município
@@ -348,6 +352,7 @@ export function ProjectsHome({
                   <Building2 size={25} />
                 </div>
                 <h2>{p.name}</h2>
+                {accessLabel && <span className="project-access-label">{accessLabel(p.id)}</span>}
                 <p>
                   {p.state || "UF não informada"} · Dream{" "}
                   {p.dream || "não informado"}
@@ -394,14 +399,14 @@ export function ProjectsHome({
               <div className="project-card-actions">
                 {isProjectClosed(p) ? (
                   <button
-                    disabled={!canManage}
+                    disabled={!canManageProject(p.id)}
                     onClick={() => onReopenProject(p.id)}
                   >
                     Reabrir projeto
                   </button>
                 ) : (
                   <button
-                    disabled={!canManage}
+                    disabled={!canManageProject(p.id)}
                     onClick={() => onCloseProject(p.id)}
                   >
                     Encerrar projeto
@@ -410,7 +415,7 @@ export function ProjectsHome({
                 <button
                   className="text-danger"
                   aria-label={`Excluir projeto ${p.name}`}
-                  disabled={!canManage}
+                  disabled={!canManageProject(p.id)}
                   onClick={() => onDeleteProject(p.id)}
                 >
                   Excluir
