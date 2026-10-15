@@ -15,7 +15,7 @@ O nível Master fica reservado à conta dona da plataforma. A tela de gestão n�
 
 O gestor busca um colega **pelo e-mail exato**, após o cadastro/liberação inicial, e define seu acesso ao projeto. Essa busca não expõe o cadastro completo da plataforma. A lista mostra os participantes atuais, o gestor e o Master, que mantém acesso global.
 
-Backup completo com CPF/anexos e restauração pela interface continuam restritos ao responsável global. A exportação comum continua sem CPF/anexos. Esta versão não amplia a exportação de dados pessoais para gestores; a consulta do CPF respeita o acesso de edição ao município.
+Backup completo com CPF/anexos e restauração pela interface continuam restritos ao responsável global. A exportação comum continua sem CPF/anexos. Esta versão não amplia a exportação de dados pessoais para gestores; na interface, a consulta do CPF respeita o acesso de edição ao município. **A separação do CPF no servidor depende da migração 002:** no banco legado, o CPF ainda faz parte do JSON retornado a quem pode ler o projeto. A migração de níveis não altera esse formato. Antes de ampliar o uso com dados pessoais, revise e ative também a [migração de registros e CPF privado](migracao-registros.md), aplicando a migração de níveis ao final.
 
 ## Diagnóstico do código anterior
 
