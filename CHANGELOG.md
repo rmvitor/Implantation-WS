@@ -1,21 +1,8 @@
 # Histórico de versões
 
-## 1.12.2 — 15/10/2026
+## 1.12.3 — 15/10/2026
 
-- Ativação da integração de e-mail documentada pelo painel web do Supabase, sem instalação de programas no computador. Arquivo único pronto para copiar no editor, gerado a partir da mesma implementação ActiveSync em cada build, com download na orientação de falha de conexão.
-- Publicar a função continua exigindo a conta administradora do projeto Supabase. Nenhuma credencial privada é incorporada ao arquivo; a validação obrigatória do login e da liberação do usuário permanece no código. A publicação administrativa da função e a homologação real ainda precisam ser realizadas.
-
-## 1.12.1 — 15/10/2026
-
-- Falhas de acesso à ponte de e-mail agora orientam conferir a publicação da função `mail` e a origem do site, com acesso ao guia de ativação na própria tela. Falhas de rede/CORS não são apresentadas como senha recusada; o formulário permite nova tentativa.
-- Diagnóstico documentado do HTTP 404 da função ainda não publicada. A ativação administrativa no Supabase e a homologação da caixa real continuam pendentes; nenhuma senha ou dado de produção foi alterado.
-
-## 1.12.0 — 15/10/2026
-
-- Área E-mails na navegação geral, independente dos projetos, com caixa por sessão, pastas, leitura/não leitura, busca nas mensagens carregadas, anexos, lixeira e movimentação.
-- Composição com Cc/Cco, ortografia nativa, resposta/encaminhamento, anexos e tratamento de envio sem confirmação. Exportação/importação .eml e rascunhos locais; escolha de pasta no computador compatível e Downloads nos demais aparelhos.
-- Ponte ActiveSync 14.1 como Edge Function autenticada pelo Supabase e pela liberação existente de usuários. Servidor IPM fixo, HTTPS sem redirecionar credenciais, nenhuma chave privada ou senha persistida; dados de e-mail não entram em municípios ou backups. Sem novo SQL.
-- Interface e ponte testadas com servidor simulado. A publicação da função no Supabase e a homologação com a caixa real permanecem necessárias; o site informa a indisponibilidade quando a função ainda não está ativa. Guia em docs/EMAIL.md.
+- Removida a rotina de e-mail e seus arquivos, dependências, testes específicos e documentação. A atualização limpa os identificadores locais usados pela rotina descontinuada, preservando projetos, preferências, autenticação e dados das outras aplicações na mesma origem.
 
 ## 1.11.4 — 12/10/2026
 

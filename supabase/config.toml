@@ -1,6 +1,0 @@
-project_id = "Implantation-WS"
-
-# Auth is verified explicitly with getUser + implanta_access in the function.
-# This also supports projects using signing keys newer than legacy HS256.
-[functions.mail]
-verify_jwt = false

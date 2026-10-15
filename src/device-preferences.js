@@ -2,6 +2,19 @@
 export const devicePreferencesKey = (account = "local") =>
   `implanta.display.v1:${account}`;
 
+// Remove only identifiers owned by the discontinued integration. The same
+// origin also hosts other applications; never clear storage wholesale.
+export function clearRetiredDeviceData(storage) {
+  try {
+    storage ??= globalThis.localStorage;
+    const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index));
+    for (const key of keys)
+      if (key?.startsWith("implanta.mail.device.v1:")) storage.removeItem(key);
+  } catch {
+    // Restricted storage must not prevent opening the application.
+  }
+}
+
 export function withoutDevicePreferences(data) {
   const { boardViews, boardCollapsed, boardOrders, ...workspace } = data;
   return workspace;
