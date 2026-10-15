@@ -24,6 +24,14 @@ A origem permitida por padrão é `https://rmvitor.github.io`. Se o site mudar d
 
 A publicação administrativa do Supabase não estava disponível no ambiente que implementou a funcionalidade. A função está pronta no repositório, mas sua implantação e a conexão autenticada com o servidor IPM precisam ser concluídas pelo responsável.
 
+### Mensagem de serviço indisponível ao conectar
+
+A verificação pública em 15/10/2026 retornou **HTTP 404, `NOT_FOUND`, `Requested function was not found`** em `/functions/v1/mail`: a função ainda não estava publicada. Isso ocorre antes de qualquer validação da senha no servidor IPM. A chave publicável usada pelo site não tem autorização administrativa para publicar a função; use o login administrativo do CLI indicado acima.
+
+O navegador pode mostrar uma falha de rede em vez do 404 porque a resposta do gateway à verificação CORS não inclui todos os cabeçalhos solicitados. Nesse caso o app orienta conferir a publicação e a origem permitida, com um link para este guia. Uma falha de rede isolada não confirma que a função esteja ausente: também pode significar perda de conexão ou configuração de origem incorreta. Não troque a senha com base nessa mensagem.
+
+Após publicar, uma requisição POST **sem autenticação** a esse endereço deve retornar HTTP 401 com código `APP_AUTH`, indicando que o handler foi carregado e exige login. No site, entre com sua conta aprovada do Implanta e tente a conexão com a caixa novamente. Se houver 404, confirme o nome `mail` e o projeto `hlwtswrgepsmyoghsghv`; se houver erro de origem, confira `MAIL_ALLOWED_ORIGINS` conforme acima.
+
 ## Conectar a caixa e validar
 
 1. Entre no Implanta com uma conta aprovada e abra **E-mails → Conectar sua caixa**.

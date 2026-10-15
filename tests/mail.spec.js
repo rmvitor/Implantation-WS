@@ -113,10 +113,19 @@ test("serviço não ativado e senha recusada não apresentam caixas fictícias n
   await page.getByLabel("E-mail da caixa").fill("caixa@ipm.com.br"); await page.getByLabel("Senha de aplicativo ActiveSync").fill("senha-ficticia-mail-123");
   await page.getByRole("button", { name: "Conectar e-mail", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("Solicite a ativação ao administrador");
+  await expect(page.getByRole("link", { name: "Guia para ativar a integração no Supabase" })).toBeVisible();
   expect(state.calls).toHaveLength(0); await expect(page.locator(".mail-message")).toHaveCount(0);
-  state.unavailable = false; state.rejected = true;
+  state.unavailable = false; state.networkFailure = true;
+  await page.getByRole("button", { name: "Conectar e-mail", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("publicação da função mail no Supabase");
+  await expect(page.getByRole("alert")).toContainText("A senha ainda não pôde ser validada");
+  await expect(page.getByRole("link", { name: "Guia para ativar a integração no Supabase" })).toHaveAttribute("href", /docs\/EMAIL\.md/);
+  await expect(page.getByRole("button", { name: "Conectar e-mail", exact: true })).toBeEnabled();
+  expect(state.calls).toHaveLength(0);
+  state.networkFailure = false; state.rejected = true;
   await page.getByRole("button", { name: "Conectar e-mail", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("recusou a conta ou senha");
+  await expect(page.getByRole("link", { name: "Guia para ativar a integração no Supabase" })).toHaveCount(0);
   expect(state.calls).toEqual(["FolderSync"]); await expect(page.locator(".mail-folders")).toHaveCount(0);
 });
 test("conexão permanece entre áreas, mas não grava senha ou conteúdo em armazenamento, histórico ou backup", async ({ page }) => {

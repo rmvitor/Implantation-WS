@@ -69,6 +69,7 @@ export async function setupMail(page, { empty = false } = {}) {
     const request = route.request(), url = new URL(request.url()), path = url.pathname;
     let data, status = 200, headers = { "Content-Type": "application/json" };
     if (path.endsWith("/functions/v1/mail")) {
+      if (state.networkFailure) return route.abort("failed");
       if (state.unavailable) { data = { code: "NOT_FOUND", message: "Missing function" }; status = 404; }
       else {
         const response = await backend(new Request(request.url(), { method: request.method(), headers: request.headers(), body: request.postData() }));

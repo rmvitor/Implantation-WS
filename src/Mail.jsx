@@ -138,15 +138,17 @@ export function MailScreen({ Modal, onEditing }) {
 
 function ConnectMail({ onConnect, online, email: initialEmail }) {
   const [email, setEmail] = useState(initialEmail), [password, setPassword] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const [activationHelp, setActivationHelp] = useState(false);
   const lock = useRef(false);
   useBackLayer(busy, () => false);
   return <section className="mail-connect"><h2>Conectar sua caixa</h2><p>ActiveSync · mail.ipm.com.br · HTTPS 443</p>
     <p>A conexão é pessoal e continua ativa ao trocar de município. A senha fica apenas na memória desta sessão; ao recarregar ou fechar o app, conecte novamente.</p>
     {!online ? <p>Entre no banco da equipe para conectar uma caixa. Você pode abrir cópias .eml neste aparelho.</p> : <form onSubmit={async (e) => {
-      e.preventDefault(); if (lock.current) return; lock.current = true; setBusy(true); setError("");
-      try { await onConnect(email, password); setPassword(""); } catch (err) { setError(err.message); } finally { lock.current = false; setBusy(false); }
+      e.preventDefault(); if (lock.current) return; lock.current = true; setBusy(true); setError(""); setActivationHelp(false);
+      try { await onConnect(email, password); setPassword(""); } catch (err) { setError(err.message); setActivationHelp(err.code === "MAIL_UNAVAILABLE"); } finally { lock.current = false; setBusy(false); }
     }}><fieldset disabled={busy}><label>E-mail da caixa<input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} /></label><label>Senha de aplicativo ActiveSync<input type="password" required autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} /></label><button className="button primary" type="submit">{busy ? "Conectando…" : "Conectar e-mail"}</button></fieldset></form>}
     {error && <p role="alert" className="mail-error">{error}</p>}
+    {activationHelp && <p><a href="https://github.com/rmvitor/Implantation-WS/blob/main/docs/EMAIL.md#ativar-a-função-no-projeto-existente" target="_blank" rel="noopener noreferrer" className="mail-webmail">Guia para ativar a integração no Supabase</a></p>}
     <a href="https://mail.ipm.com.br/SOGo/" target="_blank" rel="noopener noreferrer" className="mail-webmail">Abrir webmail em outra janela</a>
   </section>;
 }

@@ -1,5 +1,10 @@
 # Histórico de versões
 
+## 1.12.1 — 15/10/2026
+
+- Falhas de acesso à ponte de e-mail agora orientam conferir a publicação da função `mail` e a origem do site, com acesso ao guia de ativação na própria tela. Falhas de rede/CORS não são apresentadas como senha recusada; o formulário permite nova tentativa.
+- Diagnóstico documentado do HTTP 404 da função ainda não publicada. A ativação administrativa no Supabase e a homologação da caixa real continuam pendentes; nenhuma senha ou dado de produção foi alterado.
+
 ## 1.12.0 — 15/10/2026
 
 - Área E-mails na navegação geral, independente dos projetos, com caixa por sessão, pastas, leitura/não leitura, busca nas mensagens carregadas, anexos, lixeira e movimentação.

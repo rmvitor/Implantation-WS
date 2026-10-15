@@ -34,11 +34,14 @@ export function MailHost({ children }) {
         try { response = await result.error.context?.json(); } catch {}
         if (response?.code === "MAIL_AUTH") disconnect();
         const unknownSend = action === "send" && (!response?.code || ["MAIL_FAILED", "NETWORK"].includes(response.code));
+        const missing = result.error.context?.status === 404 || response?.code === "NOT_FOUND";
+        const unreachable = ["FunctionsFetchError", "FunctionsRelayError"].includes(result.error.name);
         const error = new Error(unknownSend ? "O envio ficou sem confirmação. Confira Enviados antes de iniciar outro envio; não houve reenvio automático."
-          : result.error.context?.status === 404 || response?.code === "NOT_FOUND"
+          : missing
           ? "A conexão de e-mail ainda não está disponível neste sistema. Solicite a ativação ao administrador."
+          : unreachable ? "Não foi possível acessar a integração de e-mail. Solicite ao administrador a conferência da publicação da função mail no Supabase e da permissão de acesso deste site. A senha ainda não pôde ser validada."
           : response?.message || "O serviço de e-mail está indisponível. Confira a conexão ou solicite ajuda ao administrador.");
-        error.code = unknownSend ? "SEND_UNKNOWN" : response?.code; throw error;
+        error.code = unknownSend ? "SEND_UNKNOWN" : missing || unreachable ? "MAIL_UNAVAILABLE" : response?.code; throw error;
       }
       if (!candidate && credentials.current !== connection) throw new Error("A conexão de e-mail foi encerrada.");
       const reply = result.data;
