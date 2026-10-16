@@ -1922,7 +1922,7 @@ select {
 }
 .backup-options button {
   display: grid;
-  grid-template-columns: 35px 1fr 20px;
+  grid-template-columns: 35px minmax(0, 1fr) 20px;
   column-gap: 10px;
   text-align: left;
   padding: 18px;
@@ -1945,10 +1945,16 @@ select {
   align-self: center;
 }
 .backup-options strong {
+  grid-column: 2;
+  grid-row: 1;
+  overflow-wrap: anywhere;
   font-size: 12px;
   font-weight: 550;
 }
 .backup-options span {
+  grid-column: 2;
+  grid-row: 2;
+  overflow-wrap: anywhere;
   font-size: 10px;
   color: var(--palette-fg-a4b295);
   margin-top: 5px;

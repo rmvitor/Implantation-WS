@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## 1.13.1 — 16/10/2026
+
+- Descrição do backup completo alinhada abaixo do título, com quebra de linha no espaço disponível, inclusive no celular.
+
 ## 1.13.0 — 15/10/2026
 
 - Níveis Master, Gestor do projeto, Editor e Visualizador. Após a aprovação inicial pelo Master, colegas podem criar municípios e gerenciar os acessos aos próprios projetos, sem acesso global ou promoção pelo navegador.
