@@ -1,0 +1,685 @@
+{
+  "Patrimônio": {
+    "version": "2026-3",
+    "source": "Homologação da Implantação - Suprimentos - Patrimônio - Versão 2026-3.doc",
+    "questions": [
+      {
+        "id": "01",
+        "text": "Usuários estão aptos a efetuar a solicitação de cadastro de produtos?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "02",
+        "text": "Usuários estão aptos a efetuar a manutenção dos Motivos de Baixa?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "03",
+        "text": "Usuários estão aptos a efetuar a manutenção das Taxas de Depreciação?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "04",
+        "text": "Usuários estão aptos a efetuar a manutenção do Cadastro de Bens?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "05",
+        "text": "Usuários estão aptos a efetuar a manutenção de Incorporação de Bens?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "06",
+        "text": "Usuários estão aptos a efetuar a manutenção de Inventários?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "07",
+        "text": "Usuários estão aptos a efetuar a manutenção de Agregação de Bens?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "08",
+        "text": "Usuários estão aptos a realizar Transferência de Bens Interna?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "09",
+        "text": "Usuários estão aptos a realizar Transferência de Bens Externa?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "10",
+        "text": "Usuários estão aptos a realizar Transferência de Bens por Entidade?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "11",
+        "text": "Layout do Termo de Transferência foi homologado com o usuário?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "12",
+        "text": "Usuários estão aptos a efetuar a Baixa de Bens?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "13",
+        "text": "Usuários estão aptos a utilizar a Movimentação Financeira?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "14",
+        "text": "O Balancete Patrimonial está fechando com o da Contabilidade? Se não, quais medidas foram tomadas?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "15",
+        "text": "Foi repassado como funciona a Impressão de Etiquetas?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "16",
+        "text": "Usuários estão aptos a efetuar a Virada Mensal?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "17",
+        "text": "Os Relatórios pertinentes e que serão utilizados no cotidiano foram apresentados ao Cliente?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "18",
+        "text": "Existem pendências que impeçam o completo funcionamento do módulo Patrimônio?",
+        "help": "",
+        "kind": "blocking",
+        "justifyWhen": "yes"
+      }
+    ]
+  },
+  "Frota": {
+    "version": "2026-3",
+    "source": "Homologação da Implantação - Suprimentos - Frota - Versão 2026-3.doc",
+    "questions": [
+      {
+        "id": "01",
+        "text": "Os usuários estão aptos a efetuar a manutenção do cadastro de Motoristas?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "02",
+        "text": "Os usuários estão aptos a efetuar a manutenção do cadastro de Rotas?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "03",
+        "text": "Os usuários estão aptos a efetuar a manutenção do cadastro de Veículos?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "04",
+        "text": "Os usuários estão aptos a efetuar a manutenção do Vencimento do IPVA?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "05",
+        "text": "Os usuários estão aptos a efetuar o Agendamento de Veículos?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "06",
+        "text": "Os usuários estão aptos a utilizar a rotina de Despesa?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "07",
+        "text": "Os usuários estão aptos a utilizar a rotina de Manutenção?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "08",
+        "text": "Os usuários estão aptos a utilizar a rotina de Entradas/Saídas?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "09",
+        "text": "Os usuários estão aptos a utilizar a rotina de Virada Anual?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "10",
+        "text": "Os Relatórios pertinentes e que serão utilizados no cotidiano foram apresentados ao Cliente?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "11",
+        "text": "Existem pendências que impeçam o funcionamento do módulo Frota?",
+        "help": "",
+        "kind": "blocking",
+        "justifyWhen": "yes"
+      }
+    ]
+  },
+  "Almoxarifado": {
+    "version": "2026-3",
+    "source": "Homologação da Implantação - Suprimentos - Almoxarifado - Versão 2026-3.doc",
+    "questions": [
+      {
+        "id": "01",
+        "text": "Usuários estão aptos a efetuar a manutenção do cadastro de Comissões de Inventário?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "02",
+        "text": "Usuários estão aptos a efetuar a manutenção do cadastro de Depósitos?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "03",
+        "text": "Usuários estão aptos a efetuar a manutenção de Produtos x Depósitos?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "04",
+        "text": "Usuários estão aptos a efetuar a manutenção das Entradas de Produtos?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "05",
+        "text": "Layout das guias de Entrada foi homologado com o cliente?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "06",
+        "text": "Usuários estão aptos a efetuar a manutenção das Saídas de Produtos?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "07",
+        "text": "Layout das guias de Saída foi homologado com o cliente?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "08",
+        "text": "Usuários estão aptos a incluir Transferência de Produtos entre Depósitos?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "09",
+        "text": "Usuários estão aptos a efetuar a manutenção do Ponto de Ressuprimento?",
+        "help": "Suprimentos >> Almoxarifado >> Cadastros >> Depósito >> Produto x Depósito",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "10",
+        "text": "Usuários estão aptos a efetuar a Requisição ao Almoxarifado?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "11",
+        "text": "Layout da Guia de Requisição ao Almoxarifado está homologado com o cliente?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "12",
+        "text": "Usuários estão aptos a utilizar a rotina de Cotas de Consumo?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "13",
+        "text": "Usuários estão aptos a utilizar a rotina de Virada Mensal de Estoque?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "14",
+        "text": "A Entidade irá Efetuar Contabilização (Integração com a Contabilidade)?",
+        "help": "",
+        "kind": "choice",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "15",
+        "text": "Se a resposta anterior for SIM: Foi repassado como funcionam os cadastros de Classe Produto x Conta (apenas modo manual) e Classe Produto x Conta x Tipo de Movimentação (modo automático)?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no",
+        "condition": "Aplica-se quando a entidade fará integração com a contabilidade."
+      },
+      {
+        "id": "16",
+        "text": "Os Relatórios pertinentes e que serão utilizados no cotidiano foram apresentados ao Cliente?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "17",
+        "text": "Existem pendências que impeçam o funcionamento do módulo Almoxarifado?",
+        "help": "",
+        "kind": "blocking",
+        "justifyWhen": "yes"
+      }
+    ]
+  },
+  "Compras e Contratos": {
+    "version": "2026-3",
+    "source": "Homologação da Implantação - Suprimentos - Compras e Contratos - Versão 2026-3.doc",
+    "questions": [
+      {
+        "id": "01",
+        "text": "Usuários estão aptos a efetuar a manutenção do cadastro de Fornecedores?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "02",
+        "text": "Usuários estão aptos a efetuar a manutenção do cadastro de Documentos do Fornecedores?",
+        "help": "Compras e Contratos » Cadastros » Enquadramento Pessoas » Fornecedor » Fornecedor » Aba Documentos",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "03",
+        "text": "Usuários estão aptos a efetuar a manutenção no cadastro de Certificados de Registro Cadastral?",
+        "help": "Compras e Contratos » Cadastros » Enquadramento Pessoas » Fornecedor » Fornecedor » Aba Certificado",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "04",
+        "text": "Usuários estão aptos a efetuar a manutenção do cadastro de Gestor/Fiscal?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "05",
+        "text": "Usuários estão aptos a efetuar a manutenção do cadastro de Produtos?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "06",
+        "text": "Usuários estão aptos a efetuar a manutenção do cadastro de Comissões?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "07",
+        "text": "Usuários estão aptos a efetuar a manutenção e gerenciamento do Processo Administrativo?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "08",
+        "text": "Usuários estão aptos a efetuar a manutenção e gerenciamento dos Contratos e Aditivos?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "09",
+        "text": "Usuários estão aptos a efetuar a manutenção e gerenciamento das Parcerias da Administração Pública (Lei 13.019/2014?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "10",
+        "text": "Usuários estão aptos a efetuar a manutenção das Ordens de Compra?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "11",
+        "text": "Usuários estão aptos a efetuar a manutenção das Requisições de Compras?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "12",
+        "text": "Usuários estão aptos a efetuar a manutenção das Solicitações de Compras?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "13",
+        "text": "Usuários estão aptos a efetuar a manutenção no DFD (Documento de Formalização de Demanda)?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "14",
+        "text": "Usuários estão aptos a efetuar a manutenção no ETP (Estudo Técnico Preliminar)?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "15",
+        "text": "Usuários estão aptos a efetuar a manutenção do cadastro de Licitações?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "16",
+        "text": "Verificar se as possibilidades de preenchimento da Planilha de Preços pelo Portal de Serviços foram repassadas ao cliente:",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "17",
+        "text": "Layout da Requisição ao Compras foi homologado com o cliente?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "18",
+        "text": "Layout da Solicitação ao Compras foi homologado com o cliente?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "19",
+        "text": "Cliente optou por utilizar os Layouts dos Editais padrão do sistema?",
+        "help": "",
+        "kind": "choice",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "20",
+        "text": "Cliente optou por utilizar os Layouts dos Contratos padrão do sistema?",
+        "help": "",
+        "kind": "choice",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "21",
+        "text": "Cliente optou por utilizar os Layouts dos Pareceres padrão do sistema?",
+        "help": "",
+        "kind": "choice",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "22",
+        "text": "Cliente optou por utilizar os Layouts das Atas de Pregão do sistema?",
+        "help": "",
+        "kind": "choice",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "23",
+        "text": "Cliente optou por utilizar os Layouts das Atas de Registro de Preços do sistema?",
+        "help": "",
+        "kind": "choice",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "24",
+        "text": "Foi desenvolvido layouts para as Atas do Registro de Preços?",
+        "help": "",
+        "kind": "choice",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "25",
+        "text": "Foi repassado ao cliente como cadastrar as Revogações, Anulações e Recursos das licitações?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "26",
+        "text": "Foi repassado ao cliente como utilizar as propostas eletrônicas no portal de serviços?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "27",
+        "text": "Foi repassado ao cliente como Desclassificar/Anular participantes e propostas e como isso afeta o fluxo após a etapa de lances?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "28",
+        "text": "Foi repassado ao cliente como realizar a Readequação de Lotes?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "29",
+        "text": "Foi ajustada a Adjudicação de todas as Licitações?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "30",
+        "text": "Os saldos de todas as Licitações estão corretos?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "31",
+        "text": "Os saldos de todos os Contratos estão corretos?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "32",
+        "text": "Foi repassado como realizar a exportação e importação do Pregão Eletrônico?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "33",
+        "text": "Foi repassado como gerar Contratos para Compras Diretas ou sem vínculo com as Licitações?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "34",
+        "text": "Foi repassado como é realizado o envio dos Arquivos via WebService ou E-validador (Licitacon)?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "35",
+        "text": "Foi repassado como consultar o Log de Erros?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "36",
+        "text": "Foi repassado como realizar o Ajuste de Numeração dos Contratos via “Reajuste TC”?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "37",
+        "text": "Foi repassado como realizar o Reajuste da Numeração das Comissões via “Reajuste TC”?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "38",
+        "text": "Os Relatórios pertinentes e que serão utilizados no cotidiano foram apresentados ao cliente?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "39",
+        "text": "Foi repassado como corrige lançamentos dos Editais ao PNCP?",
+        "help": "Compras e Contratos » PNCP » Gerenciar » Editais",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "40",
+        "text": "Foi repassado como corrige lançamentos dos contratos ao PNCP?",
+        "help": "Compras e Contratos » PNCP » Gerenciar » Contratos",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "41",
+        "text": "Foi repassado como corrige lançamentos das ATAS ao PNCP ?",
+        "help": "Compras e Contratos » PNCP » Gerenciar » Atas RP",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "42",
+        "text": "Foi repassado como é feita a inclusão de ativos de contrato e seus respectivos tipos?",
+        "help": "Compras e Contratos » Gerenciar » Processo Administrativo » Gerenciamento do Processo Administrativo: XXX / 2026 - Processo de Inexigibilidade X / 2026 - MINUTA [XXXX / 2026 ] » Consultar Contratos » Consultar Aditivos dos Contratos Superiores - [XX/2026 - XXX]",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "43",
+        "text": "Foi repassado como é feita a inclusão de novos recursos na adjudicação?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "44",
+        "text": "Foi repassado como é feito o reajuste de valor dos itens do registro de preço e adicionar quantidades?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "45",
+        "text": "Cliente foi orientado de quais anexos obrigatórios e suas publicações?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "46",
+        "text": "Cliente foi orientado de como Incluir relacionamento recurso x item?",
+        "help": "",
+        "kind": "capability",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "47",
+        "text": "Cliente optou por utilizar processo digital na requisição, ordem de compra e processo administrativo?",
+        "help": "",
+        "kind": "choice",
+        "justifyWhen": "no"
+      },
+      {
+        "id": "48",
+        "text": "Existem pendências que impeçam o funcionamento do módulo Compras, Licitações e Contratos?",
+        "help": "",
+        "kind": "blocking",
+        "justifyWhen": "yes"
+      }
+    ]
+  }
+}

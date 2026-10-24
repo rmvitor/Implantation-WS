@@ -152,6 +152,7 @@ export function ProjectSwitcher({ project, projects, busy, onSelect }) {
 const AREAS = [
   { id: "board", label: "Atividades", icon: LayoutDashboard },
   { id: "homologation", label: "Homologação", icon: FileCheck2 },
+  { id: "implantation", label: "Aceite da implantação", icon: CheckCheck },
   { id: "agenda", label: "Agenda", icon: CalendarDays },
   { id: "trainings", label: "Capacitação", icon: GraduationCap },
   { id: "history", label: "Histórico", icon: Clock3 },

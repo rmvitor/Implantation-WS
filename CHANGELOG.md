@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 1.14.0 — 24/10/2026
+
+- Nova área Aceite da implantação, independente da conferência dos dados migrados. Escopo por módulo e entidade, com 94 perguntas dos modelos IPM 2026-3 de Frota, Compras e Contratos, Almoxarifado e Patrimônio; perguntas personalizáveis sem modificar os padrões ou outros projetos.
+- Responsáveis com nome/cargo por módulo e por ponto; OK técnico e registro do aceite informado por cada responsável durante a reunião. Usuário autenticado e horário são atribuídos pelo servidor. Impedimentos, capacitação pendente e aceites incompletos bloqueiam o termo.
+- Emissão por entidade com cópia preservada dos dados, nomes/cargos para assinatura e timbre IPM dos arquivos fornecidos. Impressão/Salvar PDF e arquivo HTML com imagens incorporadas. Mudanças exigem nova conferência; termos anteriores permanecem disponíveis.
+- Migração aditiva compatível com o banco atual e com registros separados por pergunta, preservando dados, permissões, homologação da migração e documentos anteriores. A rotina online exige executar o novo SQL; a publicação não altera o banco automaticamente. Restaurações identificam aceites importados para reconferência.
+
 ## 1.13.1 — 16/10/2026
 
 - Descrição do backup completo alinhada abaixo do título, com quebra de linha no espaço disponível, inclusive no celular.

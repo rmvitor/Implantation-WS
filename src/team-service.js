@@ -158,15 +158,18 @@ export function createTeamService(client, onRefresh) {
               version: latest.version,
             });
           }
-          const result = await client.rpc("implanta_commit", {
-            p_changes: payload,
-            p_removed: removals,
-            p_preferences: preferences,
-          });
+          const result = await client.rpc(
+            options.implantation ? "implanta_commit_implantation" : "implanta_commit",
+            {
+              p_changes: payload,
+              p_removed: removals,
+              p_preferences: preferences,
+            },
+          );
           if (result.error?.code === "40001") continue;
           check(result);
           saved = true;
-          confirmed = payload;
+          confirmed = options.implantation ? check(result) : payload;
         }
         if (!saved)
           throw new Error(
@@ -181,7 +184,7 @@ export function createTeamService(client, onRefresh) {
           known.set(item.id, {
             id: item.id,
             data: item.data,
-            version: item.create ? 1 : item.version + 1,
+            version: options.implantation ? item.version : item.create ? 1 : item.version + 1,
           });
         return service.apply({
           rows: [...known.values()],

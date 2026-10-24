@@ -1,0 +1,367 @@
+.implantation-page {
+  min-width: 0;
+  color: var(--text);
+}
+.implantation-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 24px 0;
+}
+.implantation-heading h2 {
+  font-size: 22px;
+  margin: 7px 0;
+}
+.implantation-heading p,
+.implantation-term-panel p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.implantation-activation {
+  margin: 20px 0;
+}
+.implantation-activation p {
+  margin: 6px 0;
+}
+.implantation-activation a {
+  display: inline-block;
+  margin: 8px 12px 8px 0;
+}
+.implantation-overview {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  flex-wrap: wrap;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  margin-bottom: 22px;
+}
+.implantation-overview .field {
+  min-width: 180px;
+  flex: 1;
+}
+.implantation-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.implantation-metric strong {
+  font-size: 24px;
+}
+.implantation-metric span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.implantation-module {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin: 16px 0;
+  background: var(--surface);
+  overflow: hidden;
+}
+.implantation-module > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  padding: 20px;
+  list-style: none;
+  background: var(--surface-muted);
+}
+.implantation-module > summary::-webkit-details-marker {
+  display: none;
+}
+.implantation-module > summary::before {
+  content: "+";
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.implantation-module[open] > summary::before {
+  content: "−";
+}
+.implantation-module > summary > span:first-of-type {
+  min-width: 0;
+  flex: 1;
+}
+.implantation-module small,
+.implantation-archive-row small {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 5px;
+  line-height: 1.6;
+}
+.implantation-count {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.implantation-module-actions,
+.implantation-editor-actions,
+.implantation-document-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.implantation-module-actions {
+  padding: 16px 20px 4px;
+}
+.implantation-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 12px 20px;
+  line-height: 1.7;
+}
+.implantation-questions {
+  list-style: none;
+  margin: 0;
+  padding: 12px 20px 20px;
+}
+.implantation-questions li + li {
+  border-top: 1px solid var(--border);
+}
+.implantation-question {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 17px 0;
+  min-width: 0;
+  background: none;
+  border: 0;
+  color: var(--text);
+}
+.implantation-question:hover {
+  color: var(--accent-text);
+}
+.implantation-question-title {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+}
+.implantation-question-title strong {
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.implantation-question-number {
+  flex-shrink: 0;
+  min-width: 22px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.implantation-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  margin: 10px 0 0 34px;
+}
+.implantation-badges > span {
+  font-size: 10px;
+  padding: 4px 7px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+.implantation-badges svg {
+  color: var(--accent-text);
+}
+.implantation-badges .implantation-blocked {
+  color: var(--danger, #c43b3b);
+}
+.implantation-term-panel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  margin: 24px 0;
+}
+.implantation-term-panel > div:first-child {
+  flex: 1;
+  min-width: 200px;
+}
+.implantation-term-panel h3 {
+  font-size: 16px;
+}
+.implantation-term-panel small {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.7;
+}
+.implantation-archive {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.implantation-archive > summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+.implantation-archive-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.implantation-archive-row > div {
+  flex: 1;
+  min-width: 160px;
+}
+.implantation-scope {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+.implantation-scope fieldset,
+.implantation-person,
+.implantation-model-question,
+.implantation-point-people {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 18px;
+  margin: 16px 0;
+  min-width: 0;
+}
+.implantation-scope legend,
+.implantation-person legend,
+.implantation-model-question legend,
+.implantation-point-people legend {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 6px;
+}
+.implantation-scope label,
+.implantation-point-people label,
+.implantation-approval label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 12px 0;
+}
+.implantation-scope input,
+.implantation-point-people input,
+.implantation-approval input {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 3px;
+  accent-color: var(--primary);
+}
+.implantation-scope small,
+.implantation-point-people small,
+.implantation-approval small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+.implantation-person .field,
+.implantation-model-question .field {
+  margin-bottom: 16px;
+}
+.implantation-response {
+  border: 0;
+  padding: 0;
+  margin: 20px 0;
+  min-width: 0;
+}
+.implantation-response > .field {
+  margin: 18px 0;
+}
+.implantation-question-text {
+  font-size: 15px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.implantation-approval {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 16px 0;
+}
+.implantation-approval h3 {
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+.implantation-approval p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.implantation-warning {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger, #c43b3b);
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 16px 0;
+}
+.implantation-page button,
+.implantation-page select {
+  max-width: 100%;
+}
+@media (max-width: 600px) {
+  .implantation-heading {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .implantation-heading h2 {
+    font-size: 20px;
+  }
+  .implantation-overview {
+    padding: 16px;
+    gap: 20px;
+  }
+  .implantation-overview .field {
+    flex-basis: 100%;
+  }
+  .implantation-module > summary {
+    padding: 16px;
+    gap: 8px;
+  }
+  .implantation-module-actions {
+    padding: 12px 14px 0;
+  }
+  .implantation-module-actions .button {
+    padding: 8px 10px;
+  }
+  .implantation-questions {
+    padding: 8px 14px 14px;
+  }
+  .implantation-term-panel {
+    padding: 16px;
+  }
+  .implantation-archive {
+    padding: 16px;
+  }
+  .implantation-scope {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .implantation-badges {
+    margin-left: 0;
+  }
+  .implantation-document-actions {
+    width: 100%;
+  }
+  .implantation-document-actions .button {
+    flex: 1;
+    justify-content: center;
+  }
+}

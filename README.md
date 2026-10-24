@@ -64,6 +64,8 @@ Novas versões exibem **Atualizar app**. A atualização aguarda o fechamento de
 
 ## Dados e equipe
 
+A área **Aceite da implantação** contém o checklist final com o cliente por entidade e módulo, os 94 pontos dos modelos IPM 2026-3, perguntas editáveis, múltiplos responsáveis, OK técnico autenticado, aceite informado pelo cliente e termo com timbre para assinatura. A homologação da migração continua independente. Veja [preenchimento, perguntas e SQL de ativação](docs/homologacao-implantacao.md).
+
 Na versão **1.13.0**, a gestão passa a ter Master e gestores por projeto. Após a aprovação inicial pelo Master, colegas criam municípios e liberam Leitura/Edição aos projetos sob sua gestão. A ativação exige a migração aditiva do banco pelo SQL Editor; veja [níveis, preservação de acessos e roteiro de ativação](docs/niveis-acesso.md). Até essa ativação, as permissões anteriores continuam em vigor.
 
 A publicação abre o login usando a conexão pública da equipe. A estrutura do banco e a liberação do primeiro administrador continuam dependendo da ativação no painel Supabase. No modo local de desenvolvimento, os dados ficam em `localStorage` no navegador, vinculados ao endereço/origem. Para ativar a equipe ou usar outro Supabase, siga o [guia de ativação](supabase/README.md). A integração oferece login, cadastro pendente de aprovação, recuperação de senha, administração e permissões de leitura/edição por projeto. Publicar o site não cria esse banco: é necessário criar o projeto Supabase, aplicar a migração e liberar o primeiro administrador.

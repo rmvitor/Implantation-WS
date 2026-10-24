@@ -1,5 +1,6 @@
 import { validateAppointment } from "./appointments.js";
 import { validatePersonalAgenda } from "./personal-agenda.js";
+import { validateImplantation } from "./implantation.js";
 
 export const STAGES = [
   { id: "todo", label: "A fazer", color: "#dcab58" },
@@ -303,6 +304,7 @@ export function validateBackup(value) {
     )
       throw new Error("Backup inválido: passagens de trabalho.");
     if (p.homologation !== undefined) validateHomologation(p.homologation);
+    if (p.implantation !== undefined) validateImplantation(p.implantation);
     for (const event of p.trainings) validateAppointment(event);
     ids.add(p.id);
     const taskIds = new Set();

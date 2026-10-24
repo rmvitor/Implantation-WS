@@ -121,6 +121,9 @@ import { AuditHistory } from "./AuditHistory.jsx";
 import { Operations } from "./Operations.jsx";
 import "./operations.css";
 import { Homologation } from "./Homologation";
+import { ImplantationAcceptance } from "./ImplantationAcceptance.jsx";
+import "./implantation.css";
+import { importedImplantation } from "./implantation.js";
 import { BoardScroller } from "./BoardScroller";
 import {
   devicePreferencesKey,
@@ -358,6 +361,10 @@ function App() {
     const raw = withoutDevicePreferences(
       typeof update === "function" ? update(data) : update,
     );
+    if (options.import)
+      raw.projects = raw.projects.map((p) =>
+        importedImplantation(p, data.projects.find((old) => old.id === p.id)),
+      );
     const next = options.import ? raw : stampChanges(data, raw, team.actor);
     try {
       const serialized = JSON.stringify(next);
@@ -399,17 +406,20 @@ function App() {
     const timer = setTimeout(() => setToast(""), 4500);
     return () => clearTimeout(timer);
   }, [toast]);
-  const updateProject = (updater) =>
-    setData((d) => ({
-      ...d,
-      projects: d.projects.map((p) =>
-        p.id === projectId
-          ? typeof updater === "function"
-            ? updater(p)
-            : updater
-          : p,
-      ),
-    }));
+  const updateProject = (updater, options) =>
+    setData(
+      (d) => ({
+        ...d,
+        projects: d.projects.map((p) =>
+          p.id === projectId
+            ? typeof updater === "function"
+              ? updater(p)
+              : updater
+            : p,
+        ),
+      }),
+      options,
+    );
   const changeView = (v) => {
     setCardMenu(null);
     setProjectMenu(null);
@@ -517,6 +527,7 @@ function App() {
     board: "Quadro do município",
     municipalities: "Projetos e municípios",
     homologation: "Homologação da migração",
+    implantation: "Homologação da implantação",
     agenda: "Minha agenda",
     trainings: "Treinamento/Atendimento",
     history: "Histórico de execução",
@@ -588,6 +599,13 @@ function App() {
             disabled={!project}
             active={view === "homologation"}
             onClick={() => changeView("homologation")}
+          />
+          <NavItem
+            icon={CheckCheck}
+            text="Aceite da implantação"
+            disabled={!project}
+            active={view === "implantation"}
+            onClick={() => changeView("implantation")}
           />
           <NavItem
             icon={CalendarDays}
@@ -810,6 +828,8 @@ function App() {
                           ? "Capacitação e salas de atendimento remoto em uma agenda própria."
                           : view === "homologation"
                             ? "Conferência e liberação dos dados migrados por módulo e entidade."
+                            : view === "implantation"
+                              ? "Checklist final com o cliente, aceites e termo para assinatura por entidade."
                             : view === "history"
                               ? "Um registro de tudo o que foi feito, sem trabalho extra."
                               : "Seus próximos passos, organizados por data."}
@@ -1378,6 +1398,19 @@ function App() {
                   onEditProject={() =>
                     setModal({ type: "project", isNew: false })
                   }
+                />
+              )}
+              {view === "implantation" && (
+                <ImplantationAcceptance
+                  key={project.id}
+                  project={project}
+                  readOnly={!canEdit}
+                  onUpdate={updateProject}
+                  onEditing={setHomologationEditing}
+                  onError={setToast}
+                  onEditProject={() => setModal({ type: "project", isNew: false })}
+                  Modal={Modal}
+                  Field={Field}
                 />
               )}
               {view === "agenda" && (

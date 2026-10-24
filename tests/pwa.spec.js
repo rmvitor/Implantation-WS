@@ -1,9 +1,11 @@
+import packageInfo from "../package.json" with { type: "json" };
 import { test, expect } from "./fixtures/test.js";
 import { chromium } from "@playwright/test";
 import { readFile, writeFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 const url = "http://127.0.0.1:5176/Implantation-WS/";
+const appVersion = packageInfo.version;
 async function controlled(page) {
   await page.evaluate(() => navigator.serviceWorker.ready);
   if (!(await page.evaluate(() => !!navigator.serviceWorker.controller)))
@@ -86,7 +88,7 @@ test("PWA tem identidade, ícones válidos, escopo do Pages e abre offline prese
   await page.getByRole("button", { name: "Salvar escopo" }).click();
   await context.setOffline(true);
   await page.reload();
-  await expect(page.locator(".page-footer")).toContainText("v1.13.0");
+  await expect(page.locator(".page-footer")).toContainText(`v${appVersion}`);
   await page.locator(".municipality-card").click();
   await page
     .locator("nav")

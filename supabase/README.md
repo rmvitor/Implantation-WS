@@ -1,5 +1,7 @@
 # Ativar a equipe no Supabase
 
+A nova **Homologação da implantação** requer apenas a migração adicional [202610240001_implantation_acceptance.sql](migrations/202610240001_implantation_acceptance.sql) quando a estrutura inicial e os níveis Master/gestor já estão ativos. Funciona com o banco atual e com registros separados, preservando projetos e a homologação da migração. Consulte o [guia de ativação e preenchimento](../docs/homologacao-implantacao.md).
+
 Para um banco já em uso, a versão 1.11.0 prepara uma migração aditiva de registros separados. Leia o [guia de migração revisada](../docs/migracao-registros.md) antes de alterar a estrutura. O site continua compatível com o formato anterior até a ativação.
 
 A publicação já tem a conexão pública da equipe configurada em `src/team-config.json` e abre a tela de login. O desenvolvimento sem variáveis continua no modo local. Este repositório entrega o login, os controles de acesso e a estrutura do banco; a publicação no GitHub Pages não cria um projeto Supabase. Use **um mesmo projeto Supabase para toda a equipe**. A estrutura começa sem municípios ou atividades de exemplo.

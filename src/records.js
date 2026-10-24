@@ -11,6 +11,10 @@ export const RECORD_KINDS = [
   "homologation",
   "conference",
   "personal",
+  "implantation",
+  "implantation_module",
+  "implantation_question",
+  "implantation_term",
 ];
 const contextFields = [
   "problem",
@@ -43,6 +47,7 @@ export function projectRecords(project, includePersonal = true) {
       "logs",
       "handovers",
       "homologation",
+      "implantation",
       "cpf",
     ]),
     taskOrder: project.tasks.map((t) => t.id),
@@ -79,6 +84,25 @@ export function projectRecords(project, includePersonal = true) {
     for (const entry of project.homologation.entries || [])
       add("conference", entry.id, entry);
   }
+  if (project.implantation) {
+    add("implantation", project.id, {
+      version: 1,
+      entryOrder: project.implantation.entries.map((e) => e.id),
+    });
+    for (const entry of project.implantation.entries) {
+      add("implantation_module", entry.id, {
+        ...omit(entry, ["questions"]),
+        questionOrder: entry.questions.map((q) => q.id),
+      });
+      for (const question of entry.questions)
+        add("implantation_question", JSON.stringify([entry.id, question.id]), {
+          entryId: entry.id,
+          question,
+        });
+    }
+    for (const term of project.implantation.terms)
+      add("implantation_term", term.id, term);
+  }
   return records;
 }
 export function assembleRecords(records) {
@@ -94,6 +118,7 @@ export function assembleRecords(records) {
         return (ai < 0 ? 1e9 : ai) - (bi < 0 ? 1e9 : bi);
       });
     const h = get("homologation", root.id);
+    const implantation = get("implantation", root.id);
     return {
       ...omit(root.data, ["taskOrder", "trainingOrder"]),
       cpf: get("personal", root.id)?.data.cpf || "",
@@ -131,6 +156,31 @@ export function assembleRecords(records) {
               entries: sort(list("conference"), h.data.entryOrder).map(
                 (r) => r.data,
               ),
+            },
+          }
+        : {}),
+      ...(implantation
+        ? {
+            implantation: {
+              version: 1,
+              entries: sort(
+                list("implantation_module"),
+                implantation.data.entryOrder,
+              ).map((entry) => ({
+                ...omit(entry.data, ["questionOrder"]),
+                questions: sort(
+                  list("implantation_question")
+                    .filter((r) => r.data.entryId === entry.id)
+                    .map((r) => ({
+                      id: r.data.question.id,
+                      data: r.data.question,
+                    })),
+                  entry.data.questionOrder,
+                ).map((r) => r.data),
+              })),
+              terms: list("implantation_term")
+                .map((r) => r.data)
+                .sort((a, b) => b.at.localeCompare(a.at)),
             },
           }
         : {}),

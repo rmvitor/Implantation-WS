@@ -2,7 +2,7 @@
 // and personal data stay out; Back never replays a database operation.
 export const NAVIGATION_KEY = "implanta.navigation.v1";
 const GLOBAL_VIEWS = ["municipalities", "personalAgenda", "operations"];
-const PROJECT_VIEWS = ["board", "homologation", "agenda", "trainings", "history", "details"];
+const PROJECT_VIEWS = ["board", "homologation", "implantation", "agenda", "trainings", "history", "details"];
 export const homeRoute = () => ({ view: "municipalities", projectId: "" });
 export function screenRoute(view, projectId) {
   return { view, projectId: GLOBAL_VIEWS.includes(view) ? "" : projectId || "" };
