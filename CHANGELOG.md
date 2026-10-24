@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 1.15.0 — 24/10/2026
+
+- Aceites com visão geral, abas por entidade/módulo, preenchimento direto e salvamento automático serializado. Últimas abas e recolhimento ficam somente neste aparelho, por conta e projeto.
+- Seleção automática do cliente único, seleção em janela quando há vários e aviso para cadastro quando não há responsáveis. Cadastro por abas com botão e confirmação de exclusão.
+- Dispensa justificada para pontos respondidos Não que não serão utilizados/apresentados, mantendo os dois OKs. Impressão parcial e termos finais por módulo; consolidado por entidade preservado.
+- Modelos globais e atualização de perguntas exclusivos do Master, com revisão e bloqueio no banco. Módulos sem modelo ficam indisponíveis para nova contratação; seleção em lote dos módulos disponíveis.
+- Desativar relatório ou desmarcar contratação pede confirmação e limpa o preenchimento ativo; histórico e termos emitidos preservados. SQL único 202610240003 para ativar registros separados e novos aceites, preservando dados e acessos, com bloqueio de escritas durante a cópia e transação atômica. Alternativa 202610240002 para quem já usa registros separados; aplicação administrativa necessária.
+
 ## 1.14.0 — 24/10/2026
 
 - Nova área Aceite da implantação, independente da conferência dos dados migrados. Escopo por módulo e entidade, com 94 perguntas dos modelos IPM 2026-3 de Frota, Compras e Contratos, Almoxarifado e Patrimônio; perguntas personalizáveis sem modificar os padrões ou outros projetos.

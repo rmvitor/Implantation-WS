@@ -1,30 +1,33 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   CheckCheck,
   FileCheck2,
-  Plus,
   Printer,
   Download,
   Settings2,
   Users,
   Pencil,
   AlertCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useTeam } from "./Team.jsx";
+import { homologationProgress } from "./domain.js";
 import {
   ANSWERS,
   IMPLANTATION_MODULES,
   implantationId,
-  implantationTemplate,
+  implantationCatalog,
   implantationEntries,
   implantationProgress,
+  implantationSnapshot,
   questionReady,
+  questionAnswered,
   questionBlocker,
   configureImplantation,
   saveImplantationResponsibles,
   saveImplantationModel,
   saveImplantationQuestion,
-  defaultQuestions,
   currentImplantationTerm,
   issueImplantationTerm,
 } from "./implantation.js";
@@ -32,89 +35,269 @@ import {
   downloadImplantationTerm,
   printImplantationTerm,
 } from "./implantation-print.js";
+import { createAcceptanceQueue } from "./implantation-queue.js";
+import {
+  implantationNavigationKey,
+  readAcceptanceNavigation,
+} from "./implantation-navigation.js";
+import {
+  QuestionModelEditor,
+  ResponsibleEditor,
+  ModelManager,
+} from "./ImplantationEditors.jsx";
 
 const when = (at) =>
   new Date(at).toLocaleString("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
   });
+const keyFor = (entry, q) => JSON.stringify([entry.id, q.id]);
+const draftFor = (q) => ({
+  answer: q.answer,
+  notes: q.notes,
+  notUsed: q.notUsed === true,
+  responsibleIds: [...q.responsibleIds],
+  technical: !!q.technical && q.technical.source !== "imported-unverified",
+  clientIds: q.clients
+    .filter((c) => c.source !== "imported-unverified")
+    .map((c) => c.id),
+});
+const blankStatus = { running: false, failed: false, pending: 0, keys: [] };
 export function ImplantationAcceptance({
   project,
   readOnly,
   onUpdate,
   onEditing,
+  onUnsaved = () => {},
   onError,
   onEditProject,
   Modal,
   Field,
 }) {
   const team = useTeam();
-  const [entity, setEntity] = useState(project.entities[0] || "");
+  const storageKey = implantationNavigationKey(team.actor?.id, project.id);
+  const [nav, setNav] = useState(() =>
+    readAcceptanceNavigation(localStorage, storageKey),
+  );
+  const [catalog, setCatalog] = useState(implantationCatalog);
+  const [schema, setSchema] = useState(team.online ? "loading" : "local");
+  const [retry, setRetry] = useState(0);
   const [dialog, setDialog] = useState(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [schema, setSchema] = useState(team.online ? "loading" : "local");
-  const [retry, setRetry] = useState(0);
+  const [focused, setFocused] = useState("");
+  const [queueState, setQueueState] = useState(blankStatus);
+  const draftsRef = useRef({});
+  const [drafts, setDrafts] = useState({});
+  const live = useRef({});
+  live.current = { onUpdate, onUnsaved, actor: team.actor, onError };
+  const [queue] = useState(() =>
+    createAcceptanceQueue({
+      save: async (action) => {
+        try {
+          return await live.current.onUpdate(action, { implantation: true });
+        } catch (e) {
+          live.current.onError(e.message);
+          throw e;
+        }
+      },
+      onState: (state) => {
+        live.current.onUnsaved(state.pending > 0);
+        setQueueState(state);
+      },
+    }),
+  );
+  // A receipt may precede React's render of the canonical project. Keep the
+  // accepted draft until that render catches up, so the next click cannot read
+  // the old answer while the queue is already processing a newer action.
   useEffect(() => {
-    let live = true;
+    const next = { ...draftsRef.current };
+    let changed = false;
+    for (const [key, draft] of Object.entries(next)) {
+      if (queueState.keys.includes(key) || focused === key) continue;
+      const [entryId, questionId] = JSON.parse(key);
+      const e = project.implantation?.entries.find((e) => e.id === entryId);
+      const q = e?.questions.find((q) => q.id === questionId);
+      if (!q) continue;
+      const confirmed = draftFor(q);
+      if (
+        confirmed.answer === draft.answer &&
+        confirmed.notes === draft.notes.trim() &&
+        confirmed.notUsed === draft.notUsed &&
+        confirmed.technical === draft.technical &&
+        JSON.stringify(confirmed.responsibleIds) ===
+          JSON.stringify(draft.responsibleIds) &&
+        JSON.stringify(confirmed.clientIds) === JSON.stringify(draft.clientIds)
+      ) {
+        delete next[key];
+        changed = true;
+      }
+    }
+    if (changed) {
+      draftsRef.current = next;
+      setDrafts(next);
+    }
+  }, [project, queueState.keys, focused]);
+  useEffect(
+    () => () => {
+      queue.dispose();
+      live.current.onUnsaved(false);
+    },
+    [queue],
+  );
+  useEffect(() => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(nav));
+    } catch {
+      /* Display choices remain usable in memory. */
+    }
+  }, [nav, storageKey]);
+  useEffect(() => {
+    let active = true;
     if (!team.online) {
       setSchema("local");
       return;
     }
     setSchema("loading");
-    team.client.rpc("implanta_implantation_capabilities").then(
-      ({ data, error }) => {
-        if (live)
+    (async () => {
+      try {
+        const { data, error } = await team.client.rpc(
+          "implanta_implantation_capabilities",
+        );
+        if (!active) return;
+        if (error || data?.workflowVersion !== 2) {
           setSchema(
-            !error && data?.version === 1
-              ? "ready"
-              : error && !["PGRST202", "42883"].includes(error.code)
-                ? "error"
-                : "pending",
+            error && !["PGRST202", "42883"].includes(error.code)
+              ? "error"
+              : "pending",
           );
-      },
-      () => {
-        if (live) setSchema("error");
-      },
-    );
+          return;
+        }
+        const models = await team.client.rpc("implanta_implantation_templates");
+        if (!active) return;
+        if (models.error || !Array.isArray(models.data)) {
+          setSchema("error");
+          return;
+        }
+        setCatalog(models.data);
+        setSchema("ready");
+      } catch {
+        if (active) setSchema("error");
+      }
+    })();
     return () => {
-      live = false;
+      active = false;
     };
   }, [team.client, retry]);
+  const dirty = queueState.pending > 0;
   useEffect(() => {
-    onEditing(!!dialog || pending);
+    onEditing(!!dialog || pending || dirty || !!focused);
     return () => onEditing(false);
-  }, [dialog, pending, onEditing]);
-  const selectedEntity = project.entities.includes(entity)
-    ? entity
-    : project.entities[0] || "";
+  }, [dialog, pending, dirty, focused, onEditing]);
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
   const editable = !readOnly && ["ready", "local"].includes(schema);
   const canConfirm = editable && !!team.actor;
-  const entries = implantationEntries(project, selectedEntity);
-  const progress = implantationProgress(project, selectedEntity);
-  const term = currentImplantationTerm(project, selectedEntity);
-  const terms = (project.implantation?.terms || []).filter(
-    (t) => t.entity === selectedEntity,
-  );
-  const open = (value) => {
+  const entity = project.entities.includes(nav.entity) ? nav.entity : "";
+  const entries = implantationEntries(project, entity || undefined);
+  const entityEntries = entity ? implantationEntries(project, entity) : [];
+  const entry =
+    entityEntries.find((e) => e.module === nav.modules[entity]) ||
+    entityEntries[0];
+  const navigate = (selectedEntity, module) =>
+    setNav((old) => ({
+      ...old,
+      entity: selectedEntity,
+      modules: module
+        ? { ...old.modules, [selectedEntity]: module }
+        : old.modules,
+    }));
+  const open = async (value) => {
     setError("");
+    if (
+      ["scope", "models"].includes(value.type) &&
+      team.online &&
+      schema === "ready"
+    ) {
+      setPending(true);
+      try {
+        const result = await team.client.rpc("implanta_implantation_templates");
+        if (result.error || !Array.isArray(result.data))
+          throw (
+            result.error || new Error("Não foi possível carregar os modelos.")
+          );
+        setCatalog(result.data);
+      } catch (e) {
+        onError(e.message);
+        return;
+      } finally {
+        setPending(false);
+      }
+    }
     setDialog(value);
   };
-  const perform = async (action) => {
-    if (!editable || pending) return false;
+  const perform = async (action, { close = true } = {}) => {
+    if (!editable || pending || dirty) return false;
     setPending(true);
     setError("");
     try {
       if (await onUpdate(action, { implantation: true })) {
-        setDialog(null);
+        if (close) setDialog(null);
         return true;
       }
     } catch (e) {
       setError(e.message);
+      onError(e.message);
     } finally {
       setPending(false);
     }
     return false;
+  };
+  const updatePoint = (e, q, changes, { content = false, delay = 0 } = {}) => {
+    if (!editable) return;
+    const key = keyFor(e, q);
+    const next = {
+      ...(draftsRef.current[key] || draftFor(q)),
+      ...changes,
+      ...(content ? { technical: false, clientIds: [] } : {}),
+    };
+    if (next.answer !== "no") next.notUsed = false;
+    draftsRef.current = { ...draftsRef.current, [key]: next };
+    setDrafts(draftsRef.current);
+    queue.enqueue(
+      key,
+      (p) => saveImplantationQuestion(p, e.id, q.id, next, live.current.actor),
+      { delay },
+    );
+  };
+  const acceptClient = (e, q) => {
+    if (!e.responsibles.length) {
+      onError(
+        "Cadastre um responsável do cliente neste módulo antes de registrar o aceite.",
+      );
+      return;
+    }
+    const draft = draftsRef.current[keyFor(e, q)] || draftFor(q);
+    if (!questionAnswered({ ...q, ...draft })) {
+      onError(
+        "Responda e preencha a justificativa antes do aceite do cliente.",
+      );
+      return;
+    }
+    if (e.responsibles.length === 1) {
+      const id = e.responsibles[0].id;
+      updatePoint(e, q, {
+        responsibleIds: [id],
+        clientIds: draft.clientIds.includes(id) ? [] : [id],
+      });
+    } else open({ type: "clients", entryId: e.id, questionId: q.id });
   };
   const output = async (fn, record) => {
     setPending(true);
@@ -126,25 +309,74 @@ export function ImplantationAcceptance({
       setPending(false);
     }
   };
+  const printReport = (e) => {
+    if (dirty) {
+      onError(
+        "Aguarde a confirmação das respostas no banco antes de imprimir.",
+      );
+      return;
+    }
+    output(printImplantationTerm, {
+      id: `relatorio-${project.id}-${e.module}`,
+      entity: e.entity,
+      module: e.module,
+      at: new Date().toISOString(),
+      actorName: team.actor?.name || "",
+      draft: true,
+      snapshot: implantationSnapshot(project, e.entity, e.module),
+    });
+  };
+  const currentEntry =
+    dialog?.entryId &&
+    project.implantation?.entries.find((e) => e.id === dialog.entryId);
+  const currentQuestion = currentEntry?.questions.find(
+    (q) => q.id === dialog?.questionId,
+  );
+  const progress = implantationProgress(project);
+  const terms = (project.implantation?.terms || []).filter(
+    (t) =>
+      !entity ||
+      (t.entity === entity && (!entry || (t.module || "") === entry.module)),
+  );
+  const moduleProgress =
+    entry &&
+    implantationProgress(
+      { ...project, implantation: { entries: [entry] } },
+      entity,
+    );
+  const moduleTerm =
+    entry && currentImplantationTerm(project, entity, entry.module);
   return (
-    <section className="implantation-page">
+    <section className="implantation-page acceptance-workflow">
       <div className="implantation-heading">
         <div>
           <span className="eyebrow">CHECKLIST FINAL COM O CLIENTE</span>
           <h2>Homologação da implantação</h2>
           <p>
-            Registre o que foi apresentado e o aceite dos responsáveis de cada
-            entidade.
+            Preencha o relatório e registre os aceites. As respostas são salvas
+            automaticamente.
           </p>
         </div>
-        <button
-          className="button secondary"
-          disabled={!editable || pending || !project.entities.length}
-          onClick={() => open({ type: "scope" })}
-        >
-          <Settings2 size={16} />
-          Definir módulos contratados
-        </button>
+        <div className="implantation-document-actions">
+          <button
+            className="button secondary"
+            disabled={!editable || pending || dirty || !project.entities.length}
+            onClick={() => open({ type: "scope" })}
+          >
+            <Settings2 size={16} />
+            Módulos contratados
+          </button>
+          {team.isMaster && (
+            <button
+              className="button secondary"
+              disabled={schema !== "ready" || pending || dirty}
+              onClick={() => open({ type: "models" })}
+            >
+              <Pencil size={16} />
+              Gerenciar modelos
+            </button>
+          )}
+        </div>
       </div>
       {team.online && schema !== "ready" && (
         <div className="info-box implantation-activation" role="status">
@@ -152,50 +384,71 @@ export function ImplantationAcceptance({
           <div>
             <strong>
               {schema === "loading"
-                ? "Verificando a rotina no banco…"
+                ? "Verificando modelos e permissões…"
                 : schema === "error"
                   ? "Não foi possível verificar a conexão."
-                  : "Ative a nova rotina no Supabase."}
+                  : "Ative o complemento dos aceites no Supabase."}
             </strong>
             <p>
-              {schema === "error"
-                ? "Confira a conexão e tente novamente. Os registros existentes foram preservados."
-                : "A nova estrutura registra os OKs com usuário e horário do servidor, sem alterar a homologação da migração."}
+              As abas e o preenchimento direto usam modelos globais e novas
+              regras de dispensa. O SQL anterior continua válido; aplique o
+              arquivo complementar do guia.
             </p>
-            {schema !== "loading" && (
-              <>
-                <a
-                  href="https://github.com/rmvitor/Implantation-WS/blob/main/docs/homologacao-implantacao.md"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Abrir guia e SQL de ativação
-                </a>
-                <button
-                  className="button secondary"
-                  onClick={() => setRetry((n) => n + 1)}
-                >
-                  Verificar novamente
-                </button>
-              </>
-            )}
+            <a
+              href="https://github.com/rmvitor/Implantation-WS/blob/main/docs/homologacao-implantacao.md"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Abrir guia e SQL complementar
+            </a>
+            <button
+              className="button secondary"
+              onClick={() => setRetry((n) => n + 1)}
+            >
+              Verificar novamente
+            </button>
           </div>
         </div>
       )}
-      {!team.online && (
-        <p className="muted">
-          No modo local, prepare o escopo e as respostas. Entre com sua conta no
-          banco da equipe para registrar os OKs e emitir o termo.
+      {error && !dialog && (
+        <p className="team-error" role="alert">
+          {error}
         </p>
       )}
+      <div
+        className={`acceptance-save-status ${queueState.failed ? "has-error" : ""}`}
+        role="status"
+        aria-live="polite"
+      >
+        {queueState.failed ? (
+          <>
+            <AlertCircle size={16} />
+            <span>
+              Há respostas não salvas. Seus textos foram mantidos nesta tela.
+            </span>
+            <button className="button secondary" onClick={() => queue.retry()}>
+              Tentar salvar novamente
+            </button>
+            <button
+              className="button secondary"
+              onClick={() => open({ type: "discard" })}
+            >
+              Descartar rascunhos não salvos
+            </button>
+          </>
+        ) : dirty ? (
+          <>Salvando {queueState.pending} ponto(s)…</>
+        ) : team.online ? (
+          <>Respostas confirmadas no banco</>
+        ) : (
+          <>
+            Rascunho neste aparelho · entre com sua conta para registrar os OKs
+          </>
+        )}
+      </div>
       {!project.entities.length ? (
         <div className="homologation-empty">
-          <FileCheck2 size={32} />
           <h3>Cadastre as entidades do projeto</h3>
-          <p>
-            O escopo e os responsáveis são definidos separadamente para cada
-            entidade.
-          </p>
           <button
             className="button primary"
             disabled={readOnly}
@@ -206,233 +459,305 @@ export function ImplantationAcceptance({
         </div>
       ) : (
         <>
-          <div className="implantation-overview">
-            <Field label="Entidade da implantação">
-              <select
-                value={selectedEntity}
-                onChange={(e) => setEntity(e.target.value)}
-              >
-                {project.entities.map((e) => (
-                  <option key={e}>{e}</option>
-                ))}
-              </select>
-            </Field>
-            <div className="implantation-metric">
-              <strong>
-                {progress.done}/{progress.total}
-              </strong>
-              <span>pontos com os dois OKs</span>
-            </div>
-            <div className="implantation-metric">
-              <strong>{progress.blockers}</strong>
-              <span>impedimentos para o termo</span>
-            </div>
+          <div className="acceptance-tab-heading">
+            <strong>Entidades</strong>
+            <button
+              className="button secondary"
+              aria-expanded={!nav.entitiesCollapsed}
+              onClick={() =>
+                setNav((v) => ({
+                  ...v,
+                  entitiesCollapsed: !v.entitiesCollapsed,
+                }))
+              }
+            >
+              {nav.entitiesCollapsed ? (
+                <ChevronDown size={15} />
+              ) : (
+                <ChevronUp size={15} />
+              )}
+              {nav.entitiesCollapsed
+                ? "Expandir entidades"
+                : "Recolher entidades"}
+            </button>
           </div>
-          {!entries.length && (
-            <div className="homologation-empty">
-              <CheckCheck size={32} />
-              <h3>Selecione os módulos desta entidade</h3>
-              <p>
-                Os modelos 2026-3 contêm 94 perguntas de Compras e Contratos,
-                Almoxarifado, Patrimônio e Frota. Para os demais módulos, você
-                pode montar as perguntas.
-              </p>
-              <button
-                className="button primary"
-                disabled={!editable}
-                onClick={() => open({ type: "scope" })}
-              >
-                Definir módulos contratados
-              </button>
+          {!nav.entitiesCollapsed && (
+            <div
+              className="acceptance-tabs entity-tabs"
+              role="tablist"
+              aria-label="Entidades da homologação"
+            >
+              <Tab active={!entity} onClick={() => navigate("")}>
+                Visão geral
+              </Tab>
+              {project.entities.map((e) => {
+                const p = implantationProgress(project, e);
+                return (
+                  <Tab
+                    key={e}
+                    active={entity === e}
+                    onClick={() => navigate(e)}
+                  >
+                    {e}
+                    <small>
+                      {p.done}/{p.total}
+                    </small>
+                  </Tab>
+                );
+              })}
             </div>
           )}
-          {entries.map((entry) => {
-            const done = entry.questions.filter((q) =>
-              questionReady(entry, q),
-            ).length;
-            return (
-              <details className="implantation-module" key={entry.id} open>
-                <summary>
-                  <span>
-                    <strong>{entry.module}</strong>
-                    <small>
-                      Modelo {entry.modelVersion} · {entry.responsibles.length}{" "}
-                      responsável(eis)
-                    </small>
-                  </span>
-                  <span className="implantation-count">
-                    {done}/{entry.questions.length} OK
-                  </span>
-                </summary>
-                <div className="implantation-module-actions">
-                  <button
-                    className="button secondary"
-                    disabled={!editable || pending}
-                    onClick={() => open({ type: "people", entry })}
-                  >
-                    <Users size={15} />
-                    Responsáveis
-                  </button>
-                  <button
-                    className="button secondary"
-                    disabled={!editable || pending}
-                    onClick={() => open({ type: "model", entry })}
-                  >
-                    <Pencil size={15} />
-                    Editar perguntas
-                  </button>
+          {nav.entitiesCollapsed && (
+            <p className="muted">{entity || "Visão geral"}</p>
+          )}
+          {!entity ? (
+            <AcceptanceOverview
+              project={project}
+              catalog={catalog}
+              onNavigate={navigate}
+              onPrint={(term) => output(printImplantationTerm, term)}
+              blocked={pending || dirty}
+              onIssue={(selected) => open({ type: "issue", entity: selected })}
+              canConfirm={canConfirm && !dirty}
+            />
+          ) : (
+            <>
+              <div className="acceptance-tab-heading">
+                <div>
+                  <h3>{entity}</h3>
+                  <small>
+                    {implantationProgress(project, entity).done}/
+                    {implantationProgress(project, entity).total} pontos com os
+                    dois OKs
+                  </small>
                 </div>
-                {!entry.responsibles.length && (
-                  <p className="implantation-hint">
-                    Cadastre nome e cargo dos responsáveis do cliente. Cada
-                    ponto pode ter um ou vários responsáveis.
+                <button
+                  className="button secondary"
+                  aria-expanded={!nav.modulesCollapsed}
+                  onClick={() =>
+                    setNav((v) => ({
+                      ...v,
+                      modulesCollapsed: !v.modulesCollapsed,
+                    }))
+                  }
+                >
+                  {nav.modulesCollapsed
+                    ? "Expandir módulos"
+                    : "Recolher módulos"}
+                </button>
+              </div>
+              {!nav.modulesCollapsed && (
+                <div
+                  className="acceptance-tabs module-tabs"
+                  role="tablist"
+                  aria-label="Módulos da entidade"
+                >
+                  {entityEntries.map((e) => (
+                    <Tab
+                      key={e.id}
+                      active={entry?.id === e.id}
+                      onClick={() => navigate(entity, e.module)}
+                    >
+                      {e.module}
+                      <small>
+                        {e.questions.filter((q) => questionReady(e, q)).length}/
+                        {e.questions.length}
+                      </small>
+                    </Tab>
+                  ))}
+                </div>
+              )}
+              {!entry ? (
+                <div className="homologation-empty">
+                  <h3>Nenhum relatório ativo nesta entidade</h3>
+                  <p>
+                    Selecione os módulos que têm modelo de perguntas em Módulos
+                    contratados.
                   </p>
-                )}
-                {!entry.questions.length && (
-                  <p className="implantation-hint">
-                    Não foi fornecido um modelo deste módulo. Use “Editar
-                    perguntas” para cadastrar o checklist contratado.
-                  </p>
-                )}
-                <ol className="implantation-questions">
-                  {entry.questions.map((q, i) => (
-                    <li key={q.id}>
+                </div>
+              ) : (
+                <section
+                  className="acceptance-report"
+                  aria-label={`Relatório de ${entry.module} — ${entity}`}
+                >
+                  <header className="acceptance-report-header">
+                    <div>
+                      <span className="eyebrow">
+                        RELATÓRIO DE HOMOLOGAÇÃO DA IMPLANTAÇÃO
+                      </span>
+                      <h3>{entry.module}</h3>
+                      <p>
+                        {project.name} · {entity}
+                      </p>
+                      <small>
+                        Modelo {entry.modelVersion} ·{" "}
+                        {
+                          entry.questions.filter((q) => questionReady(entry, q))
+                            .length
+                        }
+                        /{entry.questions.length} pontos validados
+                      </small>
+                    </div>
+                    <div className="implantation-module-actions">
                       <button
-                        className="implantation-question"
+                        className="button secondary"
+                        disabled={!editable || dirty || pending}
                         onClick={() =>
-                          open({
-                            type: "question",
-                            entry,
-                            question: q,
-                            number: i + 1,
-                          })
+                          open({ type: "people", entryId: entry.id })
                         }
                       >
-                        <span className="implantation-question-title">
-                          <span className="implantation-question-number">
-                            {i + 1}
-                          </span>
-                          <strong>{q.text}</strong>
-                        </span>
-                        <span className="implantation-badges">
-                          <span>{ANSWERS[q.answer] || "Sem resposta"}</span>
-                          <span>
-                            {q.technical &&
-                            q.technical.source !== "imported-unverified"
-                              ? "Técnico OK"
-                              : "Técnico pendente"}
-                          </span>
-                          <span>
-                            Cliente{" "}
-                            {
-                              q.clients.filter(
-                                (c) => c.source !== "imported-unverified",
-                              ).length
-                            }
-                            /{q.responsibleIds.length || "—"}
-                          </span>
-                          {questionBlocker(q) && (
-                            <span className="implantation-blocked">
-                              Impede o termo
-                            </span>
-                          )}
-                          {questionReady(entry, q) && (
-                            <CheckCheck
-                              size={17}
-                              aria-label="Ponto homologado"
-                            />
-                          )}
-                        </span>
+                        <Users size={15} />
+                        Responsáveis
                       </button>
-                    </li>
+                      <button
+                        className="button secondary"
+                        disabled={dirty || pending}
+                        onClick={() => printReport(entry)}
+                      >
+                        <Printer size={15} />
+                        Imprimir relatório
+                      </button>
+                      <button
+                        className="button secondary danger-button"
+                        disabled={!editable || dirty || pending}
+                        onClick={() =>
+                          open({ type: "deactivate", entryId: entry.id })
+                        }
+                      >
+                        Excluir relatório
+                      </button>
+                      {team.isMaster &&
+                        catalog.find((m) => m.module === entry.module)
+                          ?.questions.length > 0 && (
+                          <button
+                            className="button secondary"
+                            disabled={!editable || dirty || pending}
+                            onClick={() =>
+                              open({ type: "applyModel", entryId: entry.id })
+                            }
+                          >
+                            Aplicar modelo atual
+                          </button>
+                        )}
+                    </div>
+                  </header>
+                  {!entry.responsibles.length && (
+                    <div className="info-box">
+                      <p>
+                        Cadastre os responsáveis do cliente em{" "}
+                        <strong>Responsáveis</strong>. Um único responsável será
+                        selecionado automaticamente; com vários, você escolhe
+                        quem deu o OK em cada ponto.
+                      </p>
+                    </div>
+                  )}
+                  {entry.questions.map((q, i) => (
+                    <InlineQuestion
+                      key={q.id}
+                      entry={entry}
+                      question={q}
+                      number={i + 1}
+                      draft={drafts[keyFor(entry, q)] || draftFor(q)}
+                      editable={editable}
+                      canConfirm={canConfirm}
+                      actor={team.actor}
+                      pending={queueState.keys.includes(keyFor(entry, q))}
+                      Field={Field}
+                      onChange={(changes, options) =>
+                        updatePoint(entry, q, changes, options)
+                      }
+                      onClient={() => acceptClient(entry, q)}
+                      onFocus={() => setFocused(keyFor(entry, q))}
+                      onBlur={() => {
+                        queue.flush(keyFor(entry, q));
+                        setFocused("");
+                      }}
+                    />
                   ))}
-                </ol>
-              </details>
-            );
-          })}
-          {!!entries.length && (
-            <div className="implantation-term-panel">
-              <div>
-                <h3>
-                  {term
-                    ? "Termo atualizado disponível"
-                    : progress.ready
-                      ? "Tudo conferido para emitir o termo"
-                      : "Termo aguardando os OKs"}
-                </h3>
-                <p>
-                  {term
-                    ? `Emitido por ${term.actorName} em ${when(term.at)}.`
-                    : "É necessário responder todos os pontos, resolver os impedimentos e registrar o OK técnico e de todos os responsáveis selecionados."}
-                </p>
-                <small>
-                  O aceite informado pelo cliente é registrado pela equipe. A
-                  assinatura é feita no documento.
-                </small>
-              </div>
-              <div className="implantation-document-actions">
-                {term ? (
-                  <>
-                    <button
-                      className="button primary"
-                      disabled={pending}
-                      onClick={() => output(printImplantationTerm, term)}
-                    >
-                      <Printer size={16} />
-                      Imprimir / salvar PDF
-                    </button>
-                    <button
-                      className="button secondary"
-                      disabled={pending}
-                      onClick={() => output(downloadImplantationTerm, term)}
-                    >
-                      <Download size={16} />
-                      Baixar documento
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    className="button primary"
-                    disabled={!canConfirm || !progress.ready || pending}
-                    onClick={() => open({ type: "issue" })}
-                  >
-                    <FileCheck2 size={17} />
-                    Gerar termo da entidade
-                  </button>
-                )}
-              </div>
-            </div>
+                  <div className="implantation-term-panel">
+                    <div>
+                      <h3>
+                        {moduleTerm
+                          ? "Termo do módulo disponível"
+                          : "Termo deste módulo"}
+                      </h3>
+                      <p>
+                        {moduleTerm
+                          ? `${moduleTerm.actorName} · ${when(moduleTerm.at)}`
+                          : "O termo final exige os dois OKs de cada ponto. Dispensas justificadas aparecem expressamente no documento."}
+                      </p>
+                    </div>
+                    <div className="implantation-document-actions">
+                      {moduleTerm ? (
+                        <>
+                          <button
+                            className="button primary"
+                            disabled={dirty || pending}
+                            onClick={() =>
+                              output(printImplantationTerm, moduleTerm)
+                            }
+                          >
+                            Imprimir / salvar PDF
+                          </button>
+                          <button
+                            className="button secondary"
+                            disabled={dirty || pending}
+                            onClick={() =>
+                              output(downloadImplantationTerm, moduleTerm)
+                            }
+                          >
+                            Baixar documento
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="button primary"
+                          disabled={
+                            !canConfirm ||
+                            dirty ||
+                            pending ||
+                            !moduleProgress.ready
+                          }
+                          onClick={() =>
+                            open({
+                              type: "issue",
+                              entity,
+                              module: entry.module,
+                            })
+                          }
+                        >
+                          Gerar termo do módulo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              )}
+            </>
           )}
           {!!terms.length && (
             <details className="implantation-archive">
               <summary>Termos emitidos · {terms.length}</summary>
-              <p className="muted">
-                Os documentos anteriores mantêm as perguntas, os nomes e os
-                cargos da emissão.
-              </p>
               {terms.map((t) => (
                 <div className="implantation-archive-row" key={t.id}>
                   <div>
-                    <strong>{when(t.at)}</strong>
+                    <strong>
+                      {t.entity} · {t.module || "Todos os módulos"}
+                    </strong>
                     <small>
-                      {t.source === "imported-unverified"
-                        ? "Importado · requer conferência"
-                        : t.id === term?.id
-                          ? "Versão atual"
-                          : "Versão anterior"}{" "}
-                      · {t.actorName} · {t.id.slice(0, 8)}
+                      {when(t.at)} · {t.actorName}
                     </small>
                   </div>
                   <button
                     className="button secondary"
-                    disabled={pending}
+                    disabled={dirty || pending}
                     onClick={() => output(printImplantationTerm, t)}
                   >
                     Imprimir / PDF
                   </button>
                   <button
                     className="button secondary"
-                    disabled={pending}
+                    disabled={dirty || pending}
                     onClick={() => output(downloadImplantationTerm, t)}
                   >
                     Baixar
@@ -445,36 +770,29 @@ export function ImplantationAcceptance({
       )}
       {dialog && (
         <Modal
+          wide={["scope", "models"].includes(dialog.type)}
           title={
             dialog.type === "scope"
               ? "Módulos contratados por entidade"
-              : dialog.type === "people"
-                ? `Responsáveis · ${dialog.entry.module}`
-                : dialog.type === "model"
-                  ? `Perguntas · ${dialog.entry.module}`
-                  : dialog.type === "issue"
-                    ? "Gerar termo de homologação"
-                    : `Ponto ${dialog.number} · ${dialog.entry.module}`
+              : dialog.type === "models"
+                ? "Modelos globais de perguntas"
+                : dialog.type === "people"
+                  ? `Responsáveis · ${currentEntry?.module}`
+                  : dialog.type === "clients"
+                    ? "Quem confirmou este ponto?"
+                    : dialog.type === "deactivate"
+                      ? "Excluir relatório de preenchimento?"
+                      : dialog.type === "applyModel"
+                        ? "Atualizar as perguntas deste relatório?"
+                        : dialog.type === "discard"
+                          ? "Descartar respostas não salvas?"
+                          : "Gerar termo de homologação"
           }
-          subtitle={dialog.entry?.entity || selectedEntity}
-          wide={dialog.type === "model" || dialog.type === "scope"}
+          subtitle={currentEntry?.entity || dialog.entity || ""}
           onClose={() => {
             if (pending) return false;
             setDialog(null);
           }}
-          headerAction={
-            dialog.type === "question" && editable ? (
-              <button
-                type="submit"
-                form="implantation-question-form"
-                className="button primary"
-                disabled={pending}
-                aria-label="Salvar no topo"
-              >
-                Salvar
-              </button>
-            ) : undefined
-          }
         >
           {error && (
             <p role="alert" className="team-error">
@@ -484,90 +802,197 @@ export function ImplantationAcceptance({
           {dialog.type === "scope" && (
             <ScopeEditor
               project={project}
+              catalog={catalog}
               pending={pending}
               onSave={(pairs) =>
-                perform((p) => configureImplantation(p, pairs, team.actor))
+                perform((p) =>
+                  configureImplantation(p, pairs, team.actor, catalog),
+                )
               }
             />
           )}
-          {dialog.type === "people" && (
-            <PeopleEditor
-              entry={dialog.entry}
+          {dialog.type === "models" && team.isMaster && (
+            <ModelManager
+              catalog={catalog}
+              Field={Field}
+              pending={pending}
+              onSave={async (model, questions, version) => {
+                setPending(true);
+                setError("");
+                try {
+                  const result = await team.client.rpc(
+                    "implanta_save_implantation_template",
+                    {
+                      p_module: model.module,
+                      p_questions: questions,
+                      p_revision: model.revision,
+                      p_version: version,
+                    },
+                  );
+                  if (result.error) throw result.error;
+                  setCatalog(result.data);
+                  return true;
+                } catch (e) {
+                  setError(e.message);
+                  return false;
+                } finally {
+                  setPending(false);
+                }
+              }}
+            />
+          )}
+          {dialog.type === "people" && currentEntry && (
+            <ResponsibleEditor
+              entry={currentEntry}
               Field={Field}
               pending={pending}
               onSave={(people) =>
-                perform((p) =>
-                  saveImplantationResponsibles(
-                    p,
-                    dialog.entry.id,
-                    people,
-                    team.actor,
-                  ),
+                perform(
+                  (p) =>
+                    saveImplantationResponsibles(
+                      p,
+                      currentEntry.id,
+                      people,
+                      team.actor,
+                    ),
+                  { close: false },
                 )
               }
             />
           )}
-          {dialog.type === "model" && (
-            <ModelEditor
-              entry={dialog.entry}
-              Field={Field}
-              pending={pending}
-              onSave={(questions) =>
-                perform((p) =>
-                  saveImplantationModel(
-                    p,
-                    dialog.entry.id,
-                    questions,
-                    team.actor,
-                  ),
-                )
+          {dialog.type === "clients" && currentEntry && currentQuestion && (
+            <ClientSelector
+              entry={currentEntry}
+              draft={
+                drafts[keyFor(currentEntry, currentQuestion)] ||
+                draftFor(currentQuestion)
               }
+              onSave={(ids) => {
+                updatePoint(currentEntry, currentQuestion, {
+                  responsibleIds: ids,
+                  clientIds: ids,
+                });
+                setDialog(null);
+              }}
+              onClear={() => {
+                updatePoint(currentEntry, currentQuestion, { clientIds: [] });
+                setDialog(null);
+              }}
             />
           )}
-          {dialog.type === "question" && (
-            <QuestionEditor
-              entry={dialog.entry}
-              question={dialog.question}
-              Field={Field}
-              editable={editable}
-              canConfirm={canConfirm}
-              actor={team.actor}
-              pending={pending}
-              onSave={(draft) =>
-                perform((p) =>
-                  saveImplantationQuestion(
-                    p,
-                    dialog.entry.id,
-                    dialog.question.id,
-                    draft,
-                    team.actor,
-                  ),
-                )
-              }
-            />
-          )}
-          {dialog.type === "issue" && (
+          {dialog.type === "deactivate" && currentEntry && (
             <>
               <p>
-                O termo de <strong>{selectedEntity}</strong> incluirá os módulos
-                contratados, todas as perguntas e respostas, os OKs e os nomes e
-                cargos dos responsáveis para assinatura. Nenhuma assinatura é
-                feita automaticamente.
+                Serão apagadas as respostas, justificativas e os OKs de{" "}
+                <strong>
+                  {currentEntry.module} · {currentEntry.entity}
+                </strong>
+                . O histórico de execução e os termos já emitidos são
+                preservados.
               </p>
               <p>
-                Alterações posteriores exigirão nova conferência e poderão gerar
-                uma nova versão do termo.
+                Para preencher novamente, ative o módulo em{" "}
+                <strong>Módulos contratados</strong>.
               </p>
               <button
                 className="button primary full-button"
                 disabled={pending}
                 onClick={() =>
                   perform((p) =>
-                    issueImplantationTerm(p, selectedEntity, team.actor),
+                    configureImplantation(
+                      p,
+                      implantationEntries(p)
+                        .filter((e) => e.id !== currentEntry.id)
+                        .map(({ module, entity }) => ({ module, entity })),
+                      team.actor,
+                      catalog,
+                    ),
                   )
                 }
               >
-                {pending ? "Gerando…" : "Confirmar emissão"}
+                Apagar respostas e desativar
+              </button>
+            </>
+          )}
+          {dialog.type === "applyModel" && currentEntry && (
+            <>
+              <p>
+                O modelo global atual será aplicado apenas a este relatório.
+                Perguntas alteradas perdem as respostas e os OKs. Os pontos que
+                continuam iguais são preservados.
+              </p>
+              <button
+                className="button primary full-button"
+                disabled={pending}
+                onClick={() =>
+                  perform((p) => {
+                    const model = catalog.find(
+                      (m) => m.module === currentEntry.module,
+                    );
+                    return saveImplantationModel(
+                      p,
+                      currentEntry.id,
+                      model.questions,
+                      team.actor,
+                      { master: team.isMaster, model },
+                    );
+                  })
+                }
+              >
+                Aplicar modelo global ao relatório
+              </button>
+            </>
+          )}
+          {dialog.type === "discard" && (
+            <>
+              <p>
+                Isso descarta somente os rascunhos que ainda não foram
+                confirmados pelo banco.
+              </p>
+              <button
+                className="button primary full-button"
+                disabled={queueState.running}
+                onClick={() => {
+                  if (queue.discard()) {
+                    draftsRef.current = {};
+                    setDrafts({});
+                    setDialog(null);
+                  }
+                }}
+              >
+                Descartar rascunhos
+              </button>
+            </>
+          )}
+          {dialog.type === "issue" && (
+            <>
+              <p>
+                O documento de{" "}
+                <strong>
+                  {dialog.entity}
+                  {dialog.module
+                    ? ` · ${dialog.module}`
+                    : " · todos os módulos"}
+                </strong>{" "}
+                guardará uma cópia das perguntas, respostas, dispensas e
+                nomes/cargos dos responsáveis para assinatura.
+              </p>
+              <button
+                className="button primary full-button"
+                disabled={pending || dirty}
+                onClick={() =>
+                  perform((p) =>
+                    issueImplantationTerm(
+                      p,
+                      dialog.entity,
+                      team.actor,
+                      new Date().toISOString(),
+                      dialog.module || "",
+                    ),
+                  )
+                }
+              >
+                Confirmar emissão
               </button>
             </>
           )}
@@ -576,332 +1001,159 @@ export function ImplantationAcceptance({
     </section>
   );
 }
-function ScopeEditor({ project, pending, onSave }) {
-  const [selected, setSelected] = useState(
-    (project.implantation?.entries || [])
-      .filter((e) => e.included)
-      .map((e) => e.id),
-  );
+function Tab({ active, children, ...props }) {
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave(
-          project.entities.flatMap((entity) =>
-            IMPLANTATION_MODULES.filter((module) =>
-              selected.includes(implantationId(module, entity)),
-            ).map((module) => ({ module, entity })),
-          ),
-        );
-      }}
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      className={active ? "active" : ""}
+      {...props}
     >
-      <p>
-        Marque apenas o que foi contratado. Desmarcar um módulo retira-o do
-        termo e preserva suas respostas para uma retomada.
-      </p>
-      <div className="implantation-scope">
-        {project.entities.map((entity) => (
-          <fieldset key={entity}>
-            <legend>{entity}</legend>
-            {IMPLANTATION_MODULES.map((module) => {
-              const id = implantationId(module, entity);
+      {children}
+    </button>
+  );
+}
+function AcceptanceOverview({
+  project,
+  catalog,
+  onNavigate,
+  canConfirm,
+  onIssue,
+  onPrint,
+  blocked,
+}) {
+  const migration = homologationProgress(project),
+    overall = implantationProgress(project);
+  return (
+    <div className="acceptance-general">
+      <div className="implantation-overview">
+        <div className="implantation-metric">
+          <strong>
+            {overall.done}/{overall.total}
+          </strong>
+          <span>Pontos da implantação</span>
+        </div>
+        <div className="implantation-metric">
+          <strong>{overall.blockers}</strong>
+          <span>Impedimentos</span>
+        </div>
+        <div className="implantation-metric">
+          <strong>
+            {migration.done}/{migration.total}
+          </strong>
+          <span>Conferências da migração</span>
+        </div>
+      </div>
+      <div
+        className="acceptance-matrix-scroll"
+        role="region"
+        aria-label="Visão geral das homologações por entidade"
+      >
+        <table className="acceptance-matrix">
+          <thead>
+            <tr>
+              <th>Entidade</th>
+              {IMPLANTATION_MODULES.map((module) => (
+                <th key={module}>{module}</th>
+              ))}
+              <th>Termo da entidade</th>
+            </tr>
+          </thead>
+          <tbody>
+            {project.entities.map((entity) => {
+              const p = implantationProgress(project, entity);
+              const current = currentImplantationTerm(project, entity);
               return (
-                <label key={module}>
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(id)}
-                    disabled={pending}
-                    onChange={(e) =>
-                      setSelected((old) =>
-                        e.target.checked
-                          ? [...old, id]
-                          : old.filter((v) => v !== id),
-                      )
-                    }
-                    aria-label={`${module} — ${entity}`}
-                  />
-                  <span>
-                    {module}
-                    {!implantationTemplate(module) && (
-                      <small>
-                        Sem modelo enviado · perguntas personalizadas
-                      </small>
-                    )}
-                  </span>
-                </label>
+                <tr key={entity}>
+                  <th>{entity}</th>
+                  {IMPLANTATION_MODULES.map((module) => {
+                    const e = implantationEntries(project, entity).find(
+                      (e) => e.module === module,
+                    );
+                    return (
+                      <td key={module}>
+                        {e ? (
+                          <button
+                            className="button secondary"
+                            onClick={() => onNavigate(entity, module)}
+                          >
+                            {
+                              e.questions.filter((q) => questionReady(e, q))
+                                .length
+                            }
+                            /{e.questions.length} OK
+                          </button>
+                        ) : (
+                          <span className="muted">
+                            {catalog.find((m) => m.module === module)?.questions
+                              .length
+                              ? "Não contratado"
+                              : "Sem modelo"}
+                          </span>
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td>
+                    <button
+                      className="button secondary"
+                      disabled={
+                        blocked || (!current && (!canConfirm || !p.ready))
+                      }
+                      onClick={() =>
+                        current ? onPrint(current) : onIssue(entity)
+                      }
+                    >
+                      {current
+                        ? "Imprimir termo da entidade"
+                        : "Gerar termo da entidade"}
+                    </button>
+                  </td>
+                </tr>
               );
             })}
-          </fieldset>
-        ))}
+          </tbody>
+        </table>
       </div>
-      <button className="button primary full-button" disabled={pending}>
-        Salvar escopo da implantação
-      </button>
-    </form>
+    </div>
   );
 }
-function PeopleEditor({ entry, Field, pending, onSave }) {
-  const [people, setPeople] = useState(structuredClone(entry.responsibles));
-  const update = (id, key, value) =>
-    setPeople((list) =>
-      list.map((p) => (p.id === id ? { ...p, [key]: value } : p)),
-    );
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave(people);
-      }}
-    >
-      <p>
-        Cadastre todos os responsáveis que participarão dos pontos deste módulo.
-        Alterar nome, cargo ou e-mail retira os aceites anteriores da pessoa.
-      </p>
-      {people.map((r, i) => (
-        <fieldset className="implantation-person" key={r.id} disabled={pending}>
-          <legend>Responsável {i + 1}</legend>
-          <Field label={`Nome do responsável ${i + 1}`}>
-            <input
-              required
-              value={r.name}
-              onChange={(e) => update(r.id, "name", e.target.value)}
-            />
-          </Field>
-          <Field label={`Cargo do responsável ${i + 1}`}>
-            <input
-              required
-              value={r.role}
-              onChange={(e) => update(r.id, "role", e.target.value)}
-            />
-          </Field>
-          <Field label={`E-mail do responsável ${i + 1} (opcional)`}>
-            <input
-              type="email"
-              value={r.email}
-              onChange={(e) => update(r.id, "email", e.target.value)}
-            />
-          </Field>
-          <button
-            type="button"
-            className="text-danger"
-            onClick={() =>
-              setPeople((list) => list.filter((p) => p.id !== r.id))
-            }
-          >
-            Excluir responsável {i + 1}
-          </button>
-        </fieldset>
-      ))}
-      <div className="implantation-editor-actions">
-        <button
-          type="button"
-          className="button secondary"
-          disabled={pending}
-          onClick={() =>
-            setPeople((list) => [
-              ...list,
-              { id: crypto.randomUUID(), name: "", role: "", email: "" },
-            ])
-          }
-        >
-          <Plus size={16} />
-          Adicionar responsável
-        </button>
-        <button className="button primary" disabled={pending}>
-          Salvar responsáveis
-        </button>
-      </div>
-    </form>
-  );
-}
-function ModelEditor({ entry, Field, pending, onSave }) {
-  const [questions, setQuestions] = useState(structuredClone(entry.questions));
-  const update = (id, values) =>
-    setQuestions((list) =>
-      list.map((q) => (q.id === id ? { ...q, ...values } : q)),
-    );
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave(questions);
-      }}
-    >
-      <div className="info-box">
-        <p>
-          O padrão fica preservado no sistema. Esta edição vale somente para{" "}
-          <strong>
-            {entry.module} · {entry.entity}
-          </strong>
-          . Perguntas alteradas perdem suas respostas e os dois OKs. Escolhas do
-          cliente permitem Sim ou Não com justificativa; falta de capacitação e
-          impedimentos bloqueiam o termo.
-        </p>
-      </div>
-      {questions.map((q, i) => (
-        <fieldset
-          className="implantation-model-question"
-          key={q.id}
-          disabled={pending}
-        >
-          <legend>Pergunta {i + 1}</legend>
-          <Field label={`Texto da pergunta ${i + 1}`}>
-            <textarea
-              required
-              rows={3}
-              value={q.text}
-              onChange={(e) => update(q.id, { text: e.target.value })}
-            />
-          </Field>
-          <Field label={`Orientação da pergunta ${i + 1}`}>
-            <input
-              value={q.help || ""}
-              onChange={(e) => update(q.id, { help: e.target.value })}
-            />
-          </Field>
-          <Field label={`Tipo da pergunta ${i + 1}`}>
-            <select
-              value={q.kind}
-              onChange={(e) =>
-                update(q.id, {
-                  kind: e.target.value,
-                  justifyWhen: e.target.value === "blocking" ? "yes" : "no",
-                })
-              }
-            >
-              <option value="capability">
-                Capacitação / apresentação — “Não” bloqueia o termo
-              </option>
-              <option value="choice">
-                Escolha do cliente — Sim ou Não são válidos
-              </option>
-              <option value="blocking">
-                Existência de impedimento — “Sim” bloqueia o termo
-              </option>
-            </select>
-          </Field>
-          <Field label={`Exigir justificativa na pergunta ${i + 1}`}>
-            <select
-              value={q.justifyWhen}
-              onChange={(e) => update(q.id, { justifyWhen: e.target.value })}
-            >
-              <option value="no">Quando responder Não</option>
-              <option value="yes">Quando responder Sim</option>
-            </select>
-          </Field>
-          <div className="implantation-editor-actions">
-            <button
-              type="button"
-              className="button secondary"
-              disabled={i === 0}
-              onClick={() =>
-                setQuestions((list) => {
-                  const next = [...list];
-                  [next[i - 1], next[i]] = [next[i], next[i - 1]];
-                  return next;
-                })
-              }
-            >
-              Mover acima
-            </button>
-            <button
-              type="button"
-              className="text-danger"
-              onClick={() =>
-                setQuestions((list) => list.filter((p) => p.id !== q.id))
-              }
-            >
-              Excluir pergunta {i + 1}
-            </button>
-          </div>
-        </fieldset>
-      ))}
-      <div className="implantation-editor-actions">
-        <button
-          type="button"
-          className="button secondary"
-          disabled={pending}
-          onClick={() =>
-            setQuestions((list) => [
-              ...list,
-              {
-                id: crypto.randomUUID(),
-                text: "",
-                help: "",
-                kind: "capability",
-                justifyWhen: "no",
-              },
-            ])
-          }
-        >
-          <Plus size={16} />
-          Adicionar pergunta
-        </button>
-        {implantationTemplate(entry.module) && (
-          <button
-            type="button"
-            className="button secondary"
-            disabled={pending}
-            onClick={() => setQuestions(defaultQuestions(entry.module))}
-          >
-            Carregar perguntas padrão
-          </button>
-        )}
-        <button className="button primary" disabled={pending}>
-          Salvar perguntas
-        </button>
-      </div>
-    </form>
-  );
-}
-function QuestionEditor({
+function InlineQuestion({
   entry,
   question: q,
-  Field,
+  number,
+  draft,
   editable,
   canConfirm,
   actor,
   pending,
-  onSave,
+  Field,
+  onChange,
+  onClient,
+  onFocus,
+  onBlur,
 }) {
-  const [draft, setDraft] = useState({
-    answer: q.answer,
-    notes: q.notes,
-    responsibleIds: [...q.responsibleIds],
-    technical: !!q.technical && q.technical.source !== "imported-unverified",
-    clientIds: q.clients
-      .filter((c) => c.source !== "imported-unverified")
-      .map((c) => c.id),
-  });
-  const change = (values) =>
-    setDraft((d) => ({ ...d, ...values, technical: false, clientIds: [] }));
-  const needsJustification =
-    draft.answer === "na" || draft.answer === q.justifyWhen;
-  const retainsTechnical =
-    q.technical &&
-    q.technical.source !== "imported-unverified" &&
-    draft.answer === q.answer &&
-    draft.notes.trim() === q.notes &&
-    JSON.stringify(draft.responsibleIds) === JSON.stringify(q.responsibleIds);
+  const answered = questionAnswered({ ...q, ...draft });
+  const required = draft.answer === "na" || draft.answer === q.justifyWhen;
   return (
-    <form
-      id="implantation-question-form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave(draft);
-      }}
+    <article
+      className="acceptance-inline-question"
+      aria-label={`Ponto ${number}`}
     >
-      <p className="implantation-question-text">{q.text}</p>
+      <h4>
+        <span>{number}.</span> {q.text}
+      </h4>
       {q.help && <p className="muted">{q.help}</p>}
       {q.condition && <p className="muted">{q.condition}</p>}
-      <fieldset
-        className="implantation-response"
-        disabled={!editable || pending}
-      >
-        <Field label="Resposta do checklist">
+      <div className="acceptance-inline-fields">
+        <Field label={`Resposta do ponto ${number}`}>
           <select
             value={draft.answer}
-            onChange={(e) => change({ answer: e.target.value })}
+            disabled={!editable}
+            onChange={(e) =>
+              onChange({ answer: e.target.value }, { content: true })
+            }
           >
             <option value="">Ainda não respondido</option>
             {Object.entries(ANSWERS).map(([value, label]) => (
@@ -912,124 +1164,294 @@ function QuestionEditor({
           </select>
         </Field>
         <Field
-          label={
-            needsJustification
-              ? "Justificativa (obrigatória)"
-              : "Observações / evidências"
-          }
+          label={`${required ? "Justificativa obrigatória" : "Observações"} do ponto ${number}`}
         >
           <textarea
-            required={needsJustification}
-            rows={4}
+            rows={2}
             value={draft.notes}
-            onChange={(e) => change({ notes: e.target.value })}
+            disabled={!editable}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            onChange={(e) =>
+              onChange({ notes: e.target.value }, { content: true, delay: 350 })
+            }
           />
         </Field>
-        <fieldset className="implantation-point-people">
-          <legend>Responsáveis do cliente neste ponto</legend>
-          {entry.responsibles.length ? (
-            entry.responsibles.map((r) => (
-              <label key={r.id}>
-                <input
-                  type="checkbox"
-                  checked={draft.responsibleIds.includes(r.id)}
-                  onChange={(e) =>
-                    change({
-                      responsibleIds: e.target.checked
-                        ? [...draft.responsibleIds, r.id]
-                        : draft.responsibleIds.filter((id) => id !== r.id),
-                    })
-                  }
-                />
-                <span>
-                  {r.name}
-                  <small>{r.role}</small>
-                </span>
-              </label>
-            ))
-          ) : (
-            <p>
-              Cadastre os responsáveis do módulo antes de registrar o aceite do
-              cliente.
-            </p>
-          )}
-        </fieldset>
-      </fieldset>
-      <div className="implantation-approval">
-        <h3>1. Apresentação pelo técnico</h3>
+      </div>
+      {draft.answer === "no" && q.kind !== "blocking" && (
+        <label className="acceptance-exemption">
+          <input
+            type="checkbox"
+            checked={draft.notUsed}
+            disabled={!editable}
+            onChange={(e) =>
+              onChange({ notUsed: e.target.checked }, { content: true })
+            }
+          />
+          Este ponto não será utilizado e não será apresentado · dispensa
+          justificada
+        </label>
+      )}
+      <div className="acceptance-inline-approvals">
         <label>
           <input
             type="checkbox"
-            disabled={
-              !canConfirm ||
-              pending ||
-              !draft.answer ||
-              (needsJustification && !draft.notes.trim())
-            }
             checked={draft.technical}
-            onChange={(e) =>
-              setDraft((d) => ({ ...d, technical: e.target.checked }))
-            }
+            disabled={!canConfirm || !answered}
+            onChange={(e) => onChange({ technical: e.target.checked })}
           />
-          <span>Confirmo que apresentei este ponto ao cliente</span>
+          {draft.notUsed
+            ? "OK técnico da dispensa"
+            : "OK técnico da apresentação"}
         </label>
+        <button
+          className="button secondary"
+          disabled={!canConfirm || (entry.responsibles.length > 0 && !answered)}
+          onClick={onClient}
+        >
+          {entry.responsibles.length === 1 &&
+          draft.clientIds.includes(entry.responsibles[0].id)
+            ? "Retirar OK do cliente"
+            : draft.clientIds.length
+              ? "Revisar OK do cliente"
+              : "OK do cliente"}
+        </button>
         <small>
-          {retainsTechnical && draft.technical
-            ? `${q.technical.by} · ${when(q.technical.at)}`
-            : actor
-              ? `O OK será registrado com sua conta: ${actor.name}.`
-              : "Entre com sua conta para registrar o OK técnico."}
+          {pending
+            ? "Salvando…"
+            : questionReady(entry, q)
+              ? "Ponto validado"
+              : "Aguardando validações"}
         </small>
       </div>
-      <div className="implantation-approval">
-        <h3>2. Aceite informado pelo cliente</h3>
-        <p>
-          Marque somente após o responsável confirmar durante a reunião. O
-          registro fica associado à sua conta; a assinatura será feita no termo.
+      {draft.responsibleIds.length > 0 && (
+        <p className="acceptance-point-clients">
+          Cliente:{" "}
+          {entry.responsibles
+            .filter((r) => draft.responsibleIds.includes(r.id))
+            .map((r) => `${r.name} (${r.role})`)
+            .join(", ")}
         </p>
-        {draft.responsibleIds.map((id) => {
-          const r = entry.responsibles.find((person) => person.id === id);
-          return (
-            r && (
-              <label key={id}>
+      )}
+      {q.technical && !pending && draft.technical && (
+        <small className="muted">
+          Registro técnico: {q.technical.by} · {when(q.technical.at)}
+        </small>
+      )}
+      {questionBlocker({ ...q, ...draft }) && (
+        <p className="implantation-warning">
+          Esta resposta impede o termo. Resolva a pendência ou justifique a
+          dispensa de uso quando aplicável.
+        </p>
+      )}
+      {!actor && (
+        <small className="muted">
+          Entre com sua conta para registrar os OKs.
+        </small>
+      )}
+    </article>
+  );
+}
+function ClientSelector({ entry, draft, onSave, onClear }) {
+  const [selected, setSelected] = useState(draft.responsibleIds);
+  return (
+    <>
+      <p>
+        Selecione quem confirmou este ponto durante a reunião. Cada pessoa
+        selecionada terá seu aceite registrado com sua conta.
+      </p>
+      <div className="acceptance-client-selector">
+        {entry.responsibles.map((r) => (
+          <label key={r.id}>
+            <input
+              type="checkbox"
+              checked={selected.includes(r.id)}
+              onChange={(e) =>
+                setSelected((v) =>
+                  e.target.checked
+                    ? [...v, r.id]
+                    : v.filter((id) => id !== r.id),
+                )
+              }
+            />
+            <span>
+              {r.name}
+              <small>{r.role}</small>
+            </span>
+          </label>
+        ))}
+      </div>
+      <div className="implantation-editor-actions">
+        <button
+          className="button primary"
+          disabled={!selected.length}
+          onClick={() => onSave(selected)}
+        >
+          Registrar aceite dos selecionados
+        </button>
+        <button className="button secondary" onClick={onClear}>
+          Retirar aceites deste ponto
+        </button>
+      </div>
+    </>
+  );
+}
+function ScopeEditor({ project, catalog, pending, onSave }) {
+  const [selected, setSelected] = useState(
+    implantationEntries(project).map((e) => e.id),
+  );
+  const [entity, setEntity] = useState(project.entities[0]);
+  const [confirm, setConfirm] = useState(false);
+  const available = IMPLANTATION_MODULES.filter(
+    (module) => catalog.find((m) => m.module === module)?.questions.length,
+  );
+  const pairs = project.entities.flatMap((entity) =>
+    IMPLANTATION_MODULES.filter((module) =>
+      selected.includes(implantationId(module, entity)),
+    ).map((module) => ({ module, entity })),
+  );
+  const removed = implantationEntries(project).filter(
+    (e) => !selected.includes(e.id),
+  );
+  if (confirm)
+    return (
+      <>
+        <p role="alert">
+          Serão apagadas as respostas e os OKs dos relatórios desmarcados:
+        </p>
+        <ul>
+          {removed.map((e) => (
+            <li key={e.id}>
+              {e.entity} · {e.module}
+            </li>
+          ))}
+        </ul>
+        <p>
+          O histórico de execução e os termos emitidos são preservados. Para
+          preencher novamente será necessário reativar os módulos.
+        </p>
+        <div className="implantation-editor-actions">
+          <button
+            className="button secondary"
+            onClick={() => setConfirm(false)}
+          >
+            Voltar à seleção
+          </button>
+          <button
+            className="button primary"
+            disabled={pending}
+            onClick={() => onSave(pairs)}
+          >
+            Apagar respostas e salvar escopo
+          </button>
+        </div>
+      </>
+    );
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (removed.length) setConfirm(true);
+        else onSave(pairs);
+      }}
+    >
+      <p>
+        Selecione os módulos por entidade. Módulos sem modelo ficam
+        indisponíveis até o Master cadastrar as perguntas.
+      </p>
+      <p className="muted">
+        “Marcar todos os módulos” seleciona os módulos disponíveis em todas as
+        entidades do projeto.
+      </p>
+      <div
+        className="acceptance-tabs"
+        role="tablist"
+        aria-label="Entidades dos módulos contratados"
+      >
+        {project.entities.map((e) => (
+          <Tab key={e} active={entity === e} onClick={() => setEntity(e)}>
+            {e}
+          </Tab>
+        ))}
+      </div>
+      <div className="implantation-editor-actions">
+        <button
+          type="button"
+          className="button secondary"
+          disabled={pending}
+          onClick={() =>
+            setSelected((v) => [
+              ...new Set([
+                ...v,
+                ...available.map((m) => implantationId(m, entity)),
+              ]),
+            ])
+          }
+        >
+          Marcar todos desta entidade
+        </button>
+        <button
+          type="button"
+          className="button secondary"
+          disabled={pending}
+          onClick={() =>
+            setSelected((v) => [
+              ...new Set([
+                ...v,
+                ...project.entities.flatMap((e) =>
+                  available.map((m) => implantationId(m, e)),
+                ),
+              ]),
+            ])
+          }
+        >
+          Marcar todos os módulos
+        </button>
+      </div>
+      <div className="implantation-scope">
+        <fieldset>
+          <legend>{entity}</legend>
+          {IMPLANTATION_MODULES.map((module) => {
+            const id = implantationId(module, entity),
+              model = catalog.find((m) => m.module === module);
+            return model?.questions.length ? (
+              <label key={module}>
                 <input
                   type="checkbox"
-                  disabled={
-                    !canConfirm ||
-                    pending ||
-                    !draft.answer ||
-                    (needsJustification && !draft.notes.trim())
-                  }
-                  checked={draft.clientIds.includes(id)}
+                  disabled={pending}
+                  checked={selected.includes(id)}
                   onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      clientIds: e.target.checked
-                        ? [...d.clientIds, id]
-                        : d.clientIds.filter((x) => x !== id),
-                    }))
+                    setSelected((v) =>
+                      e.target.checked
+                        ? [...v, id]
+                        : v.filter((key) => key !== id),
+                    )
                   }
+                  aria-label={`${module} — ${entity}`}
                 />
                 <span>
-                  Registrar aceite de {r.name}
-                  <small>{r.role}</small>
+                  {module}
+                  <small>
+                    {model.questions.length} perguntas · {model.version}
+                  </small>
                 </span>
               </label>
-            )
-          );
-        })}
+            ) : (
+              <p className="muted" key={module}>
+                {module}
+                <small>
+                  {selected.includes(id)
+                    ? "Relatório anterior ativo · desative pelo botão Excluir relatório"
+                    : "Sem modelo de perguntas · indisponível"}
+                </small>
+              </p>
+            );
+          })}
+        </fieldset>
       </div>
-      {questionBlocker({ ...q, answer: draft.answer }) && (
-        <p className="implantation-warning" role="status">
-          Esta resposta impede a emissão do termo. Registre a pendência e
-          resolva antes de concluir a homologação.
-        </p>
-      )}
-      {editable && (
-        <button className="button primary full-button" disabled={pending}>
-          {pending ? "Salvando…" : "Salvar ponto"}
-        </button>
-      )}
+      <button className="button primary full-button" disabled={pending}>
+        Salvar escopo da implantação
+      </button>
     </form>
   );
 }

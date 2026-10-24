@@ -15,25 +15,41 @@ const time = () => new Date().toISOString();
 export const implantationId = (module, entity) =>
   JSON.stringify([module, entity]);
 export const implantationTemplate = (module) => templates[module];
-export function defaultQuestions(module) {
-  return (templates[module]?.questions || []).map((q) => ({
-    ...structuredClone(q),
-    answer: "",
-    notes: "",
-    responsibleIds: [],
-    technical: null,
-    clients: [],
+export function implantationCatalog() {
+  return IMPLANTATION_MODULES.map((module) => ({
+    module,
+    version: templates[module]?.version || "personalizado",
+    revision: 1,
+    questions: structuredClone(templates[module]?.questions || []),
   }));
 }
-export function newImplantationEntry(module, entity) {
+export function defaultQuestions(module, catalog = implantationCatalog()) {
+  return (catalog.find((m) => m.module === module)?.questions || []).map(
+    (q) => ({
+      ...structuredClone(q),
+      answer: "",
+      notes: "",
+      responsibleIds: [],
+      technical: null,
+      clients: [],
+    }),
+  );
+}
+export function newImplantationEntry(
+  module,
+  entity,
+  catalog = implantationCatalog(),
+) {
+  const model = catalog.find((m) => m.module === module);
   return {
     id: implantationId(module, entity),
     module,
     entity,
     included: true,
-    modelVersion: templates[module]?.version || "personalizado",
+    modelVersion: model?.version || "personalizado",
+    modelRevision: model?.revision || 0,
     responsibles: [],
-    questions: defaultQuestions(module),
+    questions: defaultQuestions(module, catalog),
   };
 }
 export function implantationEntries(project, entity) {
@@ -81,7 +97,12 @@ function replaceEntry(project, entry, action, detail, actor) {
     actor,
   );
 }
-export function configureImplantation(project, pairs, actor) {
+export function configureImplantation(
+  project,
+  pairs,
+  actor,
+  catalog = implantationCatalog(),
+) {
   const ids = new Set(
     pairs.map(({ module, entity }) => {
       if (
@@ -89,14 +110,32 @@ export function configureImplantation(project, pairs, actor) {
         !project.entities.includes(entity)
       )
         throw new Error("Módulo ou entidade inválidos.");
+      if (
+        !catalog.find((m) => m.module === module)?.questions.length &&
+        !project.implantation?.entries.some(
+          (e) => e.included && e.module === module && e.entity === entity,
+        )
+      )
+        throw new Error(
+          "Cadastre um modelo de perguntas antes de contratar este módulo.",
+        );
       return implantationId(module, entity);
     }),
   );
   const previous = project.implantation?.entries || [];
-  const entries = previous.map((e) => ({ ...e, included: ids.has(e.id) }));
+  const entries = previous.map((e) =>
+    ids.has(e.id)
+      ? e.included
+        ? e
+        : {
+            ...newImplantationEntry(e.module, e.entity, catalog),
+            responsibles: e.responsibles,
+          }
+      : { ...e, included: false, questions: [] },
+  );
   for (const { module, entity } of pairs)
-    if (!previous.some((e) => e.id === implantationId(module, entity)))
-      entries.push(newImplantationEntry(module, entity));
+    if (!entries.some((e) => e.id === implantationId(module, entity)))
+      entries.push(newImplantationEntry(module, entity, catalog));
   const next = {
     ...project,
     implantation: {
@@ -113,6 +152,9 @@ export function configureImplantation(project, pairs, actor) {
     {
       before: previous.filter((e) => e.included).map((e) => e.id),
       after: [...ids],
+      cleared: previous
+        .filter((e) => e.included && !ids.has(e.id))
+        .map((e) => ({ id: e.id, questions: structuredClone(e.questions) })),
     },
     actor,
   );
@@ -171,7 +213,15 @@ const questionDefinition = (q) => ({
   justifyWhen: q.justifyWhen,
   condition: q.condition || "",
 });
-export function saveImplantationModel(project, entryId, questions, actor) {
+export function saveImplantationModel(
+  project,
+  entryId,
+  questions,
+  actor,
+  { master = false, model } = {},
+) {
+  if (!master)
+    throw new Error("Somente o Master pode editar os modelos de perguntas.");
   const entry = project.implantation.entries.find((e) => e.id === entryId);
   if (!entry || !questions.length)
     throw new Error("Mantenha pelo menos uma pergunta no módulo.");
@@ -205,7 +255,13 @@ export function saveImplantationModel(project, entryId, questions, actor) {
   });
   return replaceEntry(
     project,
-    { ...entry, questions: items },
+    {
+      ...entry,
+      questions: items,
+      ...(model
+        ? { modelVersion: model.version, modelRevision: model.revision }
+        : {}),
+    },
     "perguntas atualizadas; aceites dos pontos alterados reiniciados",
     {
       before: entry.questions.map(questionDefinition),
@@ -218,12 +274,13 @@ export function questionBlocker(q) {
   if (q.answer === "na") return false;
   return q.kind === "blocking"
     ? q.answer === "yes"
-    : q.kind === "capability" && q.answer === "no";
+    : q.kind === "capability" && q.answer === "no" && q.notUsed !== true;
 }
 export function questionAnswered(q) {
   return (
     Object.hasOwn(ANSWERS, q.answer) &&
-    (!(q.answer === "na" || q.answer === q.justifyWhen) || !!q.notes.trim())
+    (!(q.answer === "na" || q.answer === q.justifyWhen || q.notUsed === true) ||
+      !!q.notes.trim())
   );
 }
 export function questionReady(entry, q) {
@@ -289,14 +346,18 @@ export function saveImplantationQuestion(
     notes: draft.notes.trim(),
     responsibleIds,
   };
+  if (draft.notUsed === true || Object.hasOwn(old, "notUsed"))
+    response.notUsed =
+      draft.answer === "no" &&
+      old.kind !== "blocking" &&
+      draft.notUsed === true;
   if (response.answer && !Object.hasOwn(ANSWERS, response.answer))
     throw new Error("Resposta inválida.");
-  if (response.answer && !questionAnswered(response))
-    throw new Error("Justifique a resposta antes de salvar.");
   const changed =
     old.answer !== response.answer ||
     old.notes !== response.notes ||
-    !same(old.responsibleIds, responsibleIds);
+    !!old.notUsed !== !!response.notUsed;
+  const assignmentChanged = !same(old.responsibleIds, responsibleIds);
   const identity =
     actor?.id && actor.name?.trim()
       ? {
@@ -329,6 +390,7 @@ export function saveImplantationQuestion(
       );
     const previous =
       !changed &&
+      !assignmentChanged &&
       old.clients.find(
         (c) => c.id === id && c.source !== "imported-unverified",
       );
@@ -353,7 +415,7 @@ export function saveImplantationQuestion(
     actor,
   );
 }
-export function implantationSnapshot(project, entity) {
+export function implantationSnapshot(project, entity, module = "") {
   return {
     projectId: project.id,
     projectName: project.name,
@@ -361,35 +423,59 @@ export function implantationSnapshot(project, entity) {
     dream: project.dream || "",
     fiscal: project.fiscal || "",
     entity,
-    entries: structuredClone(implantationEntries(project, entity)),
+    ...(module ? { module } : {}),
+    entries: structuredClone(
+      implantationEntries(project, entity).filter(
+        (e) => !module || e.module === module,
+      ),
+    ),
   };
 }
-export function currentImplantationTerm(project, entity) {
-  const snapshot = implantationSnapshot(project, entity);
+export function currentImplantationTerm(project, entity, module = "") {
+  const snapshot = implantationSnapshot(project, entity, module);
   return (project.implantation?.terms || []).find(
     (t) =>
       t.entity === entity &&
+      (t.module || "") === module &&
       t.source !== "imported-unverified" &&
       same(t.snapshot, snapshot),
   );
 }
-export function issueImplantationTerm(project, entity, actor, now = time()) {
+export function issueImplantationTerm(
+  project,
+  entity,
+  actor,
+  now = time(),
+  module = "",
+) {
   if (!actor?.id || !actor.name?.trim())
     throw new Error("Entre com sua conta para emitir o termo.");
-  if (!implantationProgress(project, entity).ready)
+  const scoped = module
+    ? {
+        ...project,
+        implantation: {
+          ...project.implantation,
+          entries: implantationEntries(project, entity).filter(
+            (e) => e.module === module,
+          ),
+        },
+      }
+    : project;
+  if (!implantationProgress(scoped, entity).ready)
     throw new Error(
       "Resolva os impedimentos e registre todos os OKs do técnico e dos responsáveis do cliente.",
     );
-  if (currentImplantationTerm(project, entity))
+  if (currentImplantationTerm(project, entity, module))
     throw new Error("Já existe um termo atualizado para esta entidade.");
   const term = {
     id: uid(),
     entity,
+    ...(module ? { module } : {}),
     at: now,
     actorId: actor.id,
     actorName: actor.name,
     source: "authenticated-client",
-    snapshot: implantationSnapshot(project, entity),
+    snapshot: implantationSnapshot(project, entity, module),
   };
   const next = {
     ...project,
@@ -400,7 +486,7 @@ export function issueImplantationTerm(project, entity, actor, now = time()) {
   };
   return log(
     next,
-    `Termo de homologação da implantação · ${entity}`,
+    `Termo de homologação da implantação · ${entity}${module ? ` · ${module}` : ""}`,
     "emitido para assinatura",
     { termId: term.id },
     actor,
@@ -470,6 +556,9 @@ export function validateImplantation(value) {
         !["yes", "no"].includes(q.justifyWhen) ||
         !["", "yes", "no", "na"].includes(q.answer) ||
         !text(q.notes) ||
+        (q.notUsed !== undefined &&
+          (typeof q.notUsed !== "boolean" ||
+            (q.notUsed && (q.answer !== "no" || q.kind === "blocking")))) ||
         !Array.isArray(q.responsibleIds) ||
         new Set(q.responsibleIds).size !== q.responsibleIds.length ||
         q.responsibleIds.some((id) => !people.has(id)) ||
@@ -493,6 +582,10 @@ export function validateImplantation(value) {
       !t.id ||
       termIds.has(t.id) ||
       !text(t.entity) ||
+      (t.module !== undefined &&
+        (!IMPLANTATION_MODULES.includes(t.module) ||
+          t.snapshot?.module !== t.module ||
+          t.snapshot?.entries?.some((e) => e.module !== t.module))) ||
       !text(t.actorId) ||
       !text(t.actorName) ||
       !text(t.at) ||

@@ -1,88 +1,110 @@
 # Homologação da implantação
 
-A área **Aceite da implantação** acompanha o checklist final com o cliente. A área **Homologação** existente continua conferindo dados migrados; as duas rotinas têm escopos e OKs independentes.
+A área **Aceite da implantação** acompanha a apresentação final com o cliente. A **Homologação** anterior continua conferindo os dados migrados, com seus próprios OKs.
 
-## Ativar no Supabase já utilizado pela equipe
+## Ativar a atualização 1.15.0
 
-1. Guarde um backup antes da alteração. O Master pode exportar o backup completo do aplicativo; mantenha-o em local protegido, pois pode conter CPF e anexos. Para recuperação do banco, preserve também o backup administrativo conforme o [guia de migração](migracao-registros.md).
-2. No Supabase, abra **SQL Editor → New query**.
-3. Copie **todo** o conteúdo de [202610240001_implantation_acceptance.sql](../supabase/migrations/202610240001_implantation_acceptance.sql) e clique em **Run**. Este arquivo não pede e-mail, senha ou substituição de campos.
-4. Atualize o aplicativo, entre no município e abra **Aceite da implantação**. Se a tela já estiver aberta, use **Verificar novamente**.
+Para quem já executou `202610240001_implantation_acceptance.sql` e já usa os níveis Master/gestor, a atualização recomendada é o **SQL único de ativação**:
 
-O SQL requer a estrutura inicial e os níveis Master/gestor já ativados nesta plataforma. **Não execute novamente a estrutura inicial. Não é necessário ativar a migração antiga de registros/CPF para usar esta rotina.** O arquivo funciona com o banco atual e com o formato de registros separados.
+1. Guarde um backup administrativo do banco e o backup completo do aplicativo em local protegido.
+2. Atualize o aplicativo para **1.15.0** antes de executar a migração e combine uma pausa breve no preenchimento com a equipe.
+3. Abra **Supabase → SQL Editor → New query**. Copie todo o conteúdo de [202610240003_activate_acceptance_records.sql](../supabase/migrations/202610240003_activate_acceptance_records.sql) e clique em **Run**. Não há campos para substituir.
+4. Reabra o aplicativo, entre em **Aceite da implantação** e teste uma resposta. A tela também oferece **Verificar novamente**.
 
-A publicação do site não executa SQL no Supabase. Até a ativação, a nova área permite consultar registros existentes e mostra o guia; a gravação fica bloqueada. Uma falha de conexão é mostrada separadamente da ausência da migração.
+O SQL único ativa os registros separados que já estavam preparados no projeto, copia os dados existentes e instala o complemento dos aceites. Cada pergunta passa a ser gravada separadamente, com controle de versão. Os projetos, responsáveis, respostas, termos, CPF, Master, gestores e liberações existentes são preservados. Modelos globais já alterados pelo Master também são mantidos em uma reaplicação.
 
-A migração roda em uma transação, preserva projetos, autoria, permissões e a homologação da migração. Pode ser reaplicada. Se futuramente executar `202610090002_records.sql`, reaplique a migração de níveis de acesso e depois este novo arquivo, nessa ordem. Isso registra as novas tabelas no protocolo v2 e copia a rotina preservada no projeto, mantendo seus registros e datas.
+**Por que ativar os registros separados:** o banco legado limita cada município a 4 MB. Uma simulação de conclusão dos quatro módulos em 15 entidades, incluindo histórico e termos, ultrapassou esse limite. Ativar apenas os modelos novos não resolve esse limite. O SQL único evita copiar todo o município a cada resposta e mantém o histórico completo.
 
-## Conferência dos modelos fornecidos
+**Proteção durante a migração:** as etapas estão em uma única transação. Um erro desfaz a atualização; o SQL pode ser reaplicado. A cópia aguarda as gravações em andamento e bloqueia brevemente novas gravações de projetos. Se não conseguir o bloqueio em 15 segundos, cancela sem aplicar parcialmente: tente novamente durante a pausa combinada. Os snapshots antigos são mantidos como origem de recuperação, sem acesso direto por usuários comuns; os clientes antigos passam a receber orientação para atualizar, em vez de alterar a cópia antiga. CPF fica nos registros privados, disponível apenas ao Master e editores com acesso ao projeto. Não restaure o aplicativo antigo após o corte; uma recuperação deve partir do backup e de uma análise das gravações posteriores. Consulte também [migração de registros](migracao-registros.md).
 
-As perguntas foram extraídas dos quatro arquivos Word **Versão 2026-3**, mantendo a redação e as orientações de navegação do sistema.
+Para instalação nova, siga primeiro a estrutura inicial, os níveis Master/gestor e `202610240001_implantation_acceptance.sql`; depois execute o SQL único acima. Ambientes que já usam registros separados podem aplicar somente [202610240002_acceptance_workflow.sql](../supabase/migrations/202610240002_acceptance_workflow.sql). O complemento isolado também é compatível com o legado, mas mantém o limite de 4 MB; não é a opção recomendada para projetos com muitas entidades.
 
-| Módulo | Perguntas | Tratamento relevante |
-| --- | ---: | --- |
-| Frota | 11 | A última pergunta verifica a existência de impedimentos: **Não** é favorável. |
-| Compras e Contratos | 48 | As escolhas de layouts e de processo digital não equivalem a capacitação reprovada. |
-| Almoxarifado | 17 | A opção de contabilização é uma escolha. A orientação seguinte depende de a entidade utilizar a integração. |
-| Patrimônio | 18 | Mantém as perguntas sobre bens, transferências, depreciação, balancete e virada mensal. |
+Publicar o site não executa SQL no Supabase. Sem a atualização, os dados existentes podem ser consultados; o novo preenchimento fica desabilitado e mostra o guia de ativação.
 
-São **94 perguntas**. Não foram inventados modelos para Elicita ou Fiscalização de contrato: esses módulos ficam disponíveis para perguntas personalizadas.
+## Abas e visão geral
 
-O material original mistura três tipos de pergunta, que agora ficam explícitos:
+- **Visão geral** mostra uma matriz de entidades e módulos, os pontos com os dois OKs, impedimentos e o total de conferências da migração.
+- Cada **entidade** tem uma aba, com contador de validação. A interface foi validada com 15 entidades.
+- Dentro da entidade, cada **módulo contratado** tem sua própria aba e relatório.
+- Os grupos de entidades e módulos podem ser recolhidos. A última entidade, o último módulo de cada entidade e o recolhimento ficam apenas neste navegador, separados por conta e projeto. Trocar de aba não grava no Supabase.
 
-- **Capacitação / apresentação:** responder **Não** impede a emissão do termo até resolver.
-- **Escolha do cliente:** Sim e Não são válidos; a justificativa segue a exigência do modelo. Não escolher um layout padrão não reprova automaticamente a implantação.
-- **Existência de impedimento:** responder **Sim** impede a emissão até resolver.
+## Módulos contratados
 
-Foi acrescentado **Não se aplica**, sempre com justificativa e com os dois OKs. Serve, por exemplo, para a pergunta condicional da contabilização quando a entidade não utilizar a integração. Não há dispensa ou aprovação automática de perguntas condicionais.
+Escolha os módulos de cada entidade em **Módulos contratados**. Os botões permitem selecionar todos da entidade aberta ou todos os módulos disponíveis em todas as entidades do projeto.
 
-## Preencher
+Os padrões IPM 2026-3 incluem 94 perguntas:
 
-1. Em **Definir módulos contratados**, marque os módulos de cada entidade. Isso não reutiliza nem altera o escopo da migração de dados. Desmarcar conserva as respostas para uma retomada, mas retira o módulo do termo.
-2. Selecione a entidade e cadastre os **Responsáveis** de cada módulo, com nome, cargo e e-mail opcional. É possível cadastrar várias pessoas no mesmo módulo.
-3. Abra cada ponto, escolha Sim/Não/Não se aplica e registre justificativa quando exigida.
-4. Selecione quem responde por aquele ponto. Pode ser uma pessoa ou várias.
-5. O técnico confirma que apresentou o ponto. O sistema usa sua conta autenticada e o horário do servidor; não há campo para digitar outro técnico.
-6. Após a confirmação verbal do cliente na reunião, registre o aceite de cada responsável selecionado. O sistema também registra qual técnico lançou esse aceite e quando. O cliente não precisa de uma conta na plataforma.
-7. Salve no topo ou no fim do formulário. A confirmação do banco atualiza o aplicativo imediatamente. Em falha, o formulário é preservado.
+| Módulo | Perguntas |
+| --- | ---: |
+| Compras e Contratos | 48 |
+| Almoxarifado | 17 |
+| Patrimônio | 18 |
+| Frota | 11 |
 
-Para emitir o termo, **todos os pontos do escopo da entidade** precisam estar respondidos, sem impedimentos, com OK técnico e aceite de **todos** os responsáveis selecionados. Módulo sem perguntas ou ponto sem responsável mantém a emissão bloqueada. Esta regra de bloquear até resolver foi confirmada pelo responsável da plataforma.
+Elicita e Fiscalização de contrato começam sem modelo. O nome aparece, mas a contratação fica indisponível até o Master cadastrar suas perguntas. Relatórios anteriores já existentes são mantidos.
 
-## Personalizar sem perder o padrão
+## Preencher diretamente no relatório
 
-**Editar perguntas** permite alterar texto, orientação, tipo, justificativa, ordem e incluir ou excluir pontos. A alteração vale somente para aquele módulo daquela entidade. Os modelos distribuídos continuam intactos, assim como os outros municípios.
+As perguntas ficam abertas na própria página, com resposta, justificativa/observações e botões dos dois OKs. Não é necessário abrir uma janela para cada pergunta.
 
-Perguntas cujo conteúdo foi alterado perdem suas respostas e aceites. Alterar uma resposta, observação ou a seleção de responsáveis exige confirmar novamente o ponto. Alterar o cadastro de uma pessoa retira os aceites correspondentes. O histórico registra essas operações com autor e data.
+- Seleções e OKs entram imediatamente na fila de gravação. Textos são enviados após uma pequena pausa de digitação ou ao sair do campo.
+- As gravações são serializadas para preservar cliques rápidos em pontos diferentes. A tela informa **Salvando**, **Respostas confirmadas no banco** ou **Há respostas não salvas**.
+- Um “Não” incompleto pode ser guardado como rascunho. Os OKs e o termo exigem a justificativa aplicável.
+- Em falha, os rascunhos ficam na memória desta tela, inclusive ao alternar entidades/módulos. Use **Tentar salvar novamente**, ou descarte explicitamente os rascunhos. A troca de município/área fica bloqueada enquanto houver respostas não salvas.
+- As respostas online são gravadas no banco. O cache local contém somente escolhas de navegação; a atualização do aplicativo não depende de gravar essas escolhas no servidor.
 
-**Carregar perguntas padrão** prepara a reposição do modelo no editor; a gravação só ocorre em **Salvar perguntas**. Essa ação preserva respostas dos pontos cuja definição não mudou e reinicia os alterados. A edição exige permissão de escrita no município; visualizadores apenas consultam.
+### Técnico e cliente
 
-## Termo e assinatura
+O **OK técnico** registra a conta autenticada e o horário do servidor. A pessoa que seleciona o cliente pode ser outro técnico: o registro original de apresentação é preservado quando só a seleção dos responsáveis muda.
 
-**Gerar termo da entidade** grava uma cópia das perguntas, respostas, OKs, consultores, nomes e cargos do cliente, dados do município e fiscal, além do identificador e da data de emissão. Cada entidade tem seu documento, reunindo os módulos selecionados.
+Ao clicar em **OK do cliente**:
 
-O documento mantém o formato de perguntas e respostas dos modelos, acrescenta os cargos dos responsáveis e identifica quem apresentou e registrou os aceites. O timbre de cabeçalho e rodapé foi extraído do modelo de Frota, igual ao dos demais documentos. A informação institucional foi mantida conforme o arquivo fornecido.
+- Sem responsáveis cadastrados: a tela avisa que é necessário cadastrar.
+- Com um responsável: ele é selecionado automaticamente, sem janela intermediária.
+- Com vários: uma janela permite selecionar quem confirmou o ponto. Todos os escolhidos recebem seu registro de aceite informado, com nome, cargo, técnico que registrou e horário do servidor.
 
-- **Imprimir / salvar PDF** abre a impressão do navegador com papel A4 e áreas reservadas para o timbre. Selecione **Salvar como PDF** para guardar o arquivo. Desative cabeçalhos e rodapés adicionais do navegador, se estiverem habilitados.
-- **Baixar documento** guarda uma cópia HTML independente do site, com o timbre incorporado. Pode ser aberta e impressa depois, inclusive sem conexão. Esse arquivo contém nomes, cargos e e-mails dos participantes; compartilhe apenas com os destinatários do projeto.
-- Os nomes e cargos dos responsáveis selecionados nos pontos vão para as assinaturas. Os consultores são identificados pelos OKs técnicos. O fiscal é preenchido com o cadastro do município; o espaço do coordenador segue o modelo e pode ser completado na assinatura.
-- O aceite lançado durante a reunião **não é uma assinatura digital do cliente**. A assinatura ocorre no documento impresso ou no fluxo de assinatura adotado pela empresa. Não há assinatura automática, envio por e-mail nem integração com certificado digital.
+O aceite é informado pelo cliente durante a reunião e registrado pela equipe técnica. A assinatura é feita no documento, conforme o fluxo da empresa.
 
-Termos emitidos mantêm sua cópia original em **Termos emitidos**. Alterações no projeto não reescrevem o documento: ele passa a aparecer como versão anterior, e uma nova emissão exige todos os OKs aplicáveis. O histórico de termos não pode ser apagado ou editado isoladamente; excluir o projeto, dentro das permissões existentes, também exclui seus registros.
+### “Não” e dispensa de uso
 
-## Banco, backups e rastreabilidade
+Perguntas de capacitação/apresentação respondidas **Não** bloqueiam o termo. Quando o motivo for que a rotina não será utilizada, preencha a justificativa e marque **Este ponto não será utilizado e não será apresentado**. O documento mantém a resposta Não e identifica a dispensa; ainda são necessários o OK técnico da dispensa e o aceite do cliente.
 
-No banco atual, a rotina usa os controles de versão e combinação de edições por município já existentes. Um recibo da mesma transação devolve as identidades e datas canônicas. No protocolo v2, os dados ficam em registros separados de escopo, módulo, pergunta e termo, com versão própria. Alterar um ponto não envia todas as perguntas ou tarefas.
+Nas perguntas sobre a existência de impedimentos, **Sim** continua bloqueando o termo e **Não** é favorável. A flag de dispensa não aparece nessas perguntas. As escolhas de layout/processo digital seguem o modelo e aceitam Sim ou Não com a justificativa aplicável. **Não se aplica** exige justificativa e os dois OKs.
 
-As permissões continuam por projeto: Master, gestor e editores podem preencher; visualizadores consultam. Os novos registros têm políticas de leitura por projeto e não aceitam escrita direta pelas tabelas. As funções e gatilhos validam as confirmações e a emissão no servidor, mesmo que alguém altere o JavaScript do navegador.
+## Responsáveis por abas
 
-Os backups do aplicativo passam a incluir a rotina. A exportação comum continua omitindo CPF e anexos. Restaurar um arquivo não transforma confirmações copiadas em novos OKs autenticados: os pontos importados precisam de reconferência. Termos importados ficam identificados como cópias não reconfirmadas; termos já existentes no banco são preservados. Restaurar um backup antigo sem essa rotina conserva a homologação da implantação existente.
+Em **Responsáveis**, cada pessoa tem uma aba com nome, cargo e e-mail opcional. **Adicionar responsável** cria outra aba; **Salvar responsáveis** grava os cadastros. O botão **Excluir responsável** pede confirmação e retira os aceites dessa pessoa dos pontos ativos, preservando os termos já emitidos.
 
-No modo local, é possível preparar perguntas, responsáveis e respostas, mas os OKs e a emissão exigem login no banco da equipe.
+Cada módulo de cada entidade mantém sua própria lista de responsáveis.
 
-## Validação
+## Modelos globais — Master
 
-- `npm test`: interpretação das perguntas, múltiplos responsáveis, bloqueios, invalidação de OKs, preservação de termos, backup e combinação de edições.
-- `npm run test:db`: PostgreSQL descartável nos protocolos legado e v2, tentativa de falsificar autor, emissão prematura, termos imutáveis, permissões, conflito de versão, reaplicação e transição segura para v2. Não utiliza produção.
-- `npx playwright test tests/implantation.spec.js`: preenchimento em celular/computador, dois responsáveis, documento com timbre, falha de gravação, Voltar, ausência de SQL e consulta como visualizador.
+O botão **Gerenciar modelos**, ao lado de **Módulos contratados**, aparece somente para o Master. Ele permite gerenciar os modelos de todos os módulos, inclusive criar os que estavam vazios. O banco também bloqueia alterações de perguntas, ordem e modelos por editores/gestores.
 
-Antes de usar o documento como padrão oficial da empresa, confira visualmente um termo de teste com a coordenação para validar a apresentação gráfica e as adaptações de perguntas feitas no projeto.
+Os modelos são globais, têm revisão e controle de concorrência. Novos relatórios usam a versão atual do banco. Salvar um modelo não reescreve relatórios em andamento nem documentos emitidos.
+
+Para atualizar um relatório existente, o Master usa **Aplicar modelo atual** dentro do módulo. A confirmação informa que perguntas alteradas perdem respostas e OKs; pontos cuja definição não mudou são preservados. Os padrões originais dos documentos continuam disponíveis no editor para reposição explícita.
+
+## Excluir/desativar relatório
+
+**Excluir relatório** dentro do módulo pede confirmação, apaga suas perguntas respondidas, justificativas e OKs e desativa o relatório. Para preencher novamente, é necessário reativar o módulo em **Módulos contratados**, usando o modelo global atual. Os cadastros dos responsáveis ficam disponíveis.
+
+Desmarcar um módulo em **Módulos contratados** tem o mesmo efeito e mostra a lista dos relatórios afetados antes da confirmação. A limpeza vale para o formulário ativo: o histórico de execução e os termos emitidos são preservados.
+
+## Relatório e termo por módulo
+
+- **Imprimir relatório** permite imprimir ou salvar PDF de um único módulo, inclusive durante o preenchimento. A cópia parcial informa que não constitui termo final.
+- **Gerar termo do módulo** fica disponível quando todos os pontos daquele módulo têm respostas válidas e os dois OKs. Os demais módulos podem continuar pendentes.
+- Na **Visão geral**, o termo consolidado da entidade exige todos os módulos contratados concluídos. Termos atuais podem ser impressos ali, e os anteriores continuam em **Termos emitidos**.
+- O documento usa o timbre IPM extraído dos modelos fornecidos, com nome e cargo de quem participou dos pontos, identificação dos técnicos, respostas, dispensas e espaços de assinatura.
+- **Imprimir / salvar PDF** usa a impressão do navegador em A4; desative seus cabeçalhos e rodapés adicionais. **Baixar documento** guarda uma cópia HTML com o timbre incorporado, que pode ser aberta depois sem conexão.
+
+Cada emissão guarda uma cópia das perguntas, respostas, nomes/cargos e dados do município. Alterações posteriores preservam os documentos anteriores. CPF não é incluído no termo. Nomes, cargos e e-mails dos participantes fazem parte do documento e devem ser compartilhados com os destinatários do projeto.
+
+## Dados e verificação
+
+No protocolo v2, cada pergunta é um registro separado com controle de versão; o banco legado mantém o protocolo por município já existente. As duas formas usam confirmação canônica com identidade/horário do servidor e impedem conflitos silenciosos. A validação de grandes ativações foi ajustada para conferir o estado completo uma vez por transação.
+
+Backups incluem a rotina. A exportação comum continua omitindo CPF e anexos. Confirmações importadas exigem reconferência; documentos históricos mantêm sua identificação original. No modo local é possível preparar o preenchimento, mas os OKs e termos finais exigem autenticação no banco.
+
+Verificações do repositório: `npm test`, `npm run test:db` e `npx playwright test`. Os testes de banco usam bases descartáveis, incluindo 15 entidades/60 relatórios, permissões Master, dispensa, termos por módulo, concorrência e reaplicação da migração; não utilizam produção.

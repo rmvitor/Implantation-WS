@@ -165,9 +165,12 @@ function loadState() {
 }
 function App() {
   const team = useTeam();
-  const [data, applyData] = useState(() =>
+  const [data, setWorkspaceData] = useState(() =>
     team.online ? team.workspace : loadState(),
   );
+  const dataRef = useRef(data);
+  const applyData = (next) => { dataRef.current = next; setWorkspaceData(next); };
+  const acceptanceUnsaved = useRef(false);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const pwa = usePwa();
@@ -266,7 +269,7 @@ function App() {
     scope: navigationScope,
     route: screenRoute(view, projectId),
     projects: data.projects,
-    blocked: () => savingRef.current,
+    blocked: () => savingRef.current || acceptanceUnsaved.current,
     onRestore: (route) => {
       setView(route.view);
       if (route.projectId) setSelectedProjectId(route.projectId);
@@ -358,21 +361,22 @@ function App() {
       setToast("Aguarde a confirmação do salvamento em andamento.");
       return false;
     }
+    const base = dataRef.current;
     const raw = withoutDevicePreferences(
-      typeof update === "function" ? update(data) : update,
+      typeof update === "function" ? update(base) : update,
     );
     if (options.import)
       raw.projects = raw.projects.map((p) =>
-        importedImplantation(p, data.projects.find((old) => old.id === p.id)),
+        importedImplantation(p, base.projects.find((old) => old.id === p.id)),
       );
-    const next = options.import ? raw : stampChanges(data, raw, team.actor);
+    const next = options.import ? raw : stampChanges(base, raw, team.actor);
     try {
       const serialized = JSON.stringify(next);
       if (!team.online && serialized.length > 4 * 1024 * 1024)
         throw new Error("quota");
       if (team.online) {
         for (const p of next.projects) {
-          const original = data.projects.find((old) => old.id === p.id);
+          const original = base.projects.find((old) => old.id === p.id);
           if (
             !same(original, p) &&
             !(original ? team.canEdit(p.id) : canCreate)
@@ -383,7 +387,7 @@ function App() {
         }
         savingRef.current = true;
         setSaving(true);
-        applyData(await team.commit(data, next, options));
+        applyData(await team.commit(base, next, options));
       } else {
         localStorage.setItem(STORAGE, serialized);
         applyData(next);
@@ -421,6 +425,7 @@ function App() {
       options,
     );
   const changeView = (v) => {
+    if (acceptanceUnsaved.current && v !== "implantation") { setToast("Aguarde o salvamento dos aceites ou resolva as alterações não salvas antes de sair."); return; }
     setCardMenu(null);
     setProjectMenu(null);
     setView(v);
@@ -512,6 +517,7 @@ function App() {
     event.target.value = "";
   };
   const selectProject = async (id) => {
+    if (acceptanceUnsaved.current && id !== projectId) { setToast("Salve os aceites pendentes antes de trocar de município."); return false; }
     const selected = await setData((d) => ({ ...d, selectedId: id }));
     if (selected) setSelectedProjectId(id);
     setSearch("");
@@ -1407,6 +1413,7 @@ function App() {
                   readOnly={!canEdit}
                   onUpdate={updateProject}
                   onEditing={setHomologationEditing}
+                  onUnsaved={(value) => { acceptanceUnsaved.current = value; }}
                   onError={setToast}
                   onEditProject={() => setModal({ type: "project", isNew: false })}
                   Modal={Modal}

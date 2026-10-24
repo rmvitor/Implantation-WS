@@ -75,7 +75,7 @@ test("escopo, responsáveis e edição das perguntas são específicos por entid
     other = p.implantation.entries[1];
   const edited = structuredClone(p.implantation.entries[0].questions);
   edited[0].text = "Pergunta própria?";
-  p = saveImplantationModel(p, id, edited, actor);
+  p = saveImplantationModel(p, id, edited, actor, { master: true });
   assert.equal(p.implantation.entries[1], other);
   assert.notEqual(defaultQuestions("Frota")[0].text, "Pergunta própria?");
   assert.equal(implantationProgress(p, "Fundo de Saúde").done, 0);
@@ -85,10 +85,7 @@ test("escopo, responsáveis e edição das perguntas são específicos por entid
     [{ module: "Frota", entity: "Fundo de Saúde" }],
     actor,
   );
-  assert.equal(
-    p.implantation.entries[0].questions[0].text,
-    "Pergunta própria?",
-  );
+  assert.deepEqual(p.implantation.entries[0].questions, []);
   assert.equal(p.implantation.entries[0].included, false);
 });
 test("termo exige técnico logado, todos os responsáveis, justificativa e ausência de impedimentos", () => {
@@ -120,7 +117,7 @@ test("termo exige técnico logado, todos os responsáveis, justificativa e ausê
         { ...draft, answer: "no" },
         actor,
       ),
-    /Justifique/,
+    /justifique/i,
   );
   assert.throws(
     () =>
@@ -131,7 +128,7 @@ test("termo exige técnico logado, todos os responsáveis, justificativa e ausê
         { ...draft, answer: "na" },
         actor,
       ),
-    /Justifique/,
+    /justifique/i,
   );
   p = completeImplantation(p);
   assert.equal(implantationProgress(p).ready, true);
@@ -180,7 +177,7 @@ test("alterar perguntas, respostas ou nomes invalida os aceites correspondentes 
   assert.equal(p.implantation.entries[0].questions[0].clients.length, 1);
   const questions = structuredClone(p.implantation.entries[0].questions);
   questions[0].text = "Outro ponto?";
-  p = saveImplantationModel(p, id, questions, actor);
+  p = saveImplantationModel(p, id, questions, actor, { master: true });
   assert.equal(p.implantation.entries[0].questions[0].technical, null);
   assert.equal(p.implantation.entries[0].questions[0].answer, "");
   assert.ok(p.implantation.entries[0].questions[1].technical);

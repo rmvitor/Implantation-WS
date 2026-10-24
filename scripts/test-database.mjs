@@ -1,9 +1,14 @@
 import pg from "pg";
+import { testAcceptanceWorkflow } from "./test-acceptance-workflow.mjs";
 import { testRecords } from "./test-records.mjs";
 import { testProjectRoles } from "./test-project-roles.mjs";
 import { testImplantation } from "./test-implantation.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+// Fail CI if the reviewable activation bundle no longer matches its sources.
+process.argv.push("--check");
+await import("./build-acceptance-activation.mjs");
+process.argv.pop();
 
 // Isolated disposable database. Never apply the test fixtures to a live project.
 const url = new URL(
@@ -313,9 +318,10 @@ try {
   console.log(
     `${checks} verificações PostgreSQL: permissões, isolamento, concorrência e importação atômica aprovadas.`,
   );
-  await testRecords({root,admin,editor,viewer,other,ids,denied});
+  await testRecords({ root, admin, editor, viewer, other, ids, denied });
   await testProjectRoles(owner, url.href);
   await testImplantation(owner, url.href);
+  await testAcceptanceWorkflow(owner, url.href);
 } finally {
   await Promise.all(clients.map((c) => c.end()));
   await owner.query(`drop database if exists ${database}`);

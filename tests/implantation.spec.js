@@ -1,4 +1,9 @@
+import {
+  implantationCatalog,
+  configureImplantation,
+} from "../src/implantation.js";
 import { test, expect } from "@playwright/test";
+import { projectRecords, assembleRecords, recordKey } from "../src/records.js";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import {
   implantationProject,
@@ -17,7 +22,13 @@ const jwt = (role) =>
 // UI contract double; scripts/test-implantation.mjs tests the real SQL separately.
 async function setup(
   page,
-  { project = implantationProject(), viewer = false, schema = true } = {},
+  {
+    project = implantationProject(),
+    viewer = false,
+    schema = true,
+    master = false,
+    normalized = false,
+  } = {},
 ) {
   const user = {
     id: userId,
@@ -64,7 +75,26 @@ async function setup(
     preferences: {},
     fail: false,
     writes: 0,
+    catalog: implantationCatalog(),
   };
+  state.records = projectRecords(state.row.data).map((r) => ({
+    ...r,
+    revision: 1,
+  }));
+  state.changes = [];
+  const snapshot = () => ({
+    records: state.records,
+    admin: master,
+    projects: [{ id: state.row.id, version: state.row.version }],
+    access: [
+      {
+        project_id: state.row.id,
+        user_id: userId,
+        role: viewer ? "viewer" : "editor",
+      },
+    ],
+    preferences: state.preferences,
+  });
   await page.addInitScript(
     ({ session, key }) => {
       localStorage.setItem(
@@ -88,21 +118,44 @@ async function setup(
         name: "Consultor autenticado",
         email: user.email,
         active: true,
-        admin: false,
+        admin: master,
         rolesVersion: 1,
-        master: false,
+        master,
         projectRoles: [
           { id: state.row.id, ownerId: viewer ? "other-owner" : userId },
         ],
       };
     else if (path.endsWith("/rpc/implanta_read_v2")) {
-      status = 404;
-      data = { code: "PGRST202", message: "Legacy storage" };
+      if (normalized) data = snapshot();
+      else {
+        status = 404;
+        data = { code: "PGRST202", message: "Legacy storage" };
+      }
     } else if (path.endsWith("/rpc/implanta_implantation_capabilities")) {
       data = schema
-        ? { version: 1 }
+        ? { version: 1, workflowVersion: 2 }
         : { code: "PGRST202", message: "Pending migration" };
       if (!schema) status = 404;
+    } else if (path.endsWith("/rpc/implanta_implantation_templates"))
+      data = state.catalog;
+    else if (path.endsWith("/rpc/implanta_save_implantation_template")) {
+      const args = request.postDataJSON();
+      if (!master) {
+        status = 403;
+        data = { code: "42501", message: "Somente Master" };
+      } else {
+        state.catalog = state.catalog.map((m) =>
+          m.module === args.p_module
+            ? {
+                ...m,
+                questions: args.p_questions,
+                version: args.p_version,
+                revision: m.revision + 1,
+              }
+            : m,
+        );
+        data = state.catalog;
+      }
     } else if (path.endsWith("/implanta_projects"))
       data = url.searchParams.has("id") ? state.row : [state.row];
     else if (path.endsWith("/implanta_members"))
@@ -115,8 +168,42 @@ async function setup(
       ];
     else if (path.endsWith("/implanta_preferences"))
       data = { data: state.preferences };
-    else if (/\/rpc\/implanta_commit(?:_implantation)?$/.test(path)) {
+    else if (path.endsWith("/rpc/implanta_commit_v2")) {
       const args = request.postDataJSON();
+      state.changes.push(...args.p_changes);
+      for (const change of args.p_changes) {
+        const old = state.records.find(
+          (r) => recordKey(r) === recordKey(change),
+        );
+        const next = { ...change, revision: (old?.revision || 0) + 1 };
+        state.records = state.records
+          .filter((r) => recordKey(r) !== recordKey(change))
+          .concat(next);
+      }
+      for (const removed of args.p_removed)
+        state.records = state.records.filter(
+          (r) => recordKey(r) !== recordKey(removed),
+        );
+      state.row.data = canonical(assembleRecords(state.records)[0]);
+      state.row.version++;
+      const before = state.records;
+      state.records = projectRecords(state.row.data).map((r) => ({
+        ...r,
+        revision:
+          before.find((p) => recordKey(p) === recordKey(r))?.revision || 1,
+      }));
+      if (args.p_preferences) state.preferences = args.p_preferences;
+      state.writes++;
+      data = snapshot();
+    } else if (/\/rpc\/implanta_commit(?:_implantation)?$/.test(path)) {
+      const args = request.postDataJSON();
+      if (state.hold) {
+        state.hold = false;
+        state.held = true;
+        await new Promise((resolve) => {
+          state.release = resolve;
+        });
+      }
       if (state.fail) {
         status = 503;
         data = { message: "network temporarily unavailable" };
@@ -142,271 +229,461 @@ async function setup(
   });
   return state;
 }
-async function open(page) {
+async function open(page, entity = "Prefeitura") {
   await page.goto("/");
   await page.locator(".municipality-card").click();
   await page
     .getByRole("navigation", { name: "Navegação do projeto" })
     .getByRole("button", { name: "Aceite da implantação", exact: true })
     .click();
+  if (entity) await entityTab(page, entity).click();
 }
+const entityTab = (page, name) =>
+  page
+    .getByRole("tablist", { name: "Entidades da homologação", exact: true })
+    .getByRole("tab", { name: new RegExp("^" + name) });
+const point = (page, n) =>
+  page.getByRole("article", { name: `Ponto ${n}`, exact: true });
+const saved = (page) =>
+  expect(page.locator(".acceptance-save-status")).toContainText(
+    "Respostas confirmadas no banco",
+  );
+test("respostas e OKs usam registros separados após a migração, sem regravar o município", async ({
+  page,
+}) => {
+  const state = await setup(page, {
+    project: preparedImplantation(),
+    normalized: true,
+  });
+  await open(page);
+  await page
+    .getByLabel("Resposta do ponto 1", { exact: true })
+    .selectOption("yes");
+  await page
+    .getByLabel("Resposta do ponto 2", { exact: true })
+    .selectOption("yes");
+  await saved(page);
+  await point(page, 1)
+    .getByRole("checkbox", { name: "OK técnico da apresentação", exact: true })
+    .check();
+  await saved(page);
+  await expect
+    .poll(
+      () =>
+        state.row.data.implantation.entries[0].questions[0].technical?.source,
+    )
+    .toBe("server");
+  expect(state.row.data.implantation.entries[0].questions[1].answer).toBe(
+    "yes",
+  );
+  expect(
+    state.changes.some((r) => r.kind === "implantation_question"),
+  ).toBeTruthy();
+  expect(state.changes.some((r) => r.kind === "municipality")).toBeFalsy();
+  expect(
+    state.changes.every((r) =>
+      ["implantation_question", "history"].includes(r.kind),
+    ),
+  ).toBeTruthy();
+  await open(page);
+  await expect(
+    page.getByLabel("Resposta do ponto 1", { exact: true }),
+  ).toHaveValue("yes");
+  await expect(
+    point(page, 1).getByRole("checkbox", {
+      name: "OK técnico da apresentação",
+      exact: true,
+    }),
+  ).toBeChecked();
+});
 for (const width of [390, 1440])
-  test(`checklist final com dois responsáveis gera termo da entidade com timbre em ${width}px`, async ({
+  test(`preenchimento direto registra dois clientes e emite documento por módulo em ${width}px`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 1000 });
-    const state = await setup(page);
+    const state = await setup(page, { project: preparedImplantation() });
     await open(page);
-    await page
-      .getByRole("button", { name: "Definir módulos contratados", exact: true })
-      .first()
-      .click();
-    await page.getByLabel("Frota — Prefeitura", { exact: true }).check();
-    await page
-      .getByRole("button", { name: "Salvar escopo da implantação" })
-      .click();
-    await expect(page.locator(".implantation-overview")).toContainText("0/11");
-    await page
-      .getByRole("button", { name: "Responsáveis", exact: true })
-      .click();
-    for (const [i, name, role] of [
-      [1, "Ana", "Diretora de Frota"],
-      [2, "Bruno", "Coordenador de Frota"],
-    ]) {
+    for (let i = 1; i <= 11; i++) {
       await page
-        .getByRole("button", { name: "Adicionar responsável", exact: true })
-        .click();
-      await page
-        .getByLabel(`Nome do responsável ${i}`, { exact: true })
-        .fill(name);
-      await page
-        .getByLabel(`Cargo do responsável ${i}`, { exact: true })
-        .fill(role);
-    }
-    await page
-      .getByRole("button", { name: "Salvar responsáveis", exact: true })
-      .click();
-    for (let i = 0; i < 11; i++) {
-      await page.locator(".implantation-question").nth(i).click();
-      await page
-        .getByLabel("Resposta do checklist", { exact: true })
-        .selectOption(i === 10 ? "no" : "yes");
-      await page
-        .locator(".implantation-point-people")
-        .getByRole("checkbox")
-        .nth(0)
-        .check();
-      await page
-        .locator(".implantation-point-people")
-        .getByRole("checkbox")
-        .nth(1)
-        .check();
-      await page
-        .getByLabel("Confirmo que apresentei este ponto ao cliente", {
+        .getByLabel(`Resposta do ponto ${i}`, { exact: true })
+        .selectOption(i === 11 ? "no" : "yes");
+      await point(page, i)
+        .getByRole("checkbox", {
+          name: "OK técnico da apresentação",
           exact: true,
         })
         .check();
-      await page.getByLabel(/Registrar aceite de Ana/).check();
-      if (i !== 10) await page.getByLabel(/Registrar aceite de Bruno/).check();
-      await page
-        .getByRole("button", { name: "Salvar no topo", exact: true })
+      await point(page, i)
+        .getByRole("button", { name: "OK do cliente", exact: true })
         .click();
-      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await page
+        .getByRole("dialog")
+        .getByRole("checkbox", { name: /Ana/ })
+        .check();
+      await page
+        .getByRole("dialog")
+        .getByRole("checkbox", { name: /Bruno/ })
+        .check();
+      await page
+        .getByRole("button", { name: "Registrar aceite dos selecionados" })
+        .click();
     }
-    await expect(page.locator(".implantation-overview")).toContainText("10/11");
+    await saved(page);
     await expect(
-      page.getByRole("button", { name: "Gerar termo da entidade" }),
-    ).toBeDisabled();
-    await page.locator(".implantation-question").last().click();
-    await page.getByLabel(/Registrar aceite de Bruno/).check();
-    await page
-      .getByRole("button", { name: "Salvar ponto", exact: true })
-      .click();
-    await expect(page.locator(".implantation-overview")).toContainText("11/11");
-    await page.getByRole("button", { name: "Gerar termo da entidade" }).click();
-    await page
-      .getByRole("button", { name: "Confirmar emissão", exact: true })
-      .click();
-    await expect(page.locator(".implantation-term-panel")).toContainText(
-      "Consultor autenticado",
-    );
-    expect(
-      state.row.data.implantation.terms[0].snapshot.entries[0].responsibles[1]
-        .role,
-    ).toBe("Coordenador de Frota");
-    const downloaded = page.waitForEvent("download");
+      page.getByRole("button", { name: "Gerar termo do módulo" }),
+    ).toBeEnabled();
+    await page.getByRole("button", { name: "Gerar termo do módulo" }).click();
+    await page.getByRole("button", { name: "Confirmar emissão" }).click();
+    await expect(
+      page.getByRole("button", { name: "Baixar documento", exact: true }),
+    ).toBeVisible();
+    const promise = page.waitForEvent("download");
     await page
       .getByRole("button", { name: "Baixar documento", exact: true })
       .click();
-    const file = await downloaded;
+    const file = await promise;
     const html = await readFile(await file.path(), "utf8");
-    expect(html).toContain("data:image/png;base64,");
     expect(html).toContain("Diretora de Frota");
-    expect(html).toContain("Coordenador de Frota");
-    expect(html).toContain("Consultor autenticado");
+    expect(html).toContain("Coordenador");
+    expect(html).toContain("data:image/png;base64,");
     expect(html).not.toContain("123.456.789-00");
-    await page.evaluate(() => {
-      const original = Object.getOwnPropertyDescriptor(
-        HTMLIFrameElement.prototype,
-        "srcdoc",
-      );
-      Object.defineProperty(HTMLIFrameElement.prototype, "srcdoc", {
-        ...original,
-        set(value) {
-          this.addEventListener(
-            "load",
-            () => {
-              this.contentWindow.print = () => {
-                window.printedTerm = {
-                  text: this.contentDocument.body.innerText,
-                  sandbox: this.getAttribute("sandbox"),
-                };
-                this.contentWindow.dispatchEvent(new Event("afterprint"));
-              };
-            },
-            { once: true },
-          );
-          original.set.call(this, value);
-        },
-      });
-    });
-    await page
-      .getByRole("button", { name: "Imprimir / salvar PDF", exact: true })
-      .click();
-    await expect
-      .poll(() => page.evaluate(() => window.printedTerm?.text))
-      .toContain("Termo de Homologação da Implantação");
-    expect(await page.evaluate(() => window.printedTerm.sandbox)).toContain(
-      "allow-modals",
+    expect(state.row.data.implantation.terms[0].module).toBe("Frota");
+    expect(state.row.data.implantation.terms[0].snapshot.entries).toHaveLength(
+      1,
     );
     await mkdir(".local", { recursive: true });
     await writeFile(`.local/implantation-term-${width}.html`, html);
-    const printPage = await page.context().newPage();
-    await printPage.setContent(html);
-    await printPage.pdf({
+    const doc = await page.context().newPage();
+    await doc.setContent(html);
+    await doc.pdf({
       path: `.local/implantation-term-${width}.pdf`,
       printBackground: true,
       preferCSSPageSize: true,
     });
-    await printPage.close();
+    await doc.close();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
     await page.screenshot({
-      path: `.local/implantation-${width}.png`,
+      path: `.local/acceptance-tabs-${width}.png`,
       fullPage: true,
       animations: "disabled",
     });
-    await page
-      .getByLabel("Entidade da implantação", { exact: true })
-      .selectOption("Fundo de Saúde");
-    await expect(page.locator(".implantation-module")).toHaveCount(0);
-    await expect(page.locator(".implantation-archive")).toHaveCount(0);
   });
-test("pergunta alterada invalida aceites e termos anteriores permanecem disponíveis", async ({
+test("quinze entidades, módulos e recolhimento são locais e voltam à última aba sem gravações", async ({
   page,
 }) => {
-  const state = await setup(page, { project: completeImplantation() });
-  await open(page);
-  await page.getByRole("button", { name: "Gerar termo da entidade" }).click();
-  await page.getByRole("button", { name: "Confirmar emissão" }).click();
-  await page
-    .getByRole("button", { name: "Editar perguntas", exact: true })
-    .click();
-  await page
-    .getByLabel("Texto da pergunta 1", { exact: true })
-    .fill("Novo ponto com o cliente?");
-  await page
-    .getByRole("button", { name: "Salvar perguntas", exact: true })
-    .click();
-  await expect(page.locator(".implantation-overview")).toContainText("10/11");
+  let p = preparedImplantation();
+  p.entities = [
+    "Prefeitura",
+    ...Array.from({ length: 14 }, (_, i) => `Entidade ${i + 2}`),
+  ];
+  p = configureImplantation(
+    p,
+    [
+      { entity: "Prefeitura", module: "Frota" },
+      { entity: "Entidade 15", module: "Almoxarifado" },
+    ],
+    technicalActor,
+  );
+  const state = await setup(page, { project: p });
+  await open(page, "");
   await expect(
-    page.getByRole("button", { name: "Gerar termo da entidade" }),
-  ).toBeDisabled();
-  await page.locator(".implantation-archive summary").click();
-  await expect(page.locator(".implantation-archive")).toContainText(
-    "Versão anterior",
+    page
+      .getByRole("region", {
+        name: "Visão geral das homologações por entidade",
+      })
+      .locator("tbody tr"),
+  ).toHaveCount(15);
+  const writes = state.writes;
+  await entityTab(page, "Entidade 15").click();
+  await page
+    .getByRole("button", { name: "Recolher módulos", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Recolher entidades", exact: true })
+    .click();
+  await page.reload();
+  await page.locator(".municipality-card").click();
+  await page
+    .getByRole("navigation", { name: "Navegação do projeto" })
+    .getByRole("button", { name: "Aceite da implantação" })
+    .click();
+  await expect(
+    page.getByRole("region", {
+      name: "Relatório de Almoxarifado — Entidade 15",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Expandir módulos", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Expandir entidades", exact: true }),
+  ).toBeVisible();
+  expect(state.writes).toBe(writes);
+});
+test("sem responsáveis avisa; um cliente é selecionado automaticamente e Não pode justificar dispensa", async ({
+  page,
+}) => {
+  const p = preparedImplantation();
+  p.implantation.entries[0].responsibles = [];
+  const state = await setup(page, { project: p });
+  await open(page);
+  await point(page, 1)
+    .getByRole("button", { name: "OK do cliente", exact: true })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Cadastre um responsável" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Responsáveis", exact: true }).click();
+  await page.getByRole("button", { name: "Adicionar responsável" }).click();
+  await page.getByLabel("Nome do responsável", { exact: true }).fill("Ana");
+  await page
+    .getByLabel("Cargo do responsável", { exact: true })
+    .fill("Diretora");
+  await page.getByRole("button", { name: "Salvar responsáveis" }).click();
+  await expect
+    .poll(() => state.row.data.implantation.entries[0].responsibles.length)
+    .toBe(1);
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await page
+    .getByLabel("Resposta do ponto 1", { exact: true })
+    .selectOption("no");
+  await page
+    .getByLabel("Justificativa obrigatória do ponto 1", { exact: true })
+    .fill("A entidade não usa esta rotina.");
+  await page
+    .getByLabel("Justificativa obrigatória do ponto 1", { exact: true })
+    .blur();
+  await point(page, 1)
+    .getByRole("checkbox", { name: /Este ponto não será utilizado/ })
+    .check();
+  await point(page, 1)
+    .getByRole("checkbox", { name: "OK técnico da dispensa", exact: true })
+    .check();
+  await point(page, 1)
+    .getByRole("button", { name: "OK do cliente", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await saved(page);
+  await expect(point(page, 1)).toContainText("Ponto validado");
+  expect(state.row.data.implantation.entries[0].questions[0].notUsed).toBe(
+    true,
   );
   expect(
-    state.row.data.implantation.terms[0].snapshot.entries[0].questions[0].text,
-  ).not.toBe("Novo ponto com o cliente?");
+    state.row.data.implantation.entries[0].questions[0].clients,
+  ).toHaveLength(1);
 });
-test("falha no banco mantém resposta e Voltar fecha o ponto antes de mudar de área", async ({
+test("respostas rápidas são serializadas; falha conserva texto entre abas e impede sair antes de resolver", async ({
   page,
 }) => {
   const state = await setup(page, { project: preparedImplantation() });
   await open(page);
-  await page.locator(".implantation-question").first().click();
+  state.hold = true;
   await page
-    .getByLabel("Resposta do checklist", { exact: true })
-    .selectOption("no");
+    .getByLabel("Resposta do ponto 1", { exact: true })
+    .selectOption("yes");
+  await expect.poll(() => state.held).toBe(true);
   await page
-    .getByLabel("Justificativa (obrigatória)", { exact: true })
-    .fill("Reforçar a apresentação com o responsável.");
+    .getByLabel("Resposta do ponto 2", { exact: true })
+    .selectOption("yes");
+  await page
+    .getByLabel("Observações do ponto 2", { exact: true })
+    .fill("Último texto digitado");
+  state.release();
+  await saved(page);
+  expect(state.row.data.implantation.entries[0].questions[0].answer).toBe(
+    "yes",
+  );
+  expect(state.row.data.implantation.entries[0].questions[1].notes).toBe(
+    "Último texto digitado",
+  );
+  const notes = page.getByLabel("Observações do ponto 1", { exact: true });
+  await notes.fill("Texto com ");
+  await expect
+    .poll(() => state.row.data.implantation.entries[0].questions[0].notes)
+    .toBe("Texto com");
+  await expect(notes).toHaveValue("Texto com ");
+  await notes.pressSequentially("espaço");
+  await notes.blur();
+  await saved(page);
+  expect(state.row.data.implantation.entries[0].questions[0].notes).toBe(
+    "Texto com espaço",
+  );
   state.fail = true;
-  await page.getByRole("button", { name: "Salvar ponto", exact: true }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
+  await page
+    .getByLabel("Observações do ponto 1", { exact: true })
+    .fill("Preservar o rascunho em falha.");
+  await page.getByLabel("Observações do ponto 1", { exact: true }).blur();
   await expect(
-    page.getByLabel("Justificativa (obrigatória)", { exact: true }),
-  ).toHaveValue("Reforçar a apresentação com o responsável.");
+    page.getByRole("button", { name: "Tentar salvar novamente" }),
+  ).toBeVisible();
+  await entityTab(page, "Fundo de Saúde").click();
+  await entityTab(page, "Prefeitura").click();
   await expect(
-    page.getByRole("button", { name: "Salvar ponto", exact: true }),
-  ).toBeEnabled();
-  expect(state.row.data.implantation.entries[0].questions[0].answer).toBe("");
-  await page.evaluate(() => history.back());
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.locator(".implantation-page")).toBeVisible();
-  await page.evaluate(() => history.back());
-  await expect(page.locator(".implantation-page")).toHaveCount(0);
+    page.getByLabel("Observações do ponto 1", { exact: true }),
+  ).toHaveValue("Preservar o rascunho em falha.");
+  await page
+    .locator(".sidebar")
+    .getByRole("button", { name: "Início", exact: true })
+    .click();
+  await expect(page.locator(".acceptance-report")).toBeVisible();
+  state.fail = false;
+  await page.getByRole("button", { name: "Tentar salvar novamente" }).click();
+  await saved(page);
+  expect(state.row.data.implantation.entries[0].questions[0].notes).toBe(
+    "Preservar o rascunho em falha.",
+  );
 });
-test("sem SQL a rotina informa a ativação e não permite gravar confirmações", async ({
+test("somente Master gerencia modelos globais e relatórios existentes não mudam ao salvar o padrão", async ({
+  page,
+}) => {
+  const state = await setup(page, {
+    project: preparedImplantation(),
+    master: true,
+  });
+  await open(page);
+  const old = state.row.data.implantation.entries[0].questions[0].text;
+  await page
+    .getByRole("button", { name: "Gerenciar modelos", exact: true })
+    .click();
+  await page
+    .getByRole("tablist", { name: "Modelos globais por módulo" })
+    .getByRole("tab", { name: /^Frota/ })
+    .click();
+  await page
+    .getByLabel("Texto da pergunta 1", { exact: true })
+    .fill("Novo padrão global de frota?");
+  await page
+    .getByRole("button", { name: "Salvar perguntas", exact: true })
+    .click();
+  await expect
+    .poll(() => state.catalog.find((m) => m.module === "Frota").revision)
+    .toBe(2);
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  expect(state.row.data.implantation.entries[0].questions[0].text).toBe(old);
+  await page
+    .getByRole("button", { name: "Aplicar modelo atual", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Aplicar modelo global ao relatório" })
+    .click();
+  await expect(page.locator(".acceptance-report")).toContainText(
+    "Novo padrão global de frota?",
+  );
+});
+test("sem modelo não há checkbox; marcar todos inclui só os módulos disponíveis e excluir relatório exige alerta", async ({
+  page,
+}) => {
+  const state = await setup(page, { project: preparedImplantation() });
+  await open(page);
+  await expect(
+    page.getByRole("button", { name: "Gerenciar modelos", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Módulos contratados", exact: true })
+    .click();
+  await expect(
+    page.getByRole("checkbox", { name: "Elicita — Prefeitura", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Marcar todos os módulos", exact: true })
+    .click();
+  await expect(
+    page.getByRole("checkbox", { name: "Frota — Prefeitura", exact: true }),
+  ).toBeChecked();
+  await page
+    .getByRole("button", { name: "Salvar escopo da implantação" })
+    .click();
+  await expect
+    .poll(
+      () =>
+        state.row.data.implantation.entries.filter((e) => e.included).length,
+    )
+    .toBe(8);
+  await page
+    .getByRole("tablist", { name: "Módulos da entidade" })
+    .getByRole("tab", { name: /^Frota/ })
+    .click();
+  await page
+    .getByRole("button", { name: "Excluir relatório", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText("Módulos contratados");
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  expect(
+    state.row.data.implantation.entries.find(
+      (e) => e.module === "Frota" && e.entity === "Prefeitura",
+    ).included,
+  ).toBe(true);
+  await page
+    .getByRole("button", { name: "Excluir relatório", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Apagar respostas e desativar" })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const removed = state.row.data.implantation.entries.find(
+    (e) => e.module === "Frota" && e.entity === "Prefeitura",
+  );
+  expect(removed.included).toBe(false);
+  expect(removed.questions).toHaveLength(0);
+});
+test("responsáveis têm abas próprias e botão de excluir com confirmação", async ({
+  page,
+}) => {
+  const state = await setup(page, { project: preparedImplantation() });
+  await open(page);
+  await page.getByRole("button", { name: "Responsáveis", exact: true }).click();
+  await page
+    .getByRole("tablist", { name: "Responsáveis do módulo" })
+    .getByRole("tab", { name: "Bruno", exact: true })
+    .click();
+  await expect(
+    page.getByLabel("Nome do responsável", { exact: true }),
+  ).toHaveValue("Bruno");
+  await page
+    .getByRole("button", { name: "Excluir responsável", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Confirmar exclusão do responsável" })
+    .click();
+  await expect
+    .poll(() => state.row.data.implantation.entries[0].responsibles.length)
+    .toBe(1);
+  expect(state.row.data.implantation.entries[0].responsibles[0].name).toBe(
+    "Ana",
+  );
+});
+test("visualizador consulta relatório e ausência do complemento bloqueia gravações", async ({
+  page,
+}) => {
+  await setup(page, { project: preparedImplantation(), viewer: true });
+  await open(page);
+  await expect(
+    page.getByLabel("Resposta do ponto 1", { exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Excluir relatório", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Gerenciar modelos", exact: true }),
+  ).toHaveCount(0);
+});
+test("SQL anterior mantém os registros e orienta ativação do complemento", async ({
   page,
 }) => {
   await setup(page, { project: preparedImplantation(), schema: false });
   await open(page);
-  await expect(page.getByRole("status")).toContainText(
-    "Ative a nova rotina no Supabase",
-  );
   await expect(
-    page.getByRole("button", { name: "Responsáveis", exact: true }),
-  ).toBeDisabled();
-  await page.locator(".implantation-question").first().click();
+    page.getByRole("status").filter({ hasText: "Ative o complemento" }),
+  ).toBeVisible();
   await expect(
-    page.getByLabel("Resposta do checklist", { exact: true }),
-  ).toBeDisabled();
-  await expect(
-    page.getByLabel("Confirmo que apresentei este ponto ao cliente", {
-      exact: true,
-    }),
+    page.getByLabel("Resposta do ponto 1", { exact: true }),
   ).toBeDisabled();
 });
-test("visualizador consulta perguntas e não registra aceites nem altera modelos", async ({
-  page,
-}) => {
-  await setup(page, { project: completeImplantation(), viewer: true });
-  await open(page);
-  await expect(
-    page.getByRole("button", { name: "Editar perguntas", exact: true }),
-  ).toBeDisabled();
-  await expect(
-    page.getByRole("button", { name: "Gerar termo da entidade" }),
-  ).toBeDisabled();
-  await page.locator(".implantation-question").first().click();
-  await expect(
-    page.getByLabel("Resposta do checklist", { exact: true }),
-  ).toBeDisabled();
-  await expect(
-    page.getByLabel("Confirmo que apresentei este ponto ao cliente", {
-      exact: true,
-    }),
-  ).toBeDisabled();
-  await expect(
-    page.getByRole("button", { name: "Salvar ponto", exact: true }),
-  ).toHaveCount(0);
-});
-
 test("documento preserva observações longas e trata os dados dos participantes como texto", async ({
   page,
 }) => {
@@ -439,34 +716,130 @@ test("documento preserva observações longas e trata os dados dos participantes
   });
 });
 
-test("reconferência substitui os aceites importados pela confirmação atual sem alterar a resposta", async ({
+test("relatório parcial identifica a dispensa e não imprime a declaração de termo final", async ({
+  page,
+}) => {
+  const p = preparedImplantation();
+  p.implantation.entries[0].questions[0] = {
+    ...p.implantation.entries[0].questions[0],
+    answer: "no",
+    notUsed: true,
+    notes: "A entidade não utilizará esta rotina.",
+  };
+  const term = {
+    id: "relatorio-parcial",
+    draft: true,
+    actorName: "Consultor",
+    at: new Date().toISOString(),
+    snapshot: (await import("../src/implantation.js")).implantationSnapshot(
+      p,
+      "Prefeitura",
+      "Frota",
+    ),
+  };
+  await page.goto("/");
+  const html = await page.evaluate(
+    async (record) =>
+      (await import("/src/implantation-print.js")).termDocument(record),
+    term,
+  );
+  await page.setContent(html);
+  await expect(page.locator("body")).toContainText("não constitui termo final");
+  await expect(page.locator("body")).toContainText(
+    "Dispensa justificada: este ponto não será utilizado e não foi apresentado.",
+  );
+  await expect(page.locator("body")).toContainText(
+    "A entidade não utilizará esta rotina.",
+  );
+  await expect(page.locator(".signing")).toHaveCount(0);
+  await page.pdf({
+    path: ".local/implantation-partial-exemption.pdf",
+    printBackground: true,
+    preferCSSPageSize: true,
+  });
+});
+
+test("Master pode criar modelo de módulo antes indisponível e novo relatório usa o padrão global", async ({
   page,
 }) => {
   const state = await setup(page, {
-    project: importedImplantation(completeImplantation()),
+    project: preparedImplantation(),
+    master: true,
   });
   await open(page);
-  await expect(page.locator(".implantation-overview")).toContainText("0/11");
-  await page.locator(".implantation-question").first().click();
-  const technical = page.getByLabel(
-    "Confirmo que apresentei este ponto ao cliente",
-    { exact: true },
+  await page
+    .getByRole("button", { name: "Gerenciar modelos", exact: true })
+    .click();
+  await page
+    .getByRole("tablist", { name: "Modelos globais por módulo" })
+    .getByRole("tab", { name: /^Elicita/ })
+    .click();
+  await page
+    .getByRole("button", { name: "Adicionar pergunta", exact: true })
+    .click();
+  await page
+    .getByLabel("Texto da pergunta 1", { exact: true })
+    .fill("O portal foi apresentado?");
+  await page
+    .getByRole("button", { name: "Salvar perguntas", exact: true })
+    .click();
+  await expect
+    .poll(
+      () => state.catalog.find((m) => m.module === "Elicita").questions.length,
+    )
+    .toBe(1);
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Módulos contratados", exact: true })
+    .click();
+  await page
+    .getByRole("checkbox", { name: "Elicita — Prefeitura", exact: true })
+    .check();
+  await page
+    .getByRole("button", { name: "Salvar escopo da implantação", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page
+    .getByRole("tablist", { name: "Módulos da entidade" })
+    .getByRole("tab", { name: /^Elicita/ })
+    .click();
+  await expect(page.locator(".acceptance-report")).toContainText(
+    "O portal foi apresentado?",
   );
-  await expect(technical).not.toBeChecked();
-  await technical.check();
-  await expect(page.locator(".implantation-approval").first()).toContainText(
-    "O OK será registrado com sua conta: Consultor autenticado",
+});
+test("desmarcar no escopo confirma perda das respostas e reativar começa novo preenchimento", async ({
+  page,
+}) => {
+  const state = await setup(page, { project: completeImplantation() });
+  await open(page);
+  await page
+    .getByRole("button", { name: "Módulos contratados", exact: true })
+    .click();
+  await page
+    .getByRole("checkbox", { name: "Frota — Prefeitura", exact: true })
+    .uncheck();
+  await page
+    .getByRole("button", { name: "Salvar escopo da implantação", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText(
+    "Serão apagadas as respostas",
   );
-  await page.getByLabel(/Registrar aceite de Ana/).check();
-  await page.getByLabel(/Registrar aceite de Bruno/).check();
-  await page.getByRole("button", { name: "Salvar ponto", exact: true }).click();
-  await expect(page.locator(".implantation-overview")).toContainText("1/11");
-  const point = state.row.data.implantation.entries[0].questions[0];
-  expect(point.answer).toBe("yes");
-  expect(point.technical.source).toBe("server");
-  expect(
-    point.clients.every(
-      (c) => c.source === "server" && c.by === "Consultor autenticado",
-    ),
-  ).toBe(true);
+  await page
+    .getByRole("button", { name: "Apagar respostas e salvar escopo" })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(state.row.data.implantation.entries[0].questions).toHaveLength(0);
+  await page
+    .getByRole("button", { name: "Módulos contratados", exact: true })
+    .click();
+  await page
+    .getByRole("checkbox", { name: "Frota — Prefeitura", exact: true })
+    .check();
+  await page
+    .getByRole("button", { name: "Salvar escopo da implantação", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    page.getByLabel("Resposta do ponto 1", { exact: true }),
+  ).toHaveValue("");
 });
