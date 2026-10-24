@@ -877,6 +877,12 @@ function QuestionEditor({
     setDraft((d) => ({ ...d, ...values, technical: false, clientIds: [] }));
   const needsJustification =
     draft.answer === "na" || draft.answer === q.justifyWhen;
+  const retainsTechnical =
+    q.technical &&
+    q.technical.source !== "imported-unverified" &&
+    draft.answer === q.answer &&
+    draft.notes.trim() === q.notes &&
+    JSON.stringify(draft.responsibleIds) === JSON.stringify(q.responsibleIds);
   return (
     <form
       id="implantation-question-form"
@@ -968,7 +974,7 @@ function QuestionEditor({
           <span>Confirmo que apresentei este ponto ao cliente</span>
         </label>
         <small>
-          {q.technical && draft.technical
+          {retainsTechnical && draft.technical
             ? `${q.technical.by} · ${when(q.technical.at)}`
             : actor
               ? `O OK será registrado com sua conta: ${actor.name}.`

@@ -6,7 +6,10 @@ import {
   completeImplantation,
   technicalActor,
 } from "./fixtures/implantation.js";
-import { issueImplantationTerm } from "../src/implantation.js";
+import {
+  issueImplantationTerm,
+  importedImplantation,
+} from "../src/implantation.js";
 
 const userId = technicalActor.id;
 const jwt = (role) =>
@@ -434,4 +437,36 @@ test("documento preserva observações longas e trata os dados dos participantes
     printBackground: true,
     preferCSSPageSize: true,
   });
+});
+
+test("reconferência substitui os aceites importados pela confirmação atual sem alterar a resposta", async ({
+  page,
+}) => {
+  const state = await setup(page, {
+    project: importedImplantation(completeImplantation()),
+  });
+  await open(page);
+  await expect(page.locator(".implantation-overview")).toContainText("0/11");
+  await page.locator(".implantation-question").first().click();
+  const technical = page.getByLabel(
+    "Confirmo que apresentei este ponto ao cliente",
+    { exact: true },
+  );
+  await expect(technical).not.toBeChecked();
+  await technical.check();
+  await expect(page.locator(".implantation-approval").first()).toContainText(
+    "O OK será registrado com sua conta: Consultor autenticado",
+  );
+  await page.getByLabel(/Registrar aceite de Ana/).check();
+  await page.getByLabel(/Registrar aceite de Bruno/).check();
+  await page.getByRole("button", { name: "Salvar ponto", exact: true }).click();
+  await expect(page.locator(".implantation-overview")).toContainText("1/11");
+  const point = state.row.data.implantation.entries[0].questions[0];
+  expect(point.answer).toBe("yes");
+  expect(point.technical.source).toBe("server");
+  expect(
+    point.clients.every(
+      (c) => c.source === "server" && c.by === "Consultor autenticado",
+    ),
+  ).toBe(true);
 });

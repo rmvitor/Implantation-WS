@@ -316,7 +316,9 @@ export function saveImplantationQuestion(
       "Responda a pergunta e justifique quando necessário antes de confirmar.",
     );
   response.technical = draft.technical
-    ? !changed && old.technical
+    ? !changed &&
+      old.technical &&
+      old.technical.source !== "imported-unverified"
       ? old.technical
       : identity
     : null;
@@ -325,7 +327,11 @@ export function saveImplantationQuestion(
       throw new Error(
         "O aceite deve ser de um responsável selecionado para este ponto.",
       );
-    const previous = !changed && old.clients.find((c) => c.id === id);
+    const previous =
+      !changed &&
+      old.clients.find(
+        (c) => c.id === id && c.source !== "imported-unverified",
+      );
     const person = entry.responsibles.find((r) => r.id === id);
     return (
       previous || {

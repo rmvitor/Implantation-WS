@@ -10,13 +10,17 @@ import {
   implantationSnapshot,
   issueImplantationTerm,
   currentImplantationTerm,
+  importedImplantation,
 } from "../src/implantation.js";
 import {
   projectRecords,
   assembleRecords,
   recordChanges,
 } from "../src/records.js";
-import { implantationProject } from "../tests/fixtures/implantation.js";
+import {
+  implantationProject,
+  completeImplantation,
+} from "../tests/fixtures/implantation.js";
 
 // Disposable databases only. No production URL or credentials are accepted here.
 export async function testImplantation(owner, connectionUrl) {
@@ -397,6 +401,12 @@ export async function testImplantation(owner, connectionUrl) {
         assert.deepEqual(p.implantation.terms[0], issued);
         checks++;
       }
+      p = await write(importedImplantation(p, p));
+      assert.equal(implantationProgress(p).ready, false);
+      checks++;
+      p = await write(completeImplantation(p));
+      assert.equal(implantationProgress(p).ready, true);
+      checks++;
       const intact = structuredClone(p.implantation);
       await root.query(migration);
       assert.deepEqual((await read()).project.implantation, intact);

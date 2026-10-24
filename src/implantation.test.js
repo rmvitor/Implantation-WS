@@ -226,6 +226,16 @@ test("backup preserva a rotina e a restauração marca aceites importados sem re
   assert.equal(implantationProgress(imported).ready, false);
   assert.equal(imported.implantation.terms[0].source, "imported-unverified");
   assert.equal(currentImplantationTerm(imported, "Prefeitura"), undefined);
+  const reconfirmed = completeImplantation(imported);
+  assert.equal(implantationProgress(reconfirmed).ready, true);
+  assert.equal(
+    reconfirmed.implantation.entries[0].questions[0].technical.source,
+    "authenticated-client",
+  );
+  assert.equal(
+    reconfirmed.implantation.entries[0].questions[0].clients[0].source,
+    "authenticated-client",
+  );
   const existing = importedImplantation(p, p);
   assert.deepEqual(existing.implantation.terms[0], p.implantation.terms[0]);
   const invalid = structuredClone(p.implantation);
