@@ -41,6 +41,11 @@ export async function requestCustomerAccess(client, invite) {
   if (error) throw error;
 }
 export const customerError = (error) => {
+  // Callback descriptions originate in the URL; display only fixed messages.
+  if (error?.name === "AuthImplicitGrantRedirectError")
+    return (error.code || error.details?.code) === "otp_expired"
+      ? "Link ou código inválido ou vencido. Solicite um novo acesso."
+      : "Não foi possível entrar por este link. Solicite um novo acesso pelo e-mail do convite.";
   if (error?.code === "40001")
     return "Este ponto foi atualizado. Confira a apresentação novamente antes de confirmar.";
   if (error?.code === "PGRST202")

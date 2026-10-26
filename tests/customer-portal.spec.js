@@ -452,3 +452,21 @@ test("link padrão vencido informa o motivo e permite pedir outro sem exigir có
   expect(state.otp[0].email).toBe("ana@example.invalid");
   expect(state.calls.some((p) => p.includes("/rpc/"))).toBe(false);
 });
+
+test("erro no retorno do e-mail mostra orientação própria, sem reproduzir texto da URL", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  await page.goto(
+    "/?aceite=" +
+      invite +
+      "#error=access_denied&error_code=unexpected&error_description=TEXTO_EXTERNO_NAO_CONFIAVEL",
+  );
+  await expect(page.getByRole("alert")).toContainText(
+    "Não foi possível entrar por este link",
+  );
+  await expect(page.getByRole("alert")).not.toContainText(
+    "TEXTO_EXTERNO_NAO_CONFIAVEL",
+  );
+  expect(state.calls.some((p) => p.includes("/rpc/"))).toBe(false);
+});
