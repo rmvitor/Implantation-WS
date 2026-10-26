@@ -45,7 +45,9 @@ Elicita e Fiscalização de contrato começam sem modelo. O nome aparece, mas a 
 
 ## Preencher diretamente no relatório
 
-As perguntas ficam abertas na própria página, com resposta, justificativa/observações e botões dos dois OKs. Não é necessário abrir uma janela para cada pergunta.
+As perguntas ficam abertas na própria página, sem dropdown. **Aceite técnico: Sim** registra a resposta e o OK do técnico conectado em um clique. **Aceite do cliente** mantém a confirmação separada. **Não** e **Não se aplica** são escolhas exclusivas e abrem o campo de justificativa; o OK técnico confirma a resposta escolhida depois da justificativa aplicável. Desmarcar a escolha negativa volta o ponto a não respondido.
+
+**Observações** fica recolhido nas demais respostas e pode ser aberto para anotações. O texto existente é preservado ao trocar de resposta: para Não/Não se aplica, ele aparece como justificativa/observações. Perguntas cujo Sim exige justificativa abrem esse campo antes de permitir confirmar o técnico. As regras de impedimento do modelo continuam valendo.
 
 - Seleções e OKs entram imediatamente na fila de gravação. Textos são enviados após uma pequena pausa de digitação ou ao sair do campo.
 - As gravações são serializadas para preservar cliques rápidos em pontos diferentes. A tela informa **Salvando**, **Respostas confirmadas no banco** ou **Há respostas não salvas**.
@@ -97,6 +99,8 @@ Desmarcar um módulo em **Módulos contratados** tem o mesmo efeito e mostra a l
 - **Gerar termo do módulo** fica disponível quando todos os pontos daquele módulo têm respostas válidas e os dois OKs. Os demais módulos podem continuar pendentes.
 - Na **Visão geral**, o termo consolidado da entidade exige todos os módulos contratados concluídos. Termos atuais podem ser impressos ali, e os anteriores continuam em **Termos emitidos**.
 - O documento usa o timbre IPM extraído dos modelos fornecidos, com nome e cargo de quem participou dos pontos, identificação dos técnicos, respostas, dispensas e espaços de assinatura.
+- A partir de 1.15.1, relatórios parciais também terminam com campos de assinatura para os técnicos identificados (incluindo o emissor) e todos os responsáveis cadastrados nos módulos do relatório, com nome, cargo e e-mail quando informado. Sem cadastro, ficam linhas para preenchimento manual. Isso não substitui os OKs necessários para emitir o termo final.
+- O rodapé institucional é renderizado em texto, sem as linhas verticais da imagem original. O cabeçalho timbrado continua incorporado ao arquivo.
 - **Imprimir / salvar PDF** usa a impressão do navegador em A4; desative seus cabeçalhos e rodapés adicionais. **Baixar documento** guarda uma cópia HTML com o timbre incorporado, que pode ser aberta depois sem conexão.
 
 Cada emissão guarda uma cópia das perguntas, respostas, nomes/cargos e dados do município. Alterações posteriores preservam os documentos anteriores. CPF não é incluído no termo. Nomes, cargos e e-mails dos participantes fazem parte do documento e devem ser compartilhados com os destinatários do projeto.

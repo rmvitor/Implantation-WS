@@ -244,6 +244,19 @@ const entityTab = (page, name) =>
     .getByRole("tab", { name: new RegExp("^" + name) });
 const point = (page, n) =>
   page.getByRole("article", { name: `Ponto ${n}`, exact: true });
+const respond = async (page, number, value) => {
+  await point(page, number)
+    .getByRole("checkbox", {
+      name:
+        value === "yes"
+          ? "Aceite técnico: Sim"
+          : value === "no"
+            ? "Não"
+            : "Não se aplica",
+      exact: true,
+    })
+    .check();
+};
 const saved = (page) =>
   expect(page.locator(".acceptance-save-status")).toContainText(
     "Respostas confirmadas no banco",
@@ -256,15 +269,11 @@ test("respostas e OKs usam registros separados após a migração, sem regravar 
     normalized: true,
   });
   await open(page);
-  await page
-    .getByLabel("Resposta do ponto 1", { exact: true })
-    .selectOption("yes");
-  await page
-    .getByLabel("Resposta do ponto 2", { exact: true })
-    .selectOption("yes");
+  await respond(page, 1, "yes");
+  await respond(page, 2, "yes");
   await saved(page);
   await point(page, 1)
-    .getByRole("checkbox", { name: "OK técnico da apresentação", exact: true })
+    .getByRole("checkbox", { name: "Aceite técnico: Sim", exact: true })
     .check();
   await saved(page);
   await expect
@@ -287,11 +296,14 @@ test("respostas e OKs usam registros separados após a migração, sem regravar 
   ).toBeTruthy();
   await open(page);
   await expect(
-    page.getByLabel("Resposta do ponto 1", { exact: true }),
-  ).toHaveValue("yes");
+    point(page, 1).getByRole("checkbox", {
+      name: "Aceite técnico: Sim",
+      exact: true,
+    }),
+  ).toBeChecked();
   await expect(
     point(page, 1).getByRole("checkbox", {
-      name: "OK técnico da apresentação",
+      name: "Aceite técnico: Sim",
       exact: true,
     }),
   ).toBeChecked();
@@ -304,17 +316,14 @@ for (const width of [390, 1440])
     const state = await setup(page, { project: preparedImplantation() });
     await open(page);
     for (let i = 1; i <= 11; i++) {
-      await page
-        .getByLabel(`Resposta do ponto ${i}`, { exact: true })
-        .selectOption(i === 11 ? "no" : "yes");
+      await respond(page, i, i === 11 ? "no" : "yes");
       await point(page, i)
         .getByRole("checkbox", {
-          name: "OK técnico da apresentação",
-          exact: true,
+          name: /^Aceite técnico/,
         })
         .check();
       await point(page, i)
-        .getByRole("button", { name: "OK do cliente", exact: true })
+        .getByRole("button", { name: "Aceite do cliente", exact: true })
         .click();
       await expect(page.getByRole("dialog")).toBeVisible();
       await page
@@ -433,7 +442,7 @@ test("sem responsáveis avisa; um cliente é selecionado automaticamente e Não 
   const state = await setup(page, { project: p });
   await open(page);
   await point(page, 1)
-    .getByRole("button", { name: "OK do cliente", exact: true })
+    .getByRole("button", { name: "Aceite do cliente", exact: true })
     .click();
   await expect(
     page.getByRole("status").filter({ hasText: "Cadastre um responsável" }),
@@ -449,9 +458,7 @@ test("sem responsáveis avisa; um cliente é selecionado automaticamente e Não 
     .poll(() => state.row.data.implantation.entries[0].responsibles.length)
     .toBe(1);
   await page.getByRole("button", { name: "Fechar", exact: true }).click();
-  await page
-    .getByLabel("Resposta do ponto 1", { exact: true })
-    .selectOption("no");
+  await respond(page, 1, "no");
   await page
     .getByLabel("Justificativa obrigatória do ponto 1", { exact: true })
     .fill("A entidade não usa esta rotina.");
@@ -462,10 +469,10 @@ test("sem responsáveis avisa; um cliente é selecionado automaticamente e Não 
     .getByRole("checkbox", { name: /Este ponto não será utilizado/ })
     .check();
   await point(page, 1)
-    .getByRole("checkbox", { name: "OK técnico da dispensa", exact: true })
+    .getByRole("checkbox", { name: "Aceite técnico da dispensa", exact: true })
     .check();
   await point(page, 1)
-    .getByRole("button", { name: "OK do cliente", exact: true })
+    .getByRole("button", { name: "Aceite do cliente", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await saved(page);
@@ -483,13 +490,10 @@ test("respostas rápidas são serializadas; falha conserva texto entre abas e im
   const state = await setup(page, { project: preparedImplantation() });
   await open(page);
   state.hold = true;
-  await page
-    .getByLabel("Resposta do ponto 1", { exact: true })
-    .selectOption("yes");
+  await respond(page, 1, "yes");
   await expect.poll(() => state.held).toBe(true);
-  await page
-    .getByLabel("Resposta do ponto 2", { exact: true })
-    .selectOption("yes");
+  await respond(page, 2, "yes");
+  await point(page, 2).locator(".acceptance-observations > summary").click();
   await page
     .getByLabel("Observações do ponto 2", { exact: true })
     .fill("Último texto digitado");
@@ -501,6 +505,7 @@ test("respostas rápidas são serializadas; falha conserva texto entre abas e im
   expect(state.row.data.implantation.entries[0].questions[1].notes).toBe(
     "Último texto digitado",
   );
+  await point(page, 1).locator(".acceptance-observations > summary").click();
   const notes = page.getByLabel("Observações do ponto 1", { exact: true });
   await notes.fill("Texto com ");
   await expect
@@ -663,7 +668,10 @@ test("visualizador consulta relatório e ausência do complemento bloqueia grava
   await setup(page, { project: preparedImplantation(), viewer: true });
   await open(page);
   await expect(
-    page.getByLabel("Resposta do ponto 1", { exact: true }),
+    point(page, 1).getByRole("checkbox", {
+      name: "Aceite técnico: Sim",
+      exact: true,
+    }),
   ).toBeDisabled();
   await expect(
     page.getByRole("button", { name: "Excluir relatório", exact: true }),
@@ -681,7 +689,10 @@ test("SQL anterior mantém os registros e orienta ativação do complemento", as
     page.getByRole("status").filter({ hasText: "Ative o complemento" }),
   ).toBeVisible();
   await expect(
-    page.getByLabel("Resposta do ponto 1", { exact: true }),
+    point(page, 1).getByRole("checkbox", {
+      name: "Aceite técnico: Sim",
+      exact: true,
+    }),
   ).toBeDisabled();
 });
 test("documento preserva observações longas e trata os dados dos participantes como texto", async ({
@@ -726,6 +737,13 @@ test("relatório parcial identifica a dispensa e não imprime a declaração de 
     notUsed: true,
     notes: "A entidade não utilizará esta rotina.",
   };
+  p.implantation.entries[0].questions[1].technical = {
+    ...technicalActor,
+    actorId: technicalActor.id,
+    by: "Segundo consultor",
+    at: new Date().toISOString(),
+    source: "server",
+  };
   const term = {
     id: "relatorio-parcial",
     draft: true,
@@ -751,7 +769,40 @@ test("relatório parcial identifica a dispensa e não imprime a declaração de 
   await expect(page.locator("body")).toContainText(
     "A entidade não utilizará esta rotina.",
   );
-  await expect(page.locator(".signing")).toHaveCount(0);
+  await expect(page.locator(".report-signing")).toHaveCount(1);
+  await expect(page.locator(".report-signing")).toContainText("Ana");
+  await expect(page.locator(".report-signing")).toContainText("Bruno");
+  await expect(page.locator(".report-signing")).toContainText("Consultor");
+  await expect(page.locator(".technical-signature")).toHaveCount(2);
+  await expect(page.locator(".client-signature")).toHaveCount(2);
+  await expect(page.locator(".report-signing")).toContainText(
+    "Segundo consultor",
+  );
+  await expect(page.locator(".report-signing")).toContainText(
+    "Diretora de Frota",
+  );
+  await expect(page.locator(".report-signing")).toContainText(
+    "ana@example.invalid",
+  );
+  await expect(page.locator("footer.letterhead-footer")).toHaveCount(1);
+  await expect(page.locator("img.letterhead-footer")).toHaveCount(0);
+  expect(
+    await page
+      .locator("footer.letterhead-footer > div")
+      .evaluateAll((nodes) =>
+        nodes.every(
+          (n) =>
+            getComputedStyle(n).borderLeftWidth === "0px" &&
+            getComputedStyle(n).borderRightWidth === "0px",
+        ),
+      ),
+  ).toBe(true);
+  await expect(
+    page.getByRole("heading", {
+      name: "Termo de Homologação da Implantação",
+      exact: true,
+    }),
+  ).toHaveCount(0);
   await page.pdf({
     path: ".local/implantation-partial-exemption.pdf",
     printBackground: true,
@@ -840,6 +891,128 @@ test("desmarcar no escopo confirma perda das respostas e reativar começa novo p
     .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(
-    page.getByLabel("Resposta do ponto 1", { exact: true }),
-  ).toHaveValue("");
+    point(page, 1).getByRole("checkbox", {
+      name: "Aceite técnico: Sim",
+      exact: true,
+    }),
+  ).toBeChecked({ checked: false });
+});
+
+for (const width of [390, 1440])
+  test(`aceites compactos sem dropdown, justificativa e observações recolhidas em ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const p = preparedImplantation();
+    p.implantation.entries[0].responsibles.splice(1);
+    const state = await setup(page, { project: p, normalized: true });
+    await open(page);
+    const item = point(page, 1);
+    await expect(item.locator("select")).toHaveCount(0);
+    await expect(
+      item.getByLabel("Observações do ponto 1", { exact: true }),
+    ).not.toBeVisible();
+    await respond(page, 1, "yes");
+    await item
+      .getByRole("button", { name: "Aceite do cliente", exact: true })
+      .click();
+    await saved(page);
+    let q = state.row.data.implantation.entries[0].questions[0];
+    expect(q.answer).toBe("yes");
+    expect(q.technical.source).toBe("server");
+    expect(q.clients[0].clientName).toBe("Ana");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await respond(page, 1, "no");
+    await expect(
+      item.getByRole("checkbox", { name: "Aceite técnico: Não", exact: true }),
+    ).toBeDisabled();
+    await item
+      .getByLabel("Justificativa obrigatória do ponto 1", { exact: true })
+      .fill("Rotina não será utilizada nesta entidade.");
+    await item
+      .getByRole("checkbox", { name: /Este ponto não será utilizado/ })
+      .check();
+    await item
+      .getByRole("checkbox", {
+        name: "Aceite técnico da dispensa",
+        exact: true,
+      })
+      .check();
+    await item
+      .getByRole("button", { name: "Aceite do cliente", exact: true })
+      .click();
+    await saved(page);
+    expect(state.row.data.implantation.entries[0].questions[0].notUsed).toBe(
+      true,
+    );
+    await respond(page, 1, "na");
+    await expect(
+      item.getByRole("checkbox", { name: "Não", exact: true }),
+    ).not.toBeChecked();
+    await expect(
+      item.getByLabel("Justificativa obrigatória do ponto 1", { exact: true }),
+    ).toBeVisible();
+    await saved(page);
+    q = state.row.data.implantation.entries[0].questions[0];
+    expect(q.answer).toBe("na");
+    expect(q.notUsed).toBe(false);
+    expect(q.technical).toBeNull();
+    expect(q.clients).toHaveLength(0);
+    await item
+      .getByRole("checkbox", { name: "Não se aplica", exact: true })
+      .uncheck();
+    await expect(
+      item.getByLabel("Observações do ponto 1", { exact: true }),
+    ).not.toBeVisible();
+    await respond(page, 1, "yes");
+    await item.locator(".acceptance-observations > summary").click();
+    await item
+      .getByLabel("Observações do ponto 1", { exact: true })
+      .fill("Observação adicional preservada no relatório.");
+    await item.getByLabel("Observações do ponto 1", { exact: true }).blur();
+    await saved(page);
+    expect(state.row.data.implantation.entries[0].questions[0].notes).toBe(
+      "Observação adicional preservada no relatório.",
+    );
+    await page.screenshot({
+      path: `.local/acceptance-compact-${width}.png`,
+      fullPage: true,
+    });
+  });
+
+test("Sim com impedimento continua exigindo justificativa e bloqueando o termo", async ({
+  page,
+}) => {
+  const state = await setup(page, { project: preparedImplantation() });
+  await open(page);
+  const item = point(page, 11);
+  await item
+    .getByRole("checkbox", { name: "Aceite técnico: Sim", exact: true })
+    .click();
+  const technical = item.getByRole("checkbox", {
+    name: "Aceite técnico: Sim",
+    exact: true,
+  });
+  await expect(technical).not.toBeChecked();
+  await expect(technical).toBeDisabled();
+  await expect(item.locator(".implantation-warning")).toContainText(
+    "impede o termo",
+  );
+  await expect(
+    item.getByRole("checkbox", { name: /Este ponto não será utilizado/ }),
+  ).toHaveCount(0);
+  await item
+    .getByLabel("Justificativa obrigatória do ponto 11", { exact: true })
+    .fill("Divergência a corrigir antes de liberar o módulo.");
+  await technical.check();
+  await saved(page);
+  expect(state.row.data.implantation.entries[0].questions[10].answer).toBe(
+    "yes",
+  );
+  expect(
+    state.row.data.implantation.entries[0].questions[10].technical.source,
+  ).toBe("server");
+  await expect(
+    page.getByRole("button", { name: "Gerar termo do módulo", exact: true }),
+  ).toBeDisabled();
 });

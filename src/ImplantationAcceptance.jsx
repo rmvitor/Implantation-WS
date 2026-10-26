@@ -265,8 +265,8 @@ export function ImplantationAcceptance({
     const key = keyFor(e, q);
     const next = {
       ...(draftsRef.current[key] || draftFor(q)),
-      ...changes,
       ...(content ? { technical: false, clientIds: [] } : {}),
+      ...changes,
     };
     if (next.answer !== "no") next.notUsed = false;
     draftsRef.current = { ...draftsRef.current, [key]: next };
@@ -321,6 +321,7 @@ export function ImplantationAcceptance({
       entity: e.entity,
       module: e.module,
       at: new Date().toISOString(),
+      actorId: team.actor?.id || "",
       actorName: team.actor?.name || "",
       draft: true,
       snapshot: implantationSnapshot(project, e.entity, e.module),
@@ -1136,6 +1137,23 @@ function InlineQuestion({
 }) {
   const answered = questionAnswered({ ...q, ...draft });
   const required = draft.answer === "na" || draft.answer === q.justifyWhen;
+  const justification = required || draft.answer === "no";
+  const notesField = (
+    <Field
+      label={`${justification ? (required ? "Justificativa obrigatória" : "Justificativa") : "Observações"} do ponto ${number}`}
+    >
+      <textarea
+        rows={2}
+        value={draft.notes}
+        disabled={!editable}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        onChange={(e) =>
+          onChange({ notes: e.target.value }, { content: true, delay: 350 })
+        }
+      />
+    </Field>
+  );
   return (
     <article
       className="acceptance-inline-question"
@@ -1146,38 +1164,79 @@ function InlineQuestion({
       </h4>
       {q.help && <p className="muted">{q.help}</p>}
       {q.condition && <p className="muted">{q.condition}</p>}
-      <div className="acceptance-inline-fields">
-        <Field label={`Resposta do ponto ${number}`}>
-          <select
-            value={draft.answer}
-            disabled={!editable}
-            onChange={(e) =>
-              onChange({ answer: e.target.value }, { content: true })
-            }
-          >
-            <option value="">Ainda não respondido</option>
-            {Object.entries(ANSWERS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label={`${required ? "Justificativa obrigatória" : "Observações"} do ponto ${number}`}
-        >
-          <textarea
-            rows={2}
-            value={draft.notes}
-            disabled={!editable}
-            onFocus={onFocus}
-            onBlur={onBlur}
-            onChange={(e) =>
-              onChange({ notes: e.target.value }, { content: true, delay: 350 })
-            }
+      <div
+        className="acceptance-inline-approvals"
+        role="group"
+        aria-label={`Resposta e aceites do ponto ${number}`}
+      >
+        <label>
+          <input
+            type="checkbox"
+            checked={draft.technical}
+            disabled={!canConfirm || (!!draft.answer && !answered)}
+            onChange={(e) => {
+              const answer = draft.answer || "yes";
+              onChange(
+                {
+                  answer,
+                  technical:
+                    e.target.checked &&
+                    questionAnswered({ ...q, ...draft, answer }),
+                },
+                { content: answer !== draft.answer },
+              );
+            }}
           />
-        </Field>
+          {draft.notUsed
+            ? "Aceite técnico da dispensa"
+            : `Aceite técnico: ${ANSWERS[draft.answer] || "Sim"}`}
+        </label>
+        <button
+          className="button secondary acceptance-client-accept"
+          aria-pressed={draft.clientIds.length > 0}
+          disabled={!canConfirm || (entry.responsibles.length > 0 && !answered)}
+          onClick={onClient}
+        >
+          <CheckCheck size={16} aria-hidden="true" />
+          Aceite do cliente
+        </button>
+        {[
+          ["no", "Não"],
+          ["na", "Não se aplica"],
+        ].map(([value, label]) => (
+          <label key={value}>
+            <input
+              type="checkbox"
+              checked={draft.answer === value}
+              disabled={!editable}
+              onChange={(e) =>
+                onChange(
+                  { answer: e.target.checked ? value : "" },
+                  { content: true },
+                )
+              }
+            />
+            {label}
+          </label>
+        ))}
       </div>
+      {justification ? (
+        <div className="acceptance-inline-fields">
+          {notesField}
+          {required && !answered && (
+            <small className="muted">
+              Preencha a justificativa para registrar os aceites.
+            </small>
+          )}
+        </div>
+      ) : (
+        <details className="acceptance-observations">
+          <summary>
+            Observações{draft.notes.trim() ? " · preenchidas" : ""}
+          </summary>
+          {notesField}
+        </details>
+      )}
       {draft.answer === "no" && q.kind !== "blocking" && (
         <label className="acceptance-exemption">
           <input
@@ -1192,36 +1251,15 @@ function InlineQuestion({
           justificada
         </label>
       )}
-      <div className="acceptance-inline-approvals">
-        <label>
-          <input
-            type="checkbox"
-            checked={draft.technical}
-            disabled={!canConfirm || !answered}
-            onChange={(e) => onChange({ technical: e.target.checked })}
-          />
-          {draft.notUsed
-            ? "OK técnico da dispensa"
-            : "OK técnico da apresentação"}
-        </label>
-        <button
-          className="button secondary"
-          disabled={!canConfirm || (entry.responsibles.length > 0 && !answered)}
-          onClick={onClient}
-        >
-          {entry.responsibles.length === 1 &&
-          draft.clientIds.includes(entry.responsibles[0].id)
-            ? "Retirar OK do cliente"
-            : draft.clientIds.length
-              ? "Revisar OK do cliente"
-              : "OK do cliente"}
-        </button>
+      <div className="acceptance-point-status">
         <small>
           {pending
             ? "Salvando…"
             : questionReady(entry, q)
               ? "Ponto validado"
-              : "Aguardando validações"}
+              : draft.answer
+                ? `Resposta: ${ANSWERS[draft.answer]} · Aguardando validações`
+                : "Ainda não respondido"}
         </small>
       </div>
       {draft.responsibleIds.length > 0 && (

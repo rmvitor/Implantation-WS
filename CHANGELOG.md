@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 1.15.1 — 26/10/2026
+
+- Preenchimento compacto dos aceites sem dropdown: Sim do técnico registra resposta e aceite em um clique; Não e Não se aplica abrem a justificativa, com escolhas exclusivas. Observações recolhidas nas demais respostas.
+- Rodapé dos documentos em texto, sem as linhas verticais da imagem antiga, preservando os dados institucionais. Relatórios parciais também possuem página de assinaturas com técnicos identificados e todos os responsáveis cadastrados no módulo.
+- Mantidos salvamento automático, autoria autenticada, seleção do cliente, dispensas e bloqueios do termo. Sem alteração de estrutura ou novo SQL.
+
 ## 1.15.0 — 24/10/2026
 
 - Aceites com visão geral, abas por entidade/módulo, preenchimento direto e salvamento automático serializado. Últimas abas e recolhimento ficam somente neste aparelho, por conta e projeto.

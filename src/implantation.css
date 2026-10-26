@@ -484,10 +484,7 @@
   margin: 6px 0;
 }
 .acceptance-inline-fields {
-  display: grid;
-  grid-template-columns: minmax(155px, 1fr) minmax(240px, 2fr);
-  gap: 16px;
-  align-items: start;
+  margin-top: 14px;
 }
 .acceptance-inline-fields textarea {
   resize: vertical;
@@ -499,7 +496,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 14px;
-  margin-top: 16px;
+  margin: 12px 0;
   font-size: 12px;
 }
 .acceptance-inline-approvals label,
@@ -518,9 +515,27 @@
   margin-top: 2px;
   accent-color: var(--primary);
 }
-.acceptance-inline-approvals small {
+.acceptance-point-status {
   color: var(--text-secondary);
   font-size: 11px;
+  margin-top: 12px;
+}
+.acceptance-client-accept[aria-pressed="true"] {
+  color: var(--accent-text);
+  border-color: var(--primary);
+  background: var(--accent-soft);
+}
+.acceptance-observations {
+  margin-top: 12px;
+  font-size: 12px;
+}
+.acceptance-observations > summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 8px 0;
+}
+.acceptance-observations .field {
+  margin-top: 6px;
 }
 .acceptance-exemption {
   margin: 13px 0;
@@ -593,9 +608,6 @@
   }
   .acceptance-tabs button {
     max-width: 230px;
-  }
-  .acceptance-inline-fields {
-    grid-template-columns: minmax(0, 1fr);
   }
   .acceptance-report {
     padding: 15px;
