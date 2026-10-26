@@ -547,7 +547,11 @@ export function Operations({
                     className="button secondary"
                     disabled={saving || !project || !canEdit(project.id)}
                     onClick={async () => {
-                      const task = instantiateTemplate(m, project.entities);
+                      const task = instantiateTemplate(
+                        m,
+                        project.entities,
+                        actor?.name || "",
+                      );
                       await edit((d) => ({
                         ...d,
                         projects: d.projects.map((p) =>

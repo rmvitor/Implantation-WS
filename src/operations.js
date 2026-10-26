@@ -66,10 +66,11 @@ export function portfolio(projects, limits, now = new Date()) {
     )[0],
   }));
 }
-export function instantiateTemplate(template, entities = []) {
+export function instantiateTemplate(template, entities = [], owner = "") {
   const task = {
     ...newActivity(),
     ...structuredClone(template.activity),
+    owner: template.activity.owner?.trim() || owner,
     id: uid(),
     stage: "todo",
     validation: null,

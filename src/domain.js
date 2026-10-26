@@ -135,14 +135,14 @@ export function moveTask(
     return project;
   return saveActivity(project, { ...task, stage }, now);
 }
-export function newActivity(stage = "todo", date = "") {
+export function newActivity(stage = "todo", date = "", owner = "") {
   return {
     id: uid(),
     title: "",
     module: "",
     stage,
     type: "tarefa",
-    owner: "",
+    owner,
     priority: "normal",
     date,
     time: "",
@@ -558,6 +558,7 @@ export function saveHomologationEntry(
   draft,
   createIssue = false,
   now = new Date().toISOString(),
+  actor = null,
 ) {
   const original = homologationMatrix(project).find((e) => e.id === draft.id);
   if (!original?.included)
@@ -595,7 +596,7 @@ export function saveHomologationEntry(
     !project.tasks.some((t) => t.id === entry.taskId)
   ) {
     const task = {
-      ...newActivity(),
+      ...newActivity("todo", "", actor?.name || ""),
       title: `Corrigir migração de ${entry.module} — ${entry.entity}`,
       module: entry.module,
       type: "pendencia",

@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## 1.16.1 — 26/10/2026
+
+- Novas atividades recebem o usuário conectado como responsável inicial, com possibilidade de edição antes de salvar. O padrão também se aplica a modelos sem responsável definido e a pendências criadas pela homologação. Atividades existentes conservam o responsável atual. Sem novo SQL.
+
 ## 1.16.0 — 26/10/2026
 
 - Aceite do cliente como flag após o técnico, com escolha de responsáveis quando houver vários. O cliente exige aceite técnico e bloqueia alterações que o invalidariam até a retirada do aceite do cliente. Não e Não se aplica são exclusivos e não aceitam confirmações.

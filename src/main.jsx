@@ -452,7 +452,11 @@ function App() {
       setToast("Este projeto está liberado somente para leitura.");
       return;
     }
-    setModal({ type: "task", task: newActivity(stage, date), isNew: true });
+    setModal({
+      type: "task",
+      task: newActivity(stage, date, team.actor?.name || ""),
+      isNew: true,
+    });
   };
   const saveTask = async (task, isNew) => {
     try {

@@ -954,6 +954,7 @@ for (const normalized of [false, true]) {
     const writes = state.writes;
     state.holdCommit = true;
     await page.getByRole("button", { name: "Nova atividade", exact: true }).click();
+    await expect(page.getByLabel("Responsável", { exact: true })).toHaveValue("Colega teste");
     await page.getByLabel("Título da atividade").fill("Aguardar confirmação");
     await page.getByRole("button", { name: "Criar atividade", exact: true }).click();
     await expect.poll(() => state.commitHeld).toBe(true);
@@ -966,6 +967,7 @@ for (const normalized of [false, true]) {
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.locator(".task-card").filter({ hasText: "Aguardar confirmação" })).toBeVisible();
     expect(state.row.data.tasks.some((t) => t.title === "Aguardar confirmação")).toBe(true);
+    expect(state.row.data.tasks.find(t => t.title === "Aguardar confirmação").owner).toBe("Colega teste");
   });
 
   test(`criar, editar e mover atualiza a tela; consulta antiga não desfaz o salvamento (${normalized ? "registros" : "legado"})`, async ({ page }) => {
@@ -977,11 +979,14 @@ for (const normalized of [false, true]) {
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await expect.poll(() => state.readHeld).toBe(true);
     await page.getByRole("button", { name: "Nova atividade", exact: true }).click();
+    await expect(page.getByLabel("Responsável",{ exact: true })).toHaveValue("Colega teste");
+    await page.getByLabel("Responsável",{ exact: true }).fill("Outro responsável");
     await page.getByLabel("Título da atividade").fill("Tarefa criada sem recarregar");
     await page.getByRole("button", { name: "Criar atividade", exact: true }).click();
     const card = page.locator(".task-card").filter({ hasText: "Tarefa criada sem recarregar" });
     await expect(card).toBeVisible();
     expect(state.row.data.tasks.some((t) => t.title === "Tarefa criada sem recarregar")).toBe(true);
+    expect(state.row.data.tasks.find(t => t.title === "Tarefa criada sem recarregar").owner).toBe("Outro responsável");
     const oldResponse = page.waitForResponse((r) => normalized
       ? r.url().includes("/rpc/implanta_read_v2")
       : r.url().includes("/implanta_projects"));

@@ -257,7 +257,9 @@ export function Homologation({
           Field={Field}
           onClose={() => setDialog(null)}
           onSave={(entry, issue) =>
-            perform((p) => saveHomologationEntry(p, entry, issue))
+            perform((p) =>
+              saveHomologationEntry(p, entry, issue, undefined, actor),
+            )
           }
           onTask={(id) => {
             setDialog(null);
