@@ -47,6 +47,25 @@ export function completeImplantation(project = preparedImplantation()) {
   let p = structuredClone(project);
   for (const entry of p.implantation.entries.filter((e) => e.included))
     for (const q of entry.questions) {
+      if (
+        q.clients.some((c) => c.source !== "imported-unverified") &&
+        (q.answer !== (q.kind === "blocking" ? "no" : "yes") || q.notes !== "")
+      ) {
+        p = saveImplantationQuestion(
+          p,
+          entry.id,
+          q.id,
+          {
+            answer: q.answer,
+            notes: q.notes,
+            notUsed: q.notUsed,
+            responsibleIds: q.responsibleIds,
+            technical: !!q.technical,
+            clientIds: [],
+          },
+          technicalActor,
+        );
+      }
       p = saveImplantationQuestion(
         p,
         entry.id,
@@ -55,8 +74,8 @@ export function completeImplantation(project = preparedImplantation()) {
           answer: q.kind === "blocking" ? "no" : "yes",
           notes: "",
           responsibleIds: ["ana", "bruno"],
-          technical: true,
-          clientIds: ["ana", "bruno"],
+          technical: q.kind !== "blocking",
+          clientIds: q.kind === "blocking" ? [] : ["ana", "bruno"],
         },
         technicalActor,
       );

@@ -133,7 +133,7 @@ async function setup(
       }
     } else if (path.endsWith("/rpc/implanta_implantation_capabilities")) {
       data = schema
-        ? { version: 1, workflowVersion: 2 }
+        ? { version: 1, workflowVersion: 3 }
         : { code: "PGRST202", message: "Pending migration" };
       if (!schema) status = 404;
     } else if (path.endsWith("/rpc/implanta_implantation_templates"))
@@ -317,13 +317,12 @@ for (const width of [390, 1440])
     await open(page);
     for (let i = 1; i <= 11; i++) {
       await respond(page, i, i === 11 ? "no" : "yes");
+      if (i === 11) continue;
       await point(page, i)
-        .getByRole("checkbox", {
-          name: /^Aceite técnico/,
-        })
+        .getByRole("checkbox", { name: /^Aceite técnico/ })
         .check();
       await point(page, i)
-        .getByRole("button", { name: "Aceite do cliente", exact: true })
+        .getByRole("checkbox", { name: "Aceite do cliente", exact: true })
         .click();
       await expect(page.getByRole("dialog")).toBeVisible();
       await page
@@ -441,8 +440,9 @@ test("sem responsáveis avisa; um cliente é selecionado automaticamente e Não 
   p.implantation.entries[0].responsibles = [];
   const state = await setup(page, { project: p });
   await open(page);
+  await respond(page, 1, "yes");
   await point(page, 1)
-    .getByRole("button", { name: "Aceite do cliente", exact: true })
+    .getByRole("checkbox", { name: "Aceite do cliente", exact: true })
     .click();
   await expect(
     page.getByRole("status").filter({ hasText: "Cadastre um responsável" }),
@@ -458,28 +458,12 @@ test("sem responsáveis avisa; um cliente é selecionado automaticamente e Não 
     .poll(() => state.row.data.implantation.entries[0].responsibles.length)
     .toBe(1);
   await page.getByRole("button", { name: "Fechar", exact: true }).click();
-  await respond(page, 1, "no");
-  await page
-    .getByLabel("Justificativa obrigatória do ponto 1", { exact: true })
-    .fill("A entidade não usa esta rotina.");
-  await page
-    .getByLabel("Justificativa obrigatória do ponto 1", { exact: true })
-    .blur();
   await point(page, 1)
-    .getByRole("checkbox", { name: /Este ponto não será utilizado/ })
+    .getByRole("checkbox", { name: "Aceite do cliente", exact: true })
     .check();
-  await point(page, 1)
-    .getByRole("checkbox", { name: "Aceite técnico da dispensa", exact: true })
-    .check();
-  await point(page, 1)
-    .getByRole("button", { name: "Aceite do cliente", exact: true })
-    .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await saved(page);
   await expect(point(page, 1)).toContainText("Ponto validado");
-  expect(state.row.data.implantation.entries[0].questions[0].notUsed).toBe(
-    true,
-  );
   expect(
     state.row.data.implantation.entries[0].questions[0].clients,
   ).toHaveLength(1);
@@ -784,19 +768,10 @@ test("relatório parcial identifica a dispensa e não imprime a declaração de 
   await expect(page.locator(".report-signing")).toContainText(
     "ana@example.invalid",
   );
-  await expect(page.locator("footer.letterhead-footer")).toHaveCount(1);
+  await expect(page.locator("svg.letterhead-footer")).toHaveCount(1);
   await expect(page.locator("img.letterhead-footer")).toHaveCount(0);
-  expect(
-    await page
-      .locator("footer.letterhead-footer > div")
-      .evaluateAll((nodes) =>
-        nodes.every(
-          (n) =>
-            getComputedStyle(n).borderLeftWidth === "0px" &&
-            getComputedStyle(n).borderRightWidth === "0px",
-        ),
-      ),
-  ).toBe(true);
+  await expect(page.locator("svg.letterhead-header image")).toHaveCount(1);
+  await expect(page.locator("svg.letterhead-footer image")).toHaveCount(1);
   await expect(
     page.getByRole("heading", {
       name: "Termo de Homologação da Implantação",
@@ -914,7 +889,7 @@ for (const width of [390, 1440])
     ).not.toBeVisible();
     await respond(page, 1, "yes");
     await item
-      .getByRole("button", { name: "Aceite do cliente", exact: true })
+      .getByRole("checkbox", { name: "Aceite do cliente", exact: true })
       .click();
     await saved(page);
     let q = state.row.data.implantation.entries[0].questions[0];
@@ -922,42 +897,43 @@ for (const width of [390, 1440])
     expect(q.technical.source).toBe("server");
     expect(q.clients[0].clientName).toBe("Ana");
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await respond(page, 1, "no");
+    const tech = item.getByRole("checkbox", {
+      name: "Aceite técnico: Sim",
+      exact: true,
+    });
+    const client = item.getByRole("checkbox", {
+      name: "Aceite do cliente",
+      exact: true,
+    });
+    await expect(tech).toBeDisabled();
     await expect(
-      item.getByRole("checkbox", { name: "Aceite técnico: Não", exact: true }),
+      item.getByRole("checkbox", { name: "Não", exact: true }),
+    ).toBeDisabled();
+    await expect(
+      item.getByRole("checkbox", { name: "Não se aplica", exact: true }),
+    ).toBeDisabled();
+    await client.uncheck();
+    await expect(tech).toBeEnabled();
+    await tech.uncheck();
+    await respond(page, 1, "no");
+    await expect(tech).toBeDisabled();
+    await expect(client).toBeDisabled();
+    await expect(
+      item.getByRole("checkbox", { name: "Não se aplica", exact: true }),
     ).toBeDisabled();
     await item
       .getByLabel("Justificativa obrigatória do ponto 1", { exact: true })
-      .fill("Rotina não será utilizada nesta entidade.");
-    await item
-      .getByRole("checkbox", { name: /Este ponto não será utilizado/ })
-      .check();
-    await item
-      .getByRole("checkbox", {
-        name: "Aceite técnico da dispensa",
-        exact: true,
-      })
-      .check();
-    await item
-      .getByRole("button", { name: "Aceite do cliente", exact: true })
-      .click();
-    await saved(page);
-    expect(state.row.data.implantation.entries[0].questions[0].notUsed).toBe(
-      true,
-    );
+      .fill("Rotina não utilizada nesta entidade.");
+    await item.getByRole("checkbox", { name: "Não", exact: true }).uncheck();
     await respond(page, 1, "na");
-    await expect(
-      item.getByRole("checkbox", { name: "Não", exact: true }),
-    ).not.toBeChecked();
-    await expect(
-      item.getByLabel("Justificativa obrigatória do ponto 1", { exact: true }),
-    ).toBeVisible();
     await saved(page);
     q = state.row.data.implantation.entries[0].questions[0];
     expect(q.answer).toBe("na");
-    expect(q.notUsed).toBe(false);
     expect(q.technical).toBeNull();
     expect(q.clients).toHaveLength(0);
+    await expect(
+      item.getByRole("checkbox", { name: "Não", exact: true }),
+    ).toBeDisabled();
     await item
       .getByRole("checkbox", { name: "Não se aplica", exact: true })
       .uncheck();
@@ -1015,4 +991,130 @@ test("Sim com impedimento continua exigindo justificativa e bloqueando o termo",
   await expect(
     page.getByRole("button", { name: "Gerar termo do módulo", exact: true }),
   ).toBeDisabled();
+});
+
+test("filtros são locais e limpar relatório exige confirmação, limpa o banco e mantém outro módulo e termos", async ({
+  page,
+}) => {
+  let p = completeImplantation();
+  p = issueImplantationTerm(p, "Prefeitura", technicalActor);
+  p = configureImplantation(
+    p,
+    [
+      { entity: "Prefeitura", module: "Frota" },
+      { entity: "Prefeitura", module: "Patrimônio" },
+    ],
+    technicalActor,
+  );
+  p.implantation.entries[0].questions[0].clients = [];
+  p.implantation.entries[0].questions[1].clients = [];
+  p.implantation.entries[0].questions[1].technical = null;
+  const state = await setup(page, {
+    project: p,
+    master: true,
+    normalized: true,
+  });
+  await open(page);
+  const filters = page.getByRole("group", {
+    name: "Filtrar pontos do relatório",
+  });
+  const writes = state.writes;
+  await filters
+    .getByRole("button", { name: "Aceite do técnico", exact: true })
+    .click();
+  await expect(point(page, 1)).toBeVisible();
+  await expect(point(page, 2)).toHaveCount(0);
+  await filters
+    .getByRole("button", { name: "Aceite do cliente e técnico", exact: true })
+    .click();
+  await expect(point(page, 1)).toHaveCount(0);
+  await expect(point(page, 3)).toBeVisible();
+  await filters.getByRole("button", { name: "Em aberto", exact: true }).click();
+  await expect(point(page, 1)).toBeVisible();
+  await expect(point(page, 2)).toBeVisible();
+  await expect(point(page, 3)).toHaveCount(0);
+  expect(state.writes).toBe(writes);
+  await open(page);
+  await expect(
+    filters.getByRole("button", { name: "Em aberto", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await filters.getByRole("button", { name: "Todos", exact: true }).click();
+  const toolbar = page.getByRole("group", { name: "Gerenciar relatório" });
+  const tops = await toolbar
+    .getByRole("button")
+    .evaluateAll((nodes) =>
+      nodes.map((n) => Math.round(n.getBoundingClientRect().top)),
+    );
+  expect(new Set(tops).size).toBe(1);
+  const before = structuredClone(state.row.data);
+  await toolbar
+    .getByRole("button", { name: "Limpar relatório", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText("limpa no banco");
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  expect(state.row.data).toEqual(before);
+  await toolbar
+    .getByRole("button", { name: "Limpar relatório", exact: true })
+    .click();
+  await page
+    .getByRole("button", {
+      name: "Confirmar limpeza do relatório",
+      exact: true,
+    })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const cleared = state.row.data.implantation.entries.find(
+    (e) => e.module === "Frota",
+  );
+  expect(cleared.included).toBe(true);
+  expect(cleared.questions).toHaveLength(11);
+  expect(cleared.responsibles).toHaveLength(0);
+  expect(
+    cleared.questions.every(
+      (q) =>
+        q.answer === "" &&
+        q.notes === "" &&
+        !q.technical &&
+        !q.clients.length &&
+        !q.responsibleIds.length,
+    ),
+  ).toBe(true);
+  expect(state.row.data.implantation.terms).toEqual(before.implantation.terms);
+  expect(
+    state.row.data.implantation.entries.find((e) => e.module === "Patrimônio"),
+  ).toEqual(before.implantation.entries.find((e) => e.module === "Patrimônio"));
+});
+
+test("técnico só destrava depois que a retirada do cliente é confirmada no banco", async ({
+  page,
+}) => {
+  const state = await setup(page, { project: completeImplantation() });
+  await open(page);
+  const item = point(page, 1),
+    tech = item.getByRole("checkbox", {
+      name: "Aceite técnico: Sim",
+      exact: true,
+    }),
+    client = item.getByRole("checkbox", {
+      name: "Aceite do cliente",
+      exact: true,
+    });
+  state.hold = true;
+  await client.uncheck();
+  await expect.poll(() => state.held).toBe(true);
+  await expect(tech).toBeDisabled();
+  expect(
+    state.row.data.implantation.entries[0].questions[0].clients.length,
+  ).toBeGreaterThan(0);
+  state.release();
+  await saved(page);
+  await expect(tech).toBeEnabled();
+  await tech.uncheck();
+  await item.getByRole("checkbox", { name: "Não", exact: true }).check();
+  await saved(page);
+  const q = state.row.data.implantation.entries[0].questions[0];
+  expect(q.answer).toBe("no");
+  expect(q.technical).toBeNull();
+  expect(q.clients).toHaveLength(0);
+  expect(q.responsibleIds).toHaveLength(0);
 });

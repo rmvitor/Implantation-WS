@@ -117,7 +117,7 @@ test("termo exige técnico logado, todos os responsáveis, justificativa e ausê
         { ...draft, answer: "no" },
         actor,
       ),
-    /justifique/i,
+    /não podem ter aceites/i,
   );
   assert.throws(
     () =>
@@ -128,7 +128,7 @@ test("termo exige técnico logado, todos os responsáveis, justificativa e ausê
         { ...draft, answer: "na" },
         actor,
       ),
-    /justifique/i,
+    /não podem ter aceites/i,
   );
   p = completeImplantation(p);
   assert.equal(implantationProgress(p).ready, true);
@@ -153,7 +153,14 @@ test("termo exige técnico logado, todos os responsáveis, justificativa e ausê
     p,
     entry.id,
     "11",
-    { ...draft, clientIds: ["ana", "bruno"], answer: "no" },
+    { ...draft, answer: "yes", notes: "Impedimento em análise", clientIds: [] },
+    actor,
+  );
+  p = saveImplantationQuestion(
+    p,
+    entry.id,
+    "11",
+    { ...draft, technical: false, clientIds: [], answer: "no" },
     actor,
   );
   assert.equal(implantationProgress(p).ready, true);

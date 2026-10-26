@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 1.16.0 — 26/10/2026
+
+- Aceite do cliente como flag após o técnico, com escolha de responsáveis quando houver vários. O cliente exige aceite técnico e bloqueia alterações que o invalidariam até a retirada do aceite do cliente. Não e Não se aplica são exclusivos e não aceitam confirmações.
+- Não se aplica justificado dispensa o ponto sem aceites. Não continua bloqueando apresentações; perguntas de impedimento conservam o sentido do modelo. Validação também no servidor.
+- Filtros locais por situação dos aceites, ações gerenciais em uma linha com rolagem no celular, limpeza do relatório no banco com confirmação e preservação dos demais relatórios e documentos.
+- Cabeçalho e rodapé com o padrão visual de referência; assinaturas preservadas. SQL 202610260001 atualiza as regras e arquiva as confirmações antigas incompatíveis sem alterar termos emitidos.
+
 ## 1.15.1 — 26/10/2026
 
 - Preenchimento compacto dos aceites sem dropdown: Sim do técnico registra resposta e aceite em um clique; Não e Não se aplica abrem a justificativa, com escolhas exclusivas. Observações recolhidas nas demais respostas.

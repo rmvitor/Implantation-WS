@@ -125,6 +125,24 @@ export async function testImplantation(owner, connectionUrl) {
         )
       ).rows;
       await root.query(migration);
+      await root.query(
+        await readFile(
+          new URL(
+            "../supabase/migrations/202610240002_acceptance_workflow.sql",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
+      await root.query(
+        await readFile(
+          new URL(
+            "../supabase/migrations/202610260001_acceptance_flags.sql",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
       assert.deepEqual(
         (
           await root.query(
@@ -134,7 +152,8 @@ export async function testImplantation(owner, connectionUrl) {
         before,
       );
       checks++;
-      const editor = await open("editor"),
+      const master = await open("master"),
+        editor = await open("editor"),
         viewer = await open("viewer"),
         other = await open("other"),
         pending = await open("pending"),
@@ -285,7 +304,8 @@ export async function testImplantation(owner, connectionUrl) {
             {
               ...draft,
               answer: q.kind === "blocking" ? "no" : "yes",
-              clientIds: ["ana", "bruno"],
+              technical: q.kind !== "blocking",
+              clientIds: q.kind === "blocking" ? [] : ["ana", "bruno"],
             },
             claimed,
           ),
@@ -302,7 +322,8 @@ export async function testImplantation(owner, connectionUrl) {
         actorId: ids.master,
         by: "Master falso",
       };
-      p = await write(forged);
+      await assert.rejects(write(forged), /Remova primeiro/);
+      p = (await read()).project;
       assert.equal(
         p.implantation.entries[0].questions[0].technical.actorId,
         ids.editor,
@@ -345,9 +366,24 @@ export async function testImplantation(owner, connectionUrl) {
       await assert.rejects(write(invalidIssue), /impedimentos/);
       checks++;
       const latest = await read();
-      const unconfirmedChange = structuredClone(p);
+      let unconfirmedChange = structuredClone(p);
       unconfirmedChange.implantation.entries[0].questions[0].notes =
         "Resposta alterada mantendo provas antigas";
+      await assert.rejects(write(unconfirmedChange), /Remova primeiro/);
+      const oldQuestion = p.implantation.entries[0].questions[0];
+      p = await write(
+        saveImplantationQuestion(
+          p,
+          entryId,
+          "01",
+          { ...oldQuestion, technical: true, clientIds: [] },
+          claimed,
+        ),
+      );
+      unconfirmedChange = structuredClone(p);
+      unconfirmedChange.implantation.entries[0].questions[0].notes =
+        "Resposta alterada mantendo provas antigas";
+      unconfirmedChange.implantation.entries[0].questions[0].clients = [];
       p = await write(unconfirmedChange);
       assert.equal(p.implantation.entries[0].questions[0].technical, null);
       assert.deepEqual(p.implantation.entries[0].questions[0].clients, []);
@@ -401,7 +437,7 @@ export async function testImplantation(owner, connectionUrl) {
         assert.deepEqual(p.implantation.terms[0], issued);
         checks++;
       }
-      p = await write(importedImplantation(p, p));
+      p = await write(importedImplantation(p, p), master);
       assert.equal(implantationProgress(p).ready, false);
       checks++;
       p = await write(completeImplantation(p));
@@ -409,6 +445,24 @@ export async function testImplantation(owner, connectionUrl) {
       checks++;
       const intact = structuredClone(p.implantation);
       await root.query(migration);
+      await root.query(
+        await readFile(
+          new URL(
+            "../supabase/migrations/202610240002_acceptance_workflow.sql",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
+      await root.query(
+        await readFile(
+          new URL(
+            "../supabase/migrations/202610260001_acceptance_flags.sql",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
       assert.deepEqual((await read()).project.implantation, intact);
       checks++;
       if (!modern) {
@@ -432,6 +486,24 @@ export async function testImplantation(owner, connectionUrl) {
         checks++;
         await root.query(roles);
         await root.query(migration);
+        await root.query(
+          await readFile(
+            new URL(
+              "../supabase/migrations/202610240002_acceptance_workflow.sql",
+              import.meta.url,
+            ),
+            "utf8",
+          ),
+        );
+        await root.query(
+          await readFile(
+            new URL(
+              "../supabase/migrations/202610260001_acceptance_flags.sql",
+              import.meta.url,
+            ),
+            "utf8",
+          ),
+        );
         modern = true;
         assert.deepEqual((await read()).project.implantation, intact);
         checks++;

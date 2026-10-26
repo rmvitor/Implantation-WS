@@ -2,6 +2,9 @@ export const implantationNavigationKey = (account, project) =>
   `implanta.acceptance.navigation.v1:${account || "local"}:${project}`;
 export function acceptanceNavigation(value = {}) {
   return {
+    filter: ["technical", "both", "open"].includes(value.filter)
+      ? value.filter
+      : "all",
     entity: typeof value.entity === "string" ? value.entity : "",
     modules:
       value.modules &&

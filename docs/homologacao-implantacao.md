@@ -2,6 +2,27 @@
 
 A área **Aceite da implantação** acompanha a apresentação final com o cliente. A **Homologação** anterior continua conferindo os dados migrados, com seus próprios OKs.
 
+## Ativar a atualização 1.16.0
+
+Se os aceites da versão 1.15 já funcionam, faça um backup administrativo, atualize o aplicativo para **1.16.0** e execute inteiro o [SQL 202610260001_acceptance_flags.sql](../supabase/migrations/202610260001_acceptance_flags.sql) no **Supabase → SQL Editor → New query → Run**. Não há campos para substituir. Combine uma pausa breve com a equipe; o arquivo aguarda gravações em andamento e usa uma transação única. Erros desfazem a atualização inteira. Pode ser reaplicado.
+
+O SQL preserva perguntas, respostas, justificativas, projetos e acessos. Confirmações anteriores em respostas Não/Não se aplica, incompatíveis com a regra nova, são copiadas para `approvalHistory` no próprio ponto antes de retirar as flags ativas. Os termos já emitidos permanecem intactos e os registros positivos mantêm sua autoria. O protocolo de gravação por registros separados continua o mesmo. Em bases legadas, o SQL também é compatível, mas não elimina seu limite de 4 MB: siga a ativação de registros separados abaixo antes deste complemento.
+
+A publicação do site não executa este SQL na sua conta. Até a ativação, a consulta permanece disponível e a edição mostra o guia. Instalações novas seguem a preparação 1.15 abaixo e **por último** executam este arquivo. Não reaplique os SQLs anteriores depois deste complemento, pois eles contêm as regras antigas.
+
+## Flags e navegação 1.16
+
+- **Aceite técnico: Sim** registra apresentação e resposta Sim. **Aceite do cliente** é a flag seguinte e só pode ser marcada depois do técnico. Com vários responsáveis, abre a escolha; com um, seleciona automaticamente; sem cadastro, avisa.
+- Marcar o cliente bloqueia o técnico, a resposta e as observações. Desmarque primeiro o cliente para alterar esses dados. Com vários responsáveis, **Alterar responsáveis do aceite** permite revisar a seleção.
+- **Não** e **Não se aplica** abrem a justificativa e impedem os aceites. Não podem coexistir entre si nem com aceites. Desmarque a opção atual antes de selecionar a outra. Enquanto houver aceite técnico, remova-o antes de escolher uma resposta negativa.
+- **Não se aplica** com justificativa conclui o ponto sem aceites. **Não** bloqueia perguntas de apresentação, mesmo se houver uma antiga flag de dispensa. Perguntas de impedimento preservam sua semântica: Não indica ausência de impedimento e dispensa aceites; Sim bloqueia o termo. Escolhas de processo do modelo respeitam sua justificativa aplicável.
+- Filtros: **Todos**, **Aceite do técnico** (técnico sem cliente), **Aceite do cliente e técnico** e **Em aberto** (pontos ainda não resolvidos, incluindo os parcialmente aceitos). O filtro fica somente no aparelho, por conta e projeto, e não muda o relatório impresso.
+- As ações do relatório ficam em uma linha. No celular, deslize a barra de ações lateralmente.
+- **Limpar relatório** pede confirmação e remove do banco respostas, justificativas, observações, aceites e responsáveis do módulo/entidade atual. Mantém o módulo ativo e suas perguntas; outros módulos, histórico e termos emitidos são preservados. A limpeza fica registrada no histórico, incluindo a cópia anterior para rastreabilidade. Não há desfazer automático.
+- O cabeçalho e o rodapé seguem a referência gráfica IPM, sem as linhas verticais antigas. Relatórios parciais continuam com página final de assinaturas e indicação de que não constituem termo final.
+
+As seções seguintes detalham a preparação da base, os modelos e os documentos.
+
 ## Ativar a atualização 1.15.0
 
 Para quem já executou `202610240001_implantation_acceptance.sql` e já usa os níveis Master/gestor, a atualização recomendada é o **SQL único de ativação**:
@@ -45,7 +66,7 @@ Elicita e Fiscalização de contrato começam sem modelo. O nome aparece, mas a 
 
 ## Preencher diretamente no relatório
 
-As perguntas ficam abertas na própria página, sem dropdown. **Aceite técnico: Sim** registra a resposta e o OK do técnico conectado em um clique. **Aceite do cliente** mantém a confirmação separada. **Não** e **Não se aplica** são escolhas exclusivas e abrem o campo de justificativa; o OK técnico confirma a resposta escolhida depois da justificativa aplicável. Desmarcar a escolha negativa volta o ponto a não respondido.
+As perguntas ficam abertas na própria página, sem dropdown. **Aceite técnico: Sim** registra a resposta e o OK do técnico conectado em um clique. **Aceite do cliente** mantém a confirmação separada. **Não** e **Não se aplica** são escolhas exclusivas e abrem o campo de justificativa, sem permitir aceites nessas respostas. Desmarcar a escolha negativa volta o ponto a não respondido.
 
 **Observações** fica recolhido nas demais respostas e pode ser aberto para anotações. O texto existente é preservado ao trocar de resposta: para Não/Não se aplica, ele aparece como justificativa/observações. Perguntas cujo Sim exige justificativa abrem esse campo antes de permitir confirmar o técnico. As regras de impedimento do modelo continuam valendo.
 
@@ -67,11 +88,11 @@ Ao clicar em **OK do cliente**:
 
 O aceite é informado pelo cliente durante a reunião e registrado pela equipe técnica. A assinatura é feita no documento, conforme o fluxo da empresa.
 
-### “Não” e dispensa de uso
+### Respostas negativas e não aplicáveis
 
-Perguntas de capacitação/apresentação respondidas **Não** bloqueiam o termo. Quando o motivo for que a rotina não será utilizada, preencha a justificativa e marque **Este ponto não será utilizado e não será apresentado**. O documento mantém a resposta Não e identifica a dispensa; ainda são necessários o OK técnico da dispensa e o aceite do cliente.
+Perguntas de apresentação/capacitação respondidas **Não** bloqueiam o termo e não permitem aceites. Quando a rotina não for utilizada, escolha **Não se aplica** e justifique: o ponto fica dispensado sem aceite técnico ou do cliente. A antiga flag de dispensa de uso em Não não é mais utilizada nos novos preenchimentos.
 
-Nas perguntas sobre a existência de impedimentos, **Sim** continua bloqueando o termo e **Não** é favorável. A flag de dispensa não aparece nessas perguntas. As escolhas de layout/processo digital seguem o modelo e aceitam Sim ou Não com a justificativa aplicável. **Não se aplica** exige justificativa e os dois OKs.
+Nas perguntas sobre existência de impedimentos, **Sim** continua bloqueando o termo e **Não** é favorável, sem aceites. Nas escolhas de processo, Sim ou Não seguem a justificativa aplicável do modelo. Não se aplica sempre exige justificativa. As confirmações antigas incompatíveis permanecem arquivadas, com autoria e horário, e não contam como flags ativas.
 
 ## Responsáveis por abas
 
@@ -96,11 +117,11 @@ Desmarcar um módulo em **Módulos contratados** tem o mesmo efeito e mostra a l
 ## Relatório e termo por módulo
 
 - **Imprimir relatório** permite imprimir ou salvar PDF de um único módulo, inclusive durante o preenchimento. A cópia parcial informa que não constitui termo final.
-- **Gerar termo do módulo** fica disponível quando todos os pontos daquele módulo têm respostas válidas e os dois OKs. Os demais módulos podem continuar pendentes.
+- **Gerar termo do módulo** fica disponível quando todos os pontos daquele módulo estão resolvidos conforme a resposta: os apresentados têm os dois aceites, os não aplicáveis têm justificativa e não há impedimentos. Os demais módulos podem continuar pendentes.
 - Na **Visão geral**, o termo consolidado da entidade exige todos os módulos contratados concluídos. Termos atuais podem ser impressos ali, e os anteriores continuam em **Termos emitidos**.
-- O documento usa o timbre IPM extraído dos modelos fornecidos, com nome e cargo de quem participou dos pontos, identificação dos técnicos, respostas, dispensas e espaços de assinatura.
+- O documento usa o timbre IPM ajustado às referências gráficas fornecidas, com nome e cargo de quem participou dos pontos, identificação dos técnicos, respostas, dispensas e espaços de assinatura.
 - A partir de 1.15.1, relatórios parciais também terminam com campos de assinatura para os técnicos identificados (incluindo o emissor) e todos os responsáveis cadastrados nos módulos do relatório, com nome, cargo e e-mail quando informado. Sem cadastro, ficam linhas para preenchimento manual. Isso não substitui os OKs necessários para emitir o termo final.
-- O rodapé institucional é renderizado em texto, sem as linhas verticais da imagem original. O cabeçalho timbrado continua incorporado ao arquivo.
+- O cabeçalho e o rodapé gráfico, incluindo logotipo e dados institucionais, ficam incorporados ao arquivo, sem as linhas verticais antigas.
 - **Imprimir / salvar PDF** usa a impressão do navegador em A4; desative seus cabeçalhos e rodapés adicionais. **Baixar documento** guarda uma cópia HTML com o timbre incorporado, que pode ser aberta depois sem conexão.
 
 Cada emissão guarda uma cópia das perguntas, respostas, nomes/cargos e dados do município. Alterações posteriores preservam os documentos anteriores. CPF não é incluído no termo. Nomes, cargos e e-mails dos participantes fazem parte do documento e devem ser compartilhados com os destinatários do projeto.

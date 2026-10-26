@@ -9,9 +9,14 @@ import {
   implantationSnapshot,
   issueImplantationTerm,
   saveImplantationModel,
+  resetImplantationReport,
+  validateImplantation,
 } from "../src/implantation.js";
 import { recordChanges, assembleRecords } from "../src/records.js";
-import { implantationProject } from "../tests/fixtures/implantation.js";
+import {
+  implantationProject,
+  completeImplantation,
+} from "../tests/fixtures/implantation.js";
 export async function testAcceptanceWorkflow(owner, connectionUrl) {
   let checks = 0;
   const sql = async (name) =>
@@ -84,6 +89,141 @@ export async function testAcceptanceWorkflow(owner, connectionUrl) {
       await root.query(await sql("202610240001_implantation_acceptance.sql"));
       const migration = await sql("202610240002_acceptance_workflow.sql");
       await root.query(migration);
+      // Seed an actual v2 project/term before installing v3; prior negative
+      // approvals must be archived without changing the issued snapshot.
+      await root.query("select set_config('request.jwt.claim.sub',$1,false)", [
+        ids.editor,
+      ]);
+      let prior = { ...completeImplantation(), id: "prior-flags" };
+      const previousNegative = prior.implantation.entries[0].questions.find(
+        (q) => q.kind === "blocking",
+      );
+      previousNegative.technical = structuredClone(
+        prior.implantation.entries[0].questions[0].technical,
+      );
+      previousNegative.clients = structuredClone(
+        prior.implantation.entries[0].questions[0].clients,
+      );
+      const priorRead = async () =>
+        normalized
+          ? assembleRecords(
+              (await root.query("select public.implanta_read_v2() value"))
+                .rows[0].value.records,
+            ).find((x) => x.id === prior.id)
+          : (
+              await root.query(
+                "select data from public.implanta_projects where id=$1",
+                [prior.id],
+              )
+            ).rows[0].data;
+      const priorWrite = async (next, create = false) => {
+        if (normalized) {
+          const snapshot = (
+            await root.query("select public.implanta_read_v2() value")
+          ).rows[0].value;
+          const diff = recordChanges(
+            create ? [] : [await priorRead()],
+            [next],
+            snapshot.records,
+          );
+          await root.query(
+            "select public.implanta_commit_v2($1,'[]',$2,'[]',null,false)",
+            [
+              JSON.stringify(diff.changes),
+              JSON.stringify(create ? [{ id: next.id, data: next }] : []),
+            ],
+          );
+        } else {
+          const version = create
+            ? 0
+            : (
+                await root.query(
+                  "select version from public.implanta_projects where id=$1",
+                  [prior.id],
+                )
+              ).rows[0].version;
+          await root.query(
+            "select public.implanta_commit_implantation($1,'[]',null)",
+            [JSON.stringify([{ id: next.id, data: next, version, create }])],
+          );
+        }
+      };
+      await priorWrite(prior, true);
+      prior = await priorRead();
+      prior.implantation.terms = [
+        {
+          id: "legacy-term",
+          entity: "Prefeitura",
+          actorId: ids.editor,
+          actorName: "editor",
+          at: new Date().toISOString(),
+          source: "authenticated-client",
+          snapshot: implantationSnapshot(prior, "Prefeitura"),
+        },
+      ];
+      await priorWrite(prior);
+      prior = await priorRead();
+      const oldTerm = structuredClone(prior.implantation.terms[0]);
+      const oldNegative = structuredClone(
+        prior.implantation.entries[0].questions.find(
+          (q) => q.kind === "blocking",
+        ),
+      );
+      const oldPositive = structuredClone(
+        prior.implantation.entries[0].questions[0],
+      );
+      await root.query("select set_config('request.jwt.claim.sub','',false)");
+      await root.query(await sql("202610260001_acceptance_flags.sql"));
+      await root.query("select set_config('request.jwt.claim.sub',$1,false)", [
+        ids.editor,
+      ]);
+      const migratedPrior = await priorRead();
+      const migratedNegative =
+        migratedPrior.implantation.entries[0].questions.find(
+          (q) => q.kind === "blocking",
+        );
+      assert.equal(migratedNegative.technical, null);
+      assert.deepEqual(migratedNegative.clients, []);
+      assert.deepEqual(
+        migratedNegative.approvalHistory[0].technical,
+        oldNegative.technical,
+      );
+      assert.deepEqual(
+        migratedNegative.approvalHistory[0].clients,
+        oldNegative.clients,
+      );
+      assert.deepEqual(migratedPrior.implantation.terms[0], oldTerm);
+      assert.doesNotThrow(() =>
+        validateImplantation(migratedPrior.implantation),
+      );
+      checks++;
+      assert.deepEqual(
+        migratedPrior.implantation.entries[0].questions[0],
+        oldPositive,
+      );
+      checks += 6;
+      await priorWrite(
+        resetImplantationReport(
+          migratedPrior,
+          migratedPrior.implantation.entries[0].id,
+          { id: ids.editor, name: "editor" },
+        ),
+      );
+      const resetPrior = await priorRead();
+      assert.equal(resetPrior.implantation.entries[0].responsibles.length, 0);
+      assert.ok(
+        resetPrior.implantation.entries[0].questions.every(
+          (q) =>
+            q.answer === "" &&
+            q.notes === "" &&
+            q.technical === null &&
+            q.clients.length === 0,
+        ),
+      );
+      assert.deepEqual(resetPrior.implantation.terms[0], oldTerm);
+      checks += 3;
+      await root.query("select set_config('request.jwt.claim.sub','',false)");
+
       const editor = await open("editor"),
         master = await open("master"),
         viewer = await open("viewer");
@@ -99,7 +239,7 @@ export async function testAcceptanceWorkflow(owner, connectionUrl) {
             "select public.implanta_implantation_capabilities() value",
           )
         ).rows[0].value.workflowVersion,
-        2,
+        3,
       );
       checks++;
       for (const c of [editor, viewer]) {
@@ -124,7 +264,12 @@ export async function testAcceptanceWorkflow(owner, connectionUrl) {
           const snapshot = (
             await editor.query("select public.implanta_read_v2() value")
           ).rows[0].value;
-          return { snapshot, project: assembleRecords(snapshot.records)[0] };
+          return {
+            snapshot,
+            project: assembleRecords(snapshot.records).find(
+              (p) => p.id === original.id,
+            ),
+          };
         }
         const row = (
           await editor.query(
@@ -148,7 +293,9 @@ export async function testAcceptanceWorkflow(owner, connectionUrl) {
               [JSON.stringify(diff.changes), JSON.stringify(diff.removed)],
             )
           ).rows[0].value;
-          return assembleRecords(result.records)[0];
+          return assembleRecords(result.records).find(
+            (p) => p.id === original.id,
+          );
         }
         return (
           await c.query(
@@ -166,6 +313,19 @@ export async function testAcceptanceWorkflow(owner, connectionUrl) {
           )
         ).rows[0].value[0].data;
       };
+      const stablePrior = await root.query(
+        "select version from public.implanta_projects where id='prior-flags'",
+      );
+      await root.query(await sql("202610260001_acceptance_flags.sql"));
+      assert.deepEqual(
+        (
+          await root.query(
+            "select version from public.implanta_projects where id='prior-flags'",
+          )
+        ).rows,
+        stablePrior.rows,
+      );
+      checks++;
       const available = catalog.filter((m) => m.questions.length);
       const pairs = original.entities.flatMap((entity) =>
         available.map((m) => ({ entity, module: m.module })),
@@ -248,6 +408,21 @@ export async function testAcceptanceWorkflow(owner, connectionUrl) {
           actor,
         ),
       );
+      for (const answer of ["no", "na"]) {
+        const invalid = structuredClone(p);
+        const point = invalid.implantation.entries.find((x) => x.id === e.id)
+          .questions[0];
+        point.answer = answer;
+        point.notes = "Justificativa";
+        point.technical = {
+          actorId: ids.editor,
+          by: "editor",
+          at: new Date().toISOString(),
+          source: "server",
+        };
+        await assert.rejects(write(invalid), (err) => err.code === "23514");
+        checks++;
+      }
       const base = {
         answer: "no",
         notes: "",
@@ -264,10 +439,11 @@ export async function testAcceptanceWorkflow(owner, connectionUrl) {
       const annotated = {
         ...base,
         notes: "Não será utilizado pela entidade.",
-        notUsed: true,
+        notUsed: false,
         responsibleIds: ["ana"],
-        technical: true,
-        clientIds: ["ana"],
+        answer: "na",
+        technical: false,
+        clientIds: [],
       };
       p = await write(
         saveImplantationQuestion(
@@ -306,12 +482,37 @@ export async function testAcceptanceWorkflow(owner, connectionUrl) {
         ids.master,
       );
       checks++;
+      for (const c of [editor, master]) {
+        const invalid = structuredClone(p);
+        const point = invalid.implantation.entries.find((x) => x.id === e.id)
+          .questions[0];
+        point.technical = null;
+        point.clients = [];
+        await assert.rejects(write(invalid, c), (err) => err.code === "23514");
+        checks++;
+      }
+      p = await write(
+        saveImplantationQuestion(
+          p,
+          e.id,
+          "01",
+          {
+            ...base,
+            answer: "yes",
+            technical: true,
+            responsibleIds: ["ana"],
+            clientIds: [],
+          },
+          actor,
+        ),
+      );
       p = await write(
         saveImplantationQuestion(p, e.id, "01", annotated, actor),
       );
       assert.equal(
-        p.implantation.entries.find((x) => x.id === e.id).questions[0].notUsed,
-        true,
+        !!p.implantation.entries.find((x) => x.id === e.id).questions[0]
+          .notUsed,
+        false,
       );
       checks++;
       for (const q of e.questions.slice(1))
@@ -324,8 +525,8 @@ export async function testAcceptanceWorkflow(owner, connectionUrl) {
               ...base,
               answer: q.kind === "blocking" ? "no" : "yes",
               responsibleIds: ["ana"],
-              technical: true,
-              clientIds: ["ana"],
+              technical: q.kind !== "blocking",
+              clientIds: q.kind === "blocking" ? [] : ["ana"],
             },
             actor,
           ),
@@ -458,6 +659,7 @@ export async function testAcceptanceWorkflow(owner, connectionUrl) {
       assert.ok(waiting, "cutover must wait for active project transaction");
       await writer.query("commit");
       await migrating;
+      await root.query(await sql("202610260001_acceptance_flags.sql"));
       checks++;
       modern = true;
       assert.deepEqual((await read()).project.implantation, beforeBundle);
@@ -499,6 +701,7 @@ export async function testAcceptanceWorkflow(owner, connectionUrl) {
       );
       checks++;
       await root.query(bundle);
+      await root.query(await sql("202610260001_acceptance_flags.sql"));
       assert.deepEqual((await read()).project.implantation, beforeBundle);
       checks++;
       await assert.rejects(
@@ -518,6 +721,7 @@ export async function testAcceptanceWorkflow(owner, connectionUrl) {
       checks += 2;
       const intact = structuredClone(p);
       await root.query(migration);
+      await root.query(await sql("202610260001_acceptance_flags.sql"));
       assert.deepEqual(
         (await read()).project.implantation,
         intact.implantation,

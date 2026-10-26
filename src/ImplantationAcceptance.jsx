@@ -28,6 +28,8 @@ import {
   saveImplantationResponsibles,
   saveImplantationModel,
   saveImplantationQuestion,
+  resetImplantationReport,
+  matchesAcceptanceFilter,
   currentImplantationTerm,
   issueImplantationTerm,
 } from "./implantation.js";
@@ -165,7 +167,7 @@ export function ImplantationAcceptance({
           "implanta_implantation_capabilities",
         );
         if (!active) return;
-        if (error || data?.workflowVersion !== 2) {
+        if (error || data?.workflowVersion !== 3) {
           setSchema(
             error && !["PGRST202", "42883"].includes(error.code)
               ? "error"
@@ -285,6 +287,12 @@ export function ImplantationAcceptance({
       return;
     }
     const draft = draftsRef.current[keyFor(e, q)] || draftFor(q);
+    if (!draft.technical || draft.answer !== "yes") {
+      onError(
+        "Registre primeiro o aceite do técnico. Não e Não se aplica não permitem aceites.",
+      );
+      return;
+    }
     if (!questionAnswered({ ...q, ...draft })) {
       onError(
         "Responda e preencha a justificativa antes do aceite do cliente.",
@@ -599,7 +607,11 @@ export function ImplantationAcceptance({
                         /{entry.questions.length} pontos validados
                       </small>
                     </div>
-                    <div className="implantation-module-actions">
+                    <div
+                      className="implantation-module-actions acceptance-management-actions"
+                      role="group"
+                      aria-label="Gerenciar relatório"
+                    >
                       <button
                         className="button secondary"
                         disabled={!editable || dirty || pending}
@@ -617,6 +629,15 @@ export function ImplantationAcceptance({
                       >
                         <Printer size={15} />
                         Imprimir relatório
+                      </button>
+                      <button
+                        className="button secondary"
+                        disabled={!editable || dirty || pending}
+                        onClick={() =>
+                          open({ type: "reset", entryId: entry.id })
+                        }
+                      >
+                        Limpar relatório
                       </button>
                       <button
                         className="button secondary danger-button"
@@ -652,29 +673,62 @@ export function ImplantationAcceptance({
                       </p>
                     </div>
                   )}
-                  {entry.questions.map((q, i) => (
-                    <InlineQuestion
-                      key={q.id}
-                      entry={entry}
-                      question={q}
-                      number={i + 1}
-                      draft={drafts[keyFor(entry, q)] || draftFor(q)}
-                      editable={editable}
-                      canConfirm={canConfirm}
-                      actor={team.actor}
-                      pending={queueState.keys.includes(keyFor(entry, q))}
-                      Field={Field}
-                      onChange={(changes, options) =>
-                        updatePoint(entry, q, changes, options)
-                      }
-                      onClient={() => acceptClient(entry, q)}
-                      onFocus={() => setFocused(keyFor(entry, q))}
-                      onBlur={() => {
-                        queue.flush(keyFor(entry, q));
-                        setFocused("");
-                      }}
-                    />
-                  ))}
+                  <div
+                    className="acceptance-report-filters"
+                    role="group"
+                    aria-label="Filtrar pontos do relatório"
+                  >
+                    {[
+                      ["all", "Todos"],
+                      ["technical", "Aceite do técnico"],
+                      ["both", "Aceite do cliente e técnico"],
+                      ["open", "Em aberto"],
+                    ].map(([value, label]) => (
+                      <button
+                        className="button secondary"
+                        key={value}
+                        aria-pressed={nav.filter === value}
+                        onClick={() =>
+                          setNav((old) => ({ ...old, filter: value }))
+                        }
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {!entry.questions.some((q) =>
+                    matchesAcceptanceFilter(entry, q, nav.filter),
+                  ) && (
+                    <p className="acceptance-filter-empty" role="status">
+                      Nenhum ponto neste filtro.
+                    </p>
+                  )}
+                  {entry.questions.map(
+                    (q, i) =>
+                      matchesAcceptanceFilter(entry, q, nav.filter) && (
+                        <InlineQuestion
+                          key={q.id}
+                          entry={entry}
+                          question={q}
+                          number={i + 1}
+                          draft={drafts[keyFor(entry, q)] || draftFor(q)}
+                          editable={editable}
+                          canConfirm={canConfirm}
+                          actor={team.actor}
+                          pending={queueState.keys.includes(keyFor(entry, q))}
+                          Field={Field}
+                          onChange={(changes, options) =>
+                            updatePoint(entry, q, changes, options)
+                          }
+                          onClient={() => acceptClient(entry, q)}
+                          onFocus={() => setFocused(keyFor(entry, q))}
+                          onBlur={() => {
+                            queue.flush(keyFor(entry, q));
+                            setFocused("");
+                          }}
+                        />
+                      ),
+                  )}
                   <div className="implantation-term-panel">
                     <div>
                       <h3>
@@ -685,7 +739,7 @@ export function ImplantationAcceptance({
                       <p>
                         {moduleTerm
                           ? `${moduleTerm.actorName} · ${when(moduleTerm.at)}`
-                          : "O termo final exige os dois OKs de cada ponto. Dispensas justificadas aparecem expressamente no documento."}
+                          : "Pontos apresentados exigem os dois aceites. Não se aplica exige justificativa; perguntas de impedimento respeitam o sentido do modelo."}
                       </p>
                     </div>
                     <div className="implantation-document-actions">
@@ -781,13 +835,15 @@ export function ImplantationAcceptance({
                   ? `Responsáveis · ${currentEntry?.module}`
                   : dialog.type === "clients"
                     ? "Quem confirmou este ponto?"
-                    : dialog.type === "deactivate"
-                      ? "Excluir relatório de preenchimento?"
-                      : dialog.type === "applyModel"
-                        ? "Atualizar as perguntas deste relatório?"
-                        : dialog.type === "discard"
-                          ? "Descartar respostas não salvas?"
-                          : "Gerar termo de homologação"
+                    : dialog.type === "reset"
+                      ? "Limpar relatório para começar novamente?"
+                      : dialog.type === "deactivate"
+                        ? "Excluir relatório de preenchimento?"
+                        : dialog.type === "applyModel"
+                          ? "Atualizar as perguntas deste relatório?"
+                          : dialog.type === "discard"
+                            ? "Descartar respostas não salvas?"
+                            : "Gerar termo de homologação"
           }
           subtitle={currentEntry?.entity || dialog.entity || ""}
           onClose={() => {
@@ -880,6 +936,35 @@ export function ImplantationAcceptance({
                 setDialog(null);
               }}
             />
+          )}
+          {dialog.type === "reset" && currentEntry && (
+            <>
+              <p>
+                <strong>
+                  Limpar {currentEntry.module} · {currentEntry.entity}?
+                </strong>
+              </p>
+              <p>
+                Esta ação limpa no banco as respostas, justificativas,
+                observações, aceites e responsáveis deste relatório para começar
+                o preenchimento novamente. Não é uma limpeza de cache.
+              </p>
+              <p>
+                O módulo continua ativo, com as perguntas do modelo. Os outros
+                relatórios, o histórico e os termos já emitidos são preservados.
+              </p>
+              <button
+                className="button primary full-button"
+                disabled={pending}
+                onClick={() =>
+                  perform((p) =>
+                    resetImplantationReport(p, currentEntry.id, team.actor),
+                  )
+                }
+              >
+                Confirmar limpeza do relatório
+              </button>
+            </>
           )}
           {dialog.type === "deactivate" && currentEntry && (
             <>
@@ -1145,7 +1230,7 @@ function InlineQuestion({
       <textarea
         rows={2}
         value={draft.notes}
-        disabled={!editable}
+        disabled={!editable || draft.clientIds.length > 0}
         onFocus={onFocus}
         onBlur={onBlur}
         onChange={(e) =>
@@ -1173,7 +1258,14 @@ function InlineQuestion({
           <input
             type="checkbox"
             checked={draft.technical}
-            disabled={!canConfirm || (!!draft.answer && !answered)}
+            disabled={
+              !canConfirm ||
+              draft.clientIds.length > 0 ||
+              (pending &&
+                q.clients.some((c) => c.source !== "imported-unverified")) ||
+              ["no", "na"].includes(draft.answer) ||
+              (!!draft.answer && !answered)
+            }
             onChange={(e) => {
               const answer = draft.answer || "yes";
               onChange(
@@ -1187,19 +1279,33 @@ function InlineQuestion({
               );
             }}
           />
-          {draft.notUsed
-            ? "Aceite técnico da dispensa"
-            : `Aceite técnico: ${ANSWERS[draft.answer] || "Sim"}`}
+          Aceite técnico: Sim
         </label>
-        <button
-          className="button secondary acceptance-client-accept"
-          aria-pressed={draft.clientIds.length > 0}
-          disabled={!canConfirm || (entry.responsibles.length > 0 && !answered)}
-          onClick={onClient}
-        >
-          <CheckCheck size={16} aria-hidden="true" />
+        <label>
+          <input
+            type="checkbox"
+            checked={draft.clientIds.length > 0}
+            disabled={
+              !canConfirm ||
+              !draft.technical ||
+              draft.answer !== "yes" ||
+              !answered
+            }
+            onChange={(event) =>
+              event.target.checked ? onClient() : onChange({ clientIds: [] })
+            }
+          />
           Aceite do cliente
-        </button>
+        </label>
+        {draft.clientIds.length > 0 && entry.responsibles.length > 1 && (
+          <button
+            className="button secondary acceptance-client-review"
+            disabled={!canConfirm}
+            onClick={onClient}
+          >
+            Alterar responsáveis do aceite
+          </button>
+        )}
         {[
           ["no", "Não"],
           ["na", "Não se aplica"],
@@ -1208,10 +1314,15 @@ function InlineQuestion({
             <input
               type="checkbox"
               checked={draft.answer === value}
-              disabled={!editable}
+              disabled={
+                !editable ||
+                draft.technical ||
+                draft.clientIds.length > 0 ||
+                (["no", "na"].includes(draft.answer) && draft.answer !== value)
+              }
               onChange={(e) =>
                 onChange(
-                  { answer: e.target.checked ? value : "" },
+                  { answer: e.target.checked ? value : "", responsibleIds: [] },
                   { content: true },
                 )
               }
@@ -1237,19 +1348,11 @@ function InlineQuestion({
           {notesField}
         </details>
       )}
-      {draft.answer === "no" && q.kind !== "blocking" && (
-        <label className="acceptance-exemption">
-          <input
-            type="checkbox"
-            checked={draft.notUsed}
-            disabled={!editable}
-            onChange={(e) =>
-              onChange({ notUsed: e.target.checked }, { content: true })
-            }
-          />
-          Este ponto não será utilizado e não será apresentado · dispensa
-          justificada
-        </label>
+      {draft.clientIds.length > 0 && (
+        <p className="acceptance-lock-hint">
+          Remova o aceite do cliente antes de alterar o técnico, a resposta ou
+          as observações.
+        </p>
       )}
       <div className="acceptance-point-status">
         <small>
@@ -1278,8 +1381,8 @@ function InlineQuestion({
       )}
       {questionBlocker({ ...q, ...draft }) && (
         <p className="implantation-warning">
-          Esta resposta impede o termo. Resolva a pendência ou justifique a
-          dispensa de uso quando aplicável.
+          Esta resposta impede o termo. Resolva a pendência ou use Não se aplica
+          com justificativa quando o ponto não for utilizado.
         </p>
       )}
       {!actor && (

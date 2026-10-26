@@ -94,6 +94,7 @@ test("cache da navegação contém somente escolhas locais e é separado por con
     key,
   );
   assert.deepEqual(result, {
+    filter: "all",
     entity: "Prefeitura",
     modules: { Prefeitura: "Frota" },
     entitiesCollapsed: true,
@@ -111,19 +112,17 @@ test("cache da navegação contém somente escolhas locais e é separado por con
     "",
   );
 });
-test("Não pode ser salvo como rascunho; dispensa exige justificativa e os dois OKs", () => {
+test("Não bloqueia apresentação; Não se aplica justificado dispensa sem aceites", () => {
   let p = preparedImplantation();
   const id = p.implantation.entries[0].id;
   const draft = {
     answer: "no",
     notes: "",
-    notUsed: false,
     responsibleIds: [],
     technical: false,
     clientIds: [],
   };
   p = saveImplantationQuestion(p, id, "01", draft, technicalActor);
-  assert.equal(p.implantation.entries[0].questions[0].answer, "no");
   assert.equal(implantationProgress(p).ready, false);
   assert.throws(
     () =>
@@ -131,24 +130,44 @@ test("Não pode ser salvo como rascunho; dispensa exige justificativa e os dois 
         p,
         id,
         "01",
-        { ...draft, notUsed: true, technical: true },
+        { ...draft, technical: true },
         technicalActor,
       ),
-    /justifique/i,
+    /não podem ter aceites/i,
+  );
+  assert.throws(
+    () =>
+      saveImplantationQuestion(
+        p,
+        id,
+        "01",
+        { ...draft, answer: "na", technical: true },
+        technicalActor,
+      ),
+    /não podem ter aceites/i,
   );
   p = completeImplantation(p);
+  const q = p.implantation.entries[0].questions[0];
   p = saveImplantationQuestion(
     p,
     id,
     "01",
-    {
-      ...draft,
-      notUsed: true,
-      notes: "A entidade não utiliza esta rotina.",
-      responsibleIds: ["ana"],
-      technical: true,
-      clientIds: ["ana"],
-    },
+    { ...q, technical: true, clientIds: [] },
+    technicalActor,
+  );
+  p = saveImplantationQuestion(
+    p,
+    id,
+    "01",
+    { ...draft, answer: "na" },
+    technicalActor,
+  );
+  assert.equal(implantationProgress(p).ready, false);
+  p = saveImplantationQuestion(
+    p,
+    id,
+    "01",
+    { ...draft, answer: "na", notes: "Rotina não contratada." },
     technicalActor,
   );
   assert.equal(implantationProgress(p).ready, true);

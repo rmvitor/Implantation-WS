@@ -274,7 +274,7 @@ export function questionBlocker(q) {
   if (q.answer === "na") return false;
   return q.kind === "blocking"
     ? q.answer === "yes"
-    : q.kind === "capability" && q.answer === "no" && q.notUsed !== true;
+    : q.kind === "capability" && q.answer === "no";
 }
 export function questionAnswered(q) {
   return (
@@ -284,6 +284,9 @@ export function questionAnswered(q) {
   );
 }
 export function questionReady(entry, q) {
+  if (!questionAnswered(q) || questionBlocker(q)) return false;
+  if (q.answer === "na" || q.answer === "no")
+    return !q.technical && !q.clients.length;
   return (
     questionAnswered(q) &&
     !questionBlocker(q) &&
@@ -357,6 +360,22 @@ export function saveImplantationQuestion(
     old.answer !== response.answer ||
     old.notes !== response.notes ||
     !!old.notUsed !== !!response.notUsed;
+  if (
+    ["no", "na"].includes(response.answer) &&
+    (draft.technical || draft.clientIds?.length)
+  )
+    throw new Error(
+      "Não e Não se aplica não podem ter aceites do técnico ou do cliente.",
+    );
+  if (draft.clientIds?.length && !draft.technical)
+    throw new Error("Registre primeiro o aceite do técnico.");
+  if (
+    old.clients.some((c) => c.source !== "imported-unverified") &&
+    (changed || !!old.technical !== !!draft.technical)
+  )
+    throw new Error(
+      "Remova primeiro o aceite do cliente antes de alterar o técnico ou a resposta.",
+    );
   const assignmentChanged = !same(old.responsibleIds, responsibleIds);
   const identity =
     actor?.id && actor.name?.trim()
@@ -414,6 +433,43 @@ export function saveImplantationQuestion(
     { questionId, text: response.text, before: old, after: response },
     actor,
   );
+}
+export function resetImplantationReport(project, entryId, actor) {
+  const entry = project.implantation?.entries.find(
+    (e) => e.id === entryId && e.included,
+  );
+  if (!entry) throw new Error("Relatório ativo não encontrado.");
+  return replaceEntry(
+    project,
+    {
+      ...entry,
+      responsibles: [],
+      questions: entry.questions.map((q) => ({
+        ...q,
+        answer: "",
+        notes: "",
+        notUsed: false,
+        responsibleIds: [],
+        technical: null,
+        clients: [],
+      })),
+    },
+    "relatório limpo para novo preenchimento",
+    { before: structuredClone(entry) },
+    actor,
+  );
+}
+export function matchesAcceptanceFilter(entry, q, filter) {
+  const technical =
+    !!q.technical && q.technical.source !== "imported-unverified";
+  const client = q.clients.some((c) => c.source !== "imported-unverified");
+  return filter === "technical"
+    ? technical && !client
+    : filter === "both"
+      ? technical && client
+      : filter === "open"
+        ? !questionReady(entry, q)
+        : true;
 }
 export function implantationSnapshot(project, entity, module = "") {
   return {
@@ -603,6 +659,7 @@ export function validateImplantation(value) {
       terms: [],
     });
     if (
+      !legacyOrCurrentTermReady(t) &&
       !implantationProgress(
         { entities: [t.entity], implantation: { entries: t.snapshot.entries } },
         t.entity,
@@ -614,6 +671,30 @@ export function validateImplantation(value) {
   }
 }
 
+// Historical terms issued under the preceding rules remain valid archives.
+function legacyOrCurrentTermReady(term) {
+  return (
+    term.snapshot.entries.length > 0 &&
+    term.snapshot.entries.every(
+      (e) =>
+        e.questions.length > 0 &&
+        e.questions.every(
+          (q) =>
+            questionAnswered(q) &&
+            !(q.kind === "blocking" && q.answer === "yes") &&
+            !(q.kind === "capability" && q.answer === "no" && !q.notUsed) &&
+            q.technical?.actorId &&
+            q.technical.source !== "imported-unverified" &&
+            q.responsibleIds.length > 0 &&
+            q.responsibleIds.every((id) =>
+              q.clients.some(
+                (c) => c.id === id && c.source !== "imported-unverified",
+              ),
+            ),
+        ),
+    )
+  );
+}
 // A restored file is evidence of an earlier record, not a new authenticated
 // confirmation. Reconfirm live points; keep historical snapshots identifiable.
 export function importedImplantation(project, existing) {
@@ -631,6 +712,27 @@ export function importedImplantation(project, existing) {
         });
       }),
     );
+  for (const e of value.entries)
+    for (const q of e.questions) {
+      if (
+        ["no", "na"].includes(q.answer) &&
+        (q.technical || q.clients.length)
+      ) {
+        q.approvalHistory = [
+          ...(q.approvalHistory || []),
+          {
+            reason:
+              "Importação de confirmações anteriores à regra de exclusividade",
+            answer: q.answer,
+            technical: q.technical,
+            clients: q.clients,
+          },
+        ];
+        q.technical = null;
+        q.clients = [];
+        q.notUsed = false;
+      }
+    }
   mark(value.entries);
   value.terms = value.terms.map((t) => {
     const previous = existing?.implantation?.terms.find(
