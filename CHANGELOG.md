@@ -1,5 +1,9 @@
 # Histórico de versões
 
+## 1.17.1 — 26/10/2026
+
+- Convites cujo nome, cargo ou e-mail foram alterados deixam de oferecer o link e o reenvio antigos na tela. É necessário gerar um novo convite para o cadastro atual; os aceites anteriores continuam preservados. Usa o mesmo SQL do portal da versão 1.17.0.
+
 ## 1.17.0 — 26/10/2026
 
 - Portal opcional do cliente no Aceite da implantação: convite por responsável, módulo e entidade, validade de 7 dias, código de acesso enviado pelo Supabase Auth com o SMTP existente, reenvio, renovação e revogação. Contas externas não recebem acesso à plataforma ou aos projetos.

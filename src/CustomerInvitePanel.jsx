@@ -24,6 +24,9 @@ export function CustomerInvitePanel({
   const current = rows.find(
     (r) =>
       r.responsible_id === responsible.id &&
+      r.email === responsible.email.trim().toLowerCase() &&
+      r.name === responsible.name &&
+      r.job_title === responsible.role &&
       !r.revoked_at &&
       new Date(r.expires_at) > new Date(),
   );

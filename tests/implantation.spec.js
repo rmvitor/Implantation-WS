@@ -1272,3 +1272,41 @@ test("convite usa SMTP pelo Auth separado; falha permite reenvio, renovação e 
     await page.evaluate(() => localStorage.getItem("sb-acceptance-auth-token")),
   ).toBe(stored);
 });
+
+test("alterar o cadastro do cliente exige novo convite e não oferece reenvio ao e-mail antigo", async ({
+  page,
+}) => {
+  const state = await setup(page, {
+    project: preparedImplantation(),
+    normalized: true,
+  });
+  state.invites = [
+    {
+      id: "22222222-2222-4222-8222-000000000099",
+      responsible_id: "ana",
+      name: "Ana",
+      job_title: "Diretora de Frota",
+      email: "old@example.invalid",
+      expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+      revoked_at: null,
+    },
+  ];
+  await open(page);
+  await page.getByRole("button", { name: "Responsáveis", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Link e código para o cliente", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", {
+      name: "Gerar acesso e enviar código",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Reenviar código", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByLabel("Link do formulário", { exact: true }),
+  ).toHaveCount(0);
+  expect(state.otp).toEqual([]);
+});
