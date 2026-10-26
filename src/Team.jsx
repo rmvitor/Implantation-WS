@@ -23,7 +23,7 @@ import "./team.css";
 const CONNECTION = "implanta.team.connection.v1";
 const TeamContext = createContext({ online: false });
 export const useTeam = () => useContext(TeamContext);
-function connection() {
+export function readTeamConnection() {
   try {
     return resolveConnection({
       stored: localStorage.getItem(CONNECTION),
@@ -111,7 +111,7 @@ function ConnectForm({ onCancel }) {
 }
 
 export function TeamHost({ children }) {
-  const [config] = useState(connection);
+  const [config] = useState(readTeamConnection);
   const recoveryClientRef = useRef(null);
   const client = useMemo(
     () =>
@@ -619,7 +619,7 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
     members.find((m) => m.user_id === user.id && m.project_id === project)?.role || "";
   const normalize = (value) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const matches = (user) => normalize(`${user.name} ${user.email}`).includes(normalize(search.trim())) &&
-    (!statusFilter || (statusFilter === "active" ? user.active : statusFilter === "inactive" ? !user.active : user.admin)) &&
+    (!statusFilter || (statusFilter === "active" ? user.active : statusFilter === "inactive" ? !user.active && !user.externalCustomer : statusFilter === "external" ? user.externalCustomer : user.admin)) &&
     (!projectFilter || (projectFilter === "none" ? !user.admin && !projects.some((p) => configured(user, p.id)) : !!configured(user, projectFilter)));
   const act = async (fn, { reload = true, success = "" } = {}) => {
     if (busyRef.current || passwordBusy) return false;
@@ -716,13 +716,13 @@ export function TeamSettings({ Modal, onClose, projects, activeProjectId }) {
             <fieldset disabled={busy || passwordBusy} className="team-management">
               <div className="team-summary" aria-label="Resumo de usuários">
                 <span>{users.filter((u) => u.active).length} ativos</span>
-                <span>{users.filter((u) => !u.active).length} sem liberação</span>
+                <span>{users.filter((u) => !u.active && !u.externalCustomer).length} sem liberação</span>
                 <span>{users.filter((u) => u.admin).length} {team.rolesEnabled ? "Master" : "administradores"}</span>
               </div>
               <div className="team-filters">
                 <label>Buscar usuário<input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nome ou e-mail" /></label>
                 <label>Situação do usuário<select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                  <option value="">Todos</option><option value="active">Ativos</option><option value="inactive">Sem liberação</option><option value="admin">{team.rolesEnabled ? "Master" : "Administradores"}</option>
+                  <option value="">Todos</option><option value="active">Ativos</option><option value="inactive">Sem liberação</option><option value="external">Clientes externos</option><option value="admin">{team.rolesEnabled ? "Master" : "Administradores"}</option>
                 </select></label>
                 <label>Filtrar acesso ao projeto<select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}>
                   <option value="">Todos</option><option value="none">Sem projeto</option>
@@ -926,8 +926,9 @@ function UserAccess({ user, self, onSave, hidden, projects, members, onGrant, on
           />
         </label>
         <small>{user.email}</small>
+        {user.externalCustomer && <small>Somente convites de aceite. Ativar acesso libera a plataforma como colaborador.</small>}
         <div className="team-user-badges">
-          <span className="team-status">{user.active ? "Ativo" : "Sem liberação"}</span>
+          <span className="team-status">{user.externalCustomer ? "Cliente externo" : user.active ? "Ativo" : "Sem liberação"}</span>
           <span>{user.admin ? "Todos os projetos" : `${accesses.length} ${accesses.length === 1 ? "projeto configurado" : "projetos configurados"}`}</span>
         </div>
       </div>
@@ -947,7 +948,7 @@ function UserAccess({ user, self, onSave, hidden, projects, members, onGrant, on
           />{" "}
           Acesso ativo
         </label>
-        {globalLabel === "Master" ? <span className="team-status">{user.admin ? "Master" : "Colaborador"}</span> : <label className="team-checkbox">
+        {globalLabel === "Master" ? <span className="team-status">{user.admin ? "Master" : user.externalCustomer ? "Cliente externo" : "Colaborador"}</span> : <label className="team-checkbox">
           <input
             type="checkbox"
             disabled={self}

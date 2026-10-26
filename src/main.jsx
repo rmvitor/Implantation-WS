@@ -112,6 +112,7 @@ import { PersonalAgenda, PersonalEventModal } from "./PersonalAgenda";
 import { BrandLogo } from "./BrandLogo";
 import "./project-controls.css";
 import { TeamHost, TeamSettings, useTeam } from "./Team";
+import { CustomerPortal } from "./CustomerPortal.jsx";
 import { same } from "./team-domain";
 import { friendlyTeamError } from "./team-service";
 import { usePwa, PwaControls, InstallModal } from "./PwaControls";
@@ -3489,9 +3490,13 @@ function Empty({ icon: Icon, title, description, button, onClick }) {
 
 clearRetiredDeviceData();
 createRoot(document.getElementById("root")).render(
-  <TeamHost>
-    <App />
-  </TeamHost>,
+  new URLSearchParams(location.search).has("aceite") ? (
+    <CustomerPortal inviteId={new URLSearchParams(location.search).get("aceite")} />
+  ) : (
+    <TeamHost>
+      <App />
+    </TeamHost>
+  ),
 );
 
 function ProjectActionModal({

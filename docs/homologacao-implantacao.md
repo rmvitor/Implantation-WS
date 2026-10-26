@@ -2,6 +2,10 @@
 
 A área **Aceite da implantação** acompanha a apresentação final com o cliente. A **Homologação** anterior continua conferindo os dados migrados, com seus próprios OKs.
 
+## Portal opcional do cliente — 1.17.0
+
+O técnico pode atribuir responsáveis a cada ponto e enviar um acesso externo por e-mail. O cliente vê apenas seus pontos apresentados e confirma com sua própria conta, sem acesso à plataforma interna. A conferência na reunião continua funcionando. A ativação adicional e o SMTP estão no [guia do portal](portal-cliente.md).
+
 ## Ativar a atualização 1.16.0
 
 Se os aceites da versão 1.15 já funcionam, faça um backup administrativo, atualize o aplicativo para **1.16.0** e execute inteiro o [SQL 202610260001_acceptance_flags.sql](../supabase/migrations/202610260001_acceptance_flags.sql) no **Supabase → SQL Editor → New query → Run**. Não há campos para substituir. Combine uma pausa breve com a equipe; o arquivo aguarda gravações em andamento e usa uma transação única. Erros desfazem a atualização inteira. Pode ser reaplicado.

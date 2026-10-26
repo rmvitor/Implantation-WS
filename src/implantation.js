@@ -409,9 +409,11 @@ export function saveImplantationQuestion(
       );
     const previous =
       !changed &&
-      !assignmentChanged &&
       old.clients.find(
-        (c) => c.id === id && c.source !== "imported-unverified",
+        (c) =>
+          c.id === id &&
+          c.source !== "imported-unverified" &&
+          (!assignmentChanged || c.origin === "customer-portal"),
       );
     const person = entry.responsibles.find((r) => r.id === id);
     return (

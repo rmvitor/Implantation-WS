@@ -76,6 +76,10 @@ async function setup(
     fail: false,
     writes: 0,
     catalog: implantationCatalog(),
+    invites: [],
+    otp: [],
+    smtpFail: false,
+    inviteNumber: 0,
   };
   state.records = projectRecords(state.row.data).map((r) => ({
     ...r,
@@ -111,7 +115,43 @@ async function setup(
       path = url.pathname;
     let data,
       status = 200;
-    if (path === "/auth/v1/user") data = user;
+    if (path === "/auth/v1/otp") {
+      state.otp.push({
+        body: request.postDataJSON(),
+        authorization: request.headers().authorization,
+        url: request.url(),
+      });
+      status = state.smtpFail ? 500 : 200;
+      data = state.smtpFail ? { message: "SMTP indisponível" } : {};
+    } else if (path.endsWith("/rpc/implanta_customer_invites"))
+      data = state.invites;
+    else if (path.endsWith("/rpc/implanta_customer_invite_create")) {
+      const args = request.postDataJSON(),
+        e = state.row.data.implantation.entries.find(
+          (x) => x.id === args.p_entry,
+        ),
+        r = e.responsibles.find((x) => x.id === args.p_responsible);
+      for (const i of state.invites)
+        if (i.responsible_id === r.id) i.revoked_at = new Date().toISOString();
+      data = {
+        id: `22222222-2222-4222-8222-${String(++state.inviteNumber).padStart(12, "0")}`,
+        project_id: args.p_project,
+        entry_id: e.id,
+        responsible_id: r.id,
+        name: r.name,
+        job_title: r.role,
+        email: r.email,
+        expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+        revoked_at: null,
+      };
+      state.invites.unshift(data);
+    } else if (path.endsWith("/rpc/implanta_customer_invite_action")) {
+      const args = request.postDataJSON(),
+        i = state.invites.find((x) => x.id === args.p_invite);
+      i[args.p_action === "revoke" ? "revoked_at" : "last_requested_at"] =
+        new Date().toISOString();
+      data = null;
+    } else if (path === "/auth/v1/user") data = user;
     else if (path.endsWith("/rpc/implanta_access"))
       data = {
         id: userId,
@@ -1117,4 +1157,118 @@ test("técnico só destrava depois que a retirada do cliente é confirmada no ba
   expect(q.technical).toBeNull();
   expect(q.clients).toHaveLength(0);
   expect(q.responsibleIds).toHaveLength(0);
+});
+
+test("atribuir responsáveis ao ponto não inventa aceite do cliente", async ({
+  page,
+}) => {
+  const state = await setup(page, {
+    project: preparedImplantation(),
+    normalized: true,
+  });
+  await open(page);
+  await point(page, 1)
+    .getByRole("checkbox", { name: /^Aceite técnico/ })
+    .check();
+  await saved(page);
+  await point(page, 1)
+    .getByRole("button", { name: /Responsáveis do ponto/ })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("checkbox", { name: /Ana/ }).check();
+  await dialog
+    .getByRole("button", { name: "Salvar responsáveis do ponto", exact: true })
+    .click();
+  await saved(page);
+  const q = state.row.data.implantation.entries[0].questions[0];
+  expect(q.responsibleIds).toEqual(["ana"]);
+  expect(q.clients).toEqual([]);
+  expect(q.technical.by).toBe("Consultor autenticado");
+  await expect(
+    point(page, 1).getByRole("checkbox", {
+      name: "Aceite do cliente",
+      exact: true,
+    }),
+  ).not.toBeChecked();
+});
+test("convite usa SMTP pelo Auth separado; falha permite reenvio, renovação e revogação", async ({
+  page,
+}) => {
+  const state = await setup(page, {
+    project: preparedImplantation(),
+    normalized: true,
+  });
+  await open(page);
+  const stored = await page.evaluate(() =>
+    localStorage.getItem("sb-acceptance-auth-token"),
+  );
+  await page.getByRole("button", { name: "Responsáveis", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Link e código para o cliente", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText(
+    "Acesso externo do cliente",
+  );
+  state.smtpFail = true;
+  await page
+    .getByRole("button", { name: "Gerar acesso e enviar código", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("SMTP indisponível");
+  expect(state.invites.length).toBe(1);
+  expect(state.invites[0].last_requested_at).toBeUndefined();
+  await expect(
+    page.getByLabel("Link do formulário", { exact: true }),
+  ).toHaveValue(/\?aceite=/);
+  expect(state.otp[0].body).toMatchObject({
+    email: "ana@example.invalid",
+    create_user: true,
+    data: { display_name: "Ana", account_type: "customer_portal" },
+  });
+  expect(state.otp[0].authorization).toBe(
+    "Bearer " +
+      (await page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem("implanta.team.connection.v1")).key,
+      )),
+  );
+  expect(new URL(state.otp[0].url).searchParams.get("redirect_to")).toBe(
+    "http://127.0.0.1:5173/?aceite=" + state.invites[0].id,
+  );
+  expect(
+    await page.evaluate(() => localStorage.getItem("sb-acceptance-auth-token")),
+  ).toBe(stored);
+  state.smtpFail = false;
+  await page
+    .getByRole("button", { name: "Reenviar código", exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "Envio solicitado ao Supabase" }),
+  ).toBeVisible();
+  expect(state.invites.length).toBe(1);
+  expect(state.invites[0].last_requested_at).toBeTruthy();
+  await page
+    .getByRole("button", { name: "Renovar por 7 dias e enviar", exact: true })
+    .click();
+  await expect.poll(() => state.invites.length).toBe(2);
+  expect(state.invites[1].revoked_at).toBeTruthy();
+  await page
+    .getByRole("button", { name: "Revogar acesso", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText(
+    "Os aceites já registrados serão preservados",
+  );
+  await page
+    .getByRole("button", { name: "Confirmar revogação", exact: true })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Acesso revogado." }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Link do formulário", { exact: true }),
+  ).toHaveCount(0);
+  expect(
+    await page.evaluate(() => localStorage.getItem("sb-acceptance-auth-token")),
+  ).toBe(stored);
 });

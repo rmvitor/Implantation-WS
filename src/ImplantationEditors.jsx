@@ -138,7 +138,7 @@ export function QuestionModelEditor({ entry, Field, pending, onSave }) {
   );
 }
 
-export function ResponsibleEditor({ entry, Field, pending, onSave }) {
+export function ResponsibleEditor({ entry, Field, pending, onSave, onInvite }) {
   const [people, setPeople] = useState(() =>
     structuredClone(entry.responsibles),
   );
@@ -257,6 +257,24 @@ export function ResponsibleEditor({ entry, Field, pending, onSave }) {
               onChange={(e) => update("email", e.target.value)}
             />
           </Field>
+          {onInvite && (
+            <button
+              type="button"
+              className="button secondary"
+              disabled={pending}
+              onClick={async () => {
+                if (!current.email.trim()) {
+                  setMessage(
+                    "Preencha o e-mail do responsável para enviar o acesso externo.",
+                  );
+                  return;
+                }
+                if (await save()) onInvite(current.id);
+              }}
+            >
+              Link e código para o cliente
+            </button>
+          )}
           <button
             type="button"
             className="button secondary danger-button"

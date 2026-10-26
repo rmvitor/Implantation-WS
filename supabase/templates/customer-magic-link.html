@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+  <body
+    style="
+      font-family: Arial, sans-serif;
+      color: #172033;
+      line-height: 1.6;
+      padding: 24px;
+      max-width: 600px;
+      margin: auto;
+    "
+  >
+    <h1>Implanta · Código de acesso</h1>
+    <p>Olá{{ if .Data.display_name }}, {{ .Data.display_name }}{{ end }}.</p>
+    <p>E-mail de acesso: <strong>{{ .Email }}</strong></p>
+    <p>Use este código para entrar no formulário de aceite da implantação:</p>
+    <p style="font-size: 32px; letter-spacing: 6px; font-weight: bold">
+      {{ .Token }}
+    </p>
+    <p>
+      <a
+        href="{{ .RedirectTo }}"
+        style="
+          display: inline-block;
+          background: #2563eb;
+          color: white;
+          padding: 12px 20px;
+          text-decoration: none;
+          border-radius: 6px;
+        "
+        >Abrir formulário de aceite</a
+      >
+    </p>
+    <p>
+      O formulário mostra os pontos liberados pela equipe técnica. O código tem
+      validade limitada; se necessário, solicite outro código na página. O
+      convite de acesso vale por 7 dias a partir da emissão ou renovação.
+    </p>
+    <p>
+      Se não esperava este acesso, ignore a mensagem. Não compartilhe seu
+      código.
+    </p>
+  </body>
+</html>

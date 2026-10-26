@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 1.17.0 — 26/10/2026
+
+- Portal opcional do cliente no Aceite da implantação: convite por responsável, módulo e entidade, validade de 7 dias, código de acesso enviado pelo Supabase Auth com o SMTP existente, reenvio, renovação e revogação. Contas externas não recebem acesso à plataforma ou aos projetos.
+- Técnico define os responsáveis de cada ponto sem registrar aceite em nome deles; atribuição automática quando há uma única pessoa. O cliente vê somente seus pontos apresentados e confirmados, com atualização automática, e registra seu próprio OK diretamente no banco com controle de versão, autor e horário. Aceites internos continuam disponíveis.
+- Termo final por módulo no mesmo modelo, com timbre e assinaturas; identidade do cliente preservada e distinguida do técnico. Novo SQL aditivo 202610260003 e dois modelos de e-mail para ativação no Supabase; guia em docs/portal-cliente.md.
+
 ## 1.16.1 — 26/10/2026
 
 - Novas atividades recebem o usuário conectado como responsável inicial, com possibilidade de edição antes de salvar. O padrão também se aplica a modelos sem responsável definido e a pendências criadas pela homologação. Atividades existentes conservam o responsável atual. Sem novo SQL.

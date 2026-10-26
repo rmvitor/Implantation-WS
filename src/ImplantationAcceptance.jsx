@@ -12,6 +12,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { useTeam } from "./Team.jsx";
+import { CustomerInvitePanel } from "./CustomerInvitePanel.jsx";
 import { homologationProgress } from "./domain.js";
 import {
   ANSWERS,
@@ -721,6 +722,13 @@ export function ImplantationAcceptance({
                             updatePoint(entry, q, changes, options)
                           }
                           onClient={() => acceptClient(entry, q)}
+                          onAssign={() =>
+                            open({
+                              type: "assign",
+                              entryId: entry.id,
+                              questionId: q.id,
+                            })
+                          }
                           onFocus={() => setFocused(keyFor(entry, q))}
                           onBlur={() => {
                             queue.flush(keyFor(entry, q));
@@ -833,17 +841,21 @@ export function ImplantationAcceptance({
                 ? "Modelos globais de perguntas"
                 : dialog.type === "people"
                   ? `Responsáveis · ${currentEntry?.module}`
-                  : dialog.type === "clients"
-                    ? "Quem confirmou este ponto?"
-                    : dialog.type === "reset"
-                      ? "Limpar relatório para começar novamente?"
-                      : dialog.type === "deactivate"
-                        ? "Excluir relatório de preenchimento?"
-                        : dialog.type === "applyModel"
-                          ? "Atualizar as perguntas deste relatório?"
-                          : dialog.type === "discard"
-                            ? "Descartar respostas não salvas?"
-                            : "Gerar termo de homologação"
+                  : dialog.type === "assign"
+                    ? "Responsáveis deste ponto"
+                    : dialog.type === "clients"
+                      ? "Quem confirmou este ponto?"
+                      : dialog.type === "invite"
+                        ? "Acesso externo do cliente"
+                        : dialog.type === "reset"
+                          ? "Limpar relatório para começar novamente?"
+                          : dialog.type === "deactivate"
+                            ? "Excluir relatório de preenchimento?"
+                            : dialog.type === "applyModel"
+                              ? "Atualizar as perguntas deste relatório?"
+                              : dialog.type === "discard"
+                                ? "Descartar respostas não salvas?"
+                                : "Gerar termo de homologação"
           }
           subtitle={currentEntry?.entity || dialog.entity || ""}
           onClose={() => {
@@ -898,9 +910,33 @@ export function ImplantationAcceptance({
               }}
             />
           )}
+          {dialog.type === "invite" &&
+            currentEntry &&
+            currentEntry.responsibles.some(
+              (r) => r.id === dialog.responsibleId,
+            ) && (
+              <CustomerInvitePanel
+                client={team.client}
+                projectId={project.id}
+                entryId={currentEntry.id}
+                responsible={currentEntry.responsibles.find(
+                  (r) => r.id === dialog.responsibleId,
+                )}
+              />
+            )}
           {dialog.type === "people" && currentEntry && (
             <ResponsibleEditor
               entry={currentEntry}
+              onInvite={
+                team.online && !readOnly
+                  ? (responsibleId) =>
+                      setDialog({
+                        type: "invite",
+                        entryId: currentEntry.id,
+                        responsibleId,
+                      })
+                  : undefined
+              }
               Field={Field}
               pending={pending}
               onSave={(people) =>
@@ -915,6 +951,26 @@ export function ImplantationAcceptance({
                   { close: false },
                 )
               }
+            />
+          )}
+          {dialog.type === "assign" && currentEntry && currentQuestion && (
+            <ClientSelector
+              assignmentOnly
+              entry={currentEntry}
+              draft={
+                drafts[keyFor(currentEntry, currentQuestion)] ||
+                draftFor(currentQuestion)
+              }
+              onSave={(ids) => {
+                const draft =
+                  draftsRef.current[keyFor(currentEntry, currentQuestion)] ||
+                  draftFor(currentQuestion);
+                updatePoint(currentEntry, currentQuestion, {
+                  responsibleIds: ids,
+                  clientIds: draft.clientIds.filter((id) => ids.includes(id)),
+                });
+                setDialog(null);
+              }}
             />
           )}
           {dialog.type === "clients" && currentEntry && currentQuestion && (
@@ -1217,6 +1273,7 @@ function InlineQuestion({
   Field,
   onChange,
   onClient,
+  onAssign,
   onFocus,
   onBlur,
 }) {
@@ -1271,6 +1328,11 @@ function InlineQuestion({
               onChange(
                 {
                   answer,
+                  responsibleIds: draft.responsibleIds.length
+                    ? draft.responsibleIds
+                    : entry.responsibles.length === 1
+                      ? [entry.responsibles[0].id]
+                      : [],
                   technical:
                     e.target.checked &&
                     questionAnswered({ ...q, ...draft, answer }),
@@ -1331,6 +1393,17 @@ function InlineQuestion({
           </label>
         ))}
       </div>
+      {entry.responsibles.length > 1 && (
+        <button
+          className="button secondary acceptance-point-assignment"
+          disabled={
+            !canConfirm || !draft.technical || draft.answer !== "yes" || pending
+          }
+          onClick={onAssign}
+        >
+          Responsáveis do ponto ({draft.responsibleIds.length})
+        </button>
+      )}
       {justification ? (
         <div className="acceptance-inline-fields">
           {notesField}
@@ -1374,6 +1447,16 @@ function InlineQuestion({
             .join(", ")}
         </p>
       )}
+      {q.clients
+        .filter(
+          (c) =>
+            c.origin === "customer-portal" && draft.clientIds.includes(c.id),
+        )
+        .map((c) => (
+          <p key={c.id} className="acceptance-point-clients">
+            Confirmado pelo cliente no portal: {c.clientName} · {when(c.at)}
+          </p>
+        ))}
       {q.technical && !pending && draft.technical && (
         <small className="muted">
           Registro técnico: {q.technical.by} · {when(q.technical.at)}
@@ -1393,13 +1476,20 @@ function InlineQuestion({
     </article>
   );
 }
-function ClientSelector({ entry, draft, onSave, onClear }) {
+function ClientSelector({
+  entry,
+  draft,
+  onSave,
+  onClear,
+  assignmentOnly = false,
+}) {
   const [selected, setSelected] = useState(draft.responsibleIds);
   return (
     <>
       <p>
-        Selecione quem confirmou este ponto durante a reunião. Cada pessoa
-        selecionada terá seu aceite registrado com sua conta.
+        {assignmentOnly
+          ? "Selecione quem deve validar este ponto no portal. Esta seleção não registra aceites. Retirar um responsável também retira seu aceite deste ponto; o histórico é preservado."
+          : "Selecione quem confirmou este ponto durante a reunião. Cada pessoa selecionada terá seu aceite registrado com sua conta."}
       </p>
       <div className="acceptance-client-selector">
         {entry.responsibles.map((r) => (
@@ -1425,14 +1515,18 @@ function ClientSelector({ entry, draft, onSave, onClear }) {
       <div className="implantation-editor-actions">
         <button
           className="button primary"
-          disabled={!selected.length}
+          disabled={!assignmentOnly && !selected.length}
           onClick={() => onSave(selected)}
         >
-          Registrar aceite dos selecionados
+          {assignmentOnly
+            ? "Salvar responsáveis do ponto"
+            : "Registrar aceite dos selecionados"}
         </button>
-        <button className="button secondary" onClick={onClear}>
-          Retirar aceites deste ponto
-        </button>
+        {!assignmentOnly && (
+          <button className="button secondary" onClick={onClear}>
+            Retirar aceites deste ponto
+          </button>
+        )}
       </div>
     </>
   );

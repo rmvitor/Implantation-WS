@@ -1,0 +1,203 @@
+.customer-shell {
+  --text: #172033;
+  --text-secondary: #536176;
+  --surface: #fff;
+  --surface-muted: #f5f7fb;
+  --border: #dbe2ec;
+  --primary: #2563eb;
+  --accent-soft: #eaf1ff;
+  --accent-text: #1d4ed8;
+  background: #f5f7fb;
+  color: var(--text);
+  min-height: 100dvh;
+  padding: 28px 18px;
+  font-family: "DM Sans Variable", sans-serif;
+}
+.customer-page {
+  max-width: 880px;
+  margin: auto;
+  min-width: 0;
+}
+.customer-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+.customer-header .brand-logo {
+  max-width: 170px;
+}
+.customer-header h1 {
+  font-size: 26px;
+  margin: 5px 0;
+}
+.customer-header > .button {
+  margin-left: auto;
+}
+.customer-login,
+.customer-summary,
+.customer-point,
+.customer-final {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px;
+  margin: 16px 0;
+}
+.customer-login {
+  max-width: 500px;
+  margin: 40px auto;
+}
+.customer-page p {
+  line-height: 1.7;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.customer-page small,
+.customer-page footer {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.customer-login label,
+.customer-link-label {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  font-size: 13px;
+}
+.customer-login input,
+.customer-link-label input {
+  width: 100%;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  background: var(--surface);
+}
+.customer-login > .button {
+  margin-top: 15px;
+}
+.customer-progress {
+  padding: 14px;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.customer-point h3 {
+  font-size: 16px;
+  line-height: 1.6;
+}
+.customer-point label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  font-size: 14px;
+}
+.customer-point input {
+  width: 19px;
+  height: 19px;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+}
+.customer-technical {
+  color: var(--text-secondary);
+}
+.customer-message {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+.customer-document {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.customer-document p {
+  width: 100%;
+}
+.customer-page footer {
+  margin-top: 28px;
+  padding: 20px 0;
+  border-top: 1px solid var(--border);
+}
+.customer-invite-panel p {
+  font-size: 13px;
+  line-height: 1.7;
+}
+.customer-invite-panel > .button {
+  margin: 18px 0;
+}
+.customer-invite-panel > small,
+.customer-invite-panel > a {
+  display: block;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 9px 0;
+}
+.customer-invite-panel .implantation-editor-actions {
+  margin-top: 12px;
+}
+.customer-point details {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.customer-point summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+@media (max-width: 550px) {
+  .customer-shell {
+    padding: 18px 12px;
+  }
+  .customer-header {
+    gap: 12px;
+  }
+  .customer-header h1 {
+    font-size: 22px;
+  }
+  .customer-login,
+  .customer-point,
+  .customer-summary,
+  .customer-final {
+    padding: 17px;
+  }
+  .customer-header > .button {
+    margin-left: 0;
+  }
+}
+
+.customer-shell .customer-header svg.brand-logo {
+  color: #172033;
+}
+.customer-shell .button.primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+.customer-shell .button.secondary {
+  background: #fff;
+  color: #172033;
+  border-color: #dbe2ec;
+}
+.customer-shell .button.secondary:hover {
+  background: #eaf1ff;
+}
+.customer-shell .button.primary:hover {
+  background: #1d4ed8;
+}
+.customer-shell [role="alert"] {
+  color: #b42318;
+}
+.customer-shell .eyebrow {
+  color: #536176;
+}
+.customer-shell .info-box {
+  background: #eaf1ff;
+  color: #172033;
+  border-color: #dbe2ec;
+}
