@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   customerAuthClient,
   customerPortalUrl,
-  requestCustomerCode,
+  requestCustomerAccess,
   customerError,
 } from "./customer-access.js";
 import { readTeamConnection } from "./Team.jsx";
@@ -57,15 +57,15 @@ export function CustomerInvitePanel({
   };
   const send = async (invite) => {
     if (!mailer)
-      throw new Error("Conecte ao banco da equipe para solicitar o código.");
-    await requestCustomerCode(mailer, invite);
+      throw new Error("Conecte ao banco da equipe para enviar o acesso.");
+    await requestCustomerAccess(mailer, invite);
     const r = await client.rpc("implanta_customer_invite_action", {
       p_invite: invite.id,
       p_action: "requested",
     });
     if (r.error) throw r.error;
     setMessage(
-      "Envio solicitado ao Supabase. O cliente deve usar o código recebido no e-mail.",
+      "Envio solicitado ao Supabase. O cliente pode entrar pelo link ou pelo código, conforme o e-mail recebido.",
     );
   };
   return (
@@ -81,6 +81,11 @@ export function CustomerInvitePanel({
         entidade. Com vários responsáveis, use Responsáveis do ponto para
         definir quem valida cada item. A conferência interna continua
         disponível.
+      </p>
+      <p>
+        O e-mail padrão do Supabase funciona pelo link, sem código digitado. O
+        retorno precisa estar permitido nas configurações do Supabase; consulte
+        o guia abaixo. Modelos com código também continuam funcionando.
       </p>
       {error && (
         <p role="alert" className="team-error">
@@ -116,7 +121,7 @@ export function CustomerInvitePanel({
                     customerPortalUrl(current.id),
                   );
                   setMessage(
-                    "Link copiado. O acesso também exige o código enviado ao e-mail do responsável.",
+                    "Link copiado. O responsável pode abrir o formulário e solicitar a entrada pelo e-mail cadastrado.",
                   );
                 })
               }
@@ -129,7 +134,7 @@ export function CustomerInvitePanel({
               disabled={busy}
               onClick={() => act(() => send(current))}
             >
-              Reenviar código
+              Reenviar e-mail
             </button>
             <button
               type="button"
@@ -204,7 +209,7 @@ export function CustomerInvitePanel({
           ? "Processando…"
           : current
             ? "Renovar por 7 dias e enviar"
-            : "Gerar acesso e enviar código"}
+            : "Gerar acesso e enviar e-mail"}
       </button>
       <small>
         Renovar cria um novo link e revoga o anterior. Se o envio falhar, o
@@ -215,7 +220,7 @@ export function CustomerInvitePanel({
         target="_blank"
         rel="noreferrer"
       >
-        Guia de ativação e modelo de e-mail
+        Guia de ativação e retorno do e-mail
       </a>
     </section>
   );

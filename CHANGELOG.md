@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 1.17.2 — 26/10/2026
+
+- Entrada do portal orientada ao link dos e-mails padrão do Supabase, sem exigir edição dos templates ou código numérico. Solicitação de novo link em primeiro plano, código opcional recolhido e mensagens de convite/reenvio atualizadas.
+- Erros de retorno do e-mail agora são exibidos na tela, inclusive link vencido, permitindo solicitar outro acesso. Validado o primeiro acesso e o Magic Link em outro navegador, sem verificador do técnico ou alteração da sessão interna.
+- Guia revisado com Site URL/Redirect URLs e recuperação de links que voltam para localhost ou para o login da equipe. O SQL existente e os limites dos convites permanecem válidos; sem novo SQL.
+
 ## 1.17.1 — 26/10/2026
 
 - Convites cujo nome, cargo ou e-mail foram alterados deixam de oferecer o link e o reenvio antigos na tela. É necessário gerar um novo convite para o cadastro atual; os aceites anteriores continuam preservados. Usa o mesmo SQL do portal da versão 1.17.0.

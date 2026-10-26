@@ -272,7 +272,7 @@ export function ResponsibleEditor({ entry, Field, pending, onSave, onInvite }) {
                 if (await save()) onInvite(current.id);
               }}
             >
-              Link e código para o cliente
+              Acesso externo do cliente
             </button>
           )}
           <button

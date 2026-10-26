@@ -34,7 +34,8 @@ export function CustomerPortal({ inviteId }) {
     working = useRef(false),
     mounted = useRef(true),
     readSequence = useRef(0),
-    viewRevision = useRef("");
+    viewRevision = useRef(""),
+    emailInput = useRef(null);
   const refresh = async () => {
     if (
       !client ||
@@ -87,13 +88,17 @@ export function CustomerPortal({ inviteId }) {
   useEffect(() => {
     if (!client) return;
     let active = true;
-    client.auth.getSession().then(({ data, error }) => {
+    (async () => {
+      // getSession alone does not expose errors from a failed email callback.
+      const initialized = await client.auth.initialize();
+      const { data, error } = await client.auth.getSession();
       if (active) {
         setSession(data?.session || null);
         setAuthLoading(false);
-        if (error) setError(customerError(error));
+        if (initialized.error || error)
+          setError(customerError(initialized.error || error));
       }
-    });
+    })();
     const { data } = client.auth.onAuthStateChange((_event, value) => {
       if (active) {
         setSession(value);
@@ -206,61 +211,13 @@ export function CustomerPortal({ inviteId }) {
           <section className="customer-login">
             <h2>Acesse com o e-mail do convite</h2>
             <p>
-              Use o código enviado ao seu e-mail. Este acesso é separado da área
-              interna da equipe.
+              Abra o link recebido no seu e-mail para entrar diretamente. Se
+              precisar de outro, informe abaixo o e-mail cadastrado no convite.
+              Este acesso é separado da área interna da equipe.
             </p>
             <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const ok = await act(async () => {
-                  const r = await client.auth.verifyOtp({
-                    email: email.trim().toLowerCase(),
-                    token: code.trim(),
-                    type: "email",
-                  });
-                  if (r.error) throw r.error;
-                  setSession(r.data.session);
-                  setCode("");
-                });
-                if (ok) await refresh();
-              }}
-            >
-              <label>
-                E-mail do responsável
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  autoComplete="email"
-                  disabled={busy}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </label>
-              <label>
-                Código recebido por e-mail
-                <input
-                  type="text"
-                  required
-                  value={code}
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  pattern="[0-9]{6,10}"
-                  maxLength={10}
-                  disabled={busy}
-                  onChange={(e) =>
-                    setCode(e.target.value.replace(/[^0-9]/g, ""))
-                  }
-                />
-              </label>
-              <button className="button primary" disabled={busy || !online}>
-                {busy ? "Verificando…" : "Entrar no formulário"}
-              </button>
-            </form>
-            <button
-              type="button"
-              className="button secondary"
-              disabled={busy || !online || !email.trim()}
-              onClick={() =>
+              onSubmit={(event) => {
+                event.preventDefault();
                 act(async () => {
                   const r = await client.auth.signInWithOtp({
                     email: email.trim().toLowerCase(),
@@ -271,13 +228,74 @@ export function CustomerPortal({ inviteId }) {
                   });
                   if (r.error) throw r.error;
                   setMessage(
-                    "Se este e-mail estiver cadastrado, o Supabase enviará um novo código. Use o mais recente.",
+                    "Se este e-mail estiver cadastrado, o Supabase enviará um novo acesso. Abra o link mais recente recebido; se houver código no e-mail, você também pode usá-lo abaixo.",
                   );
-                })
-              }
+                });
+              }}
             >
-              Solicitar novo código
-            </button>
+              <label>
+                E-mail do responsável
+                <input
+                  ref={emailInput}
+                  type="email"
+                  required
+                  value={email}
+                  autoComplete="email"
+                  disabled={busy}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </label>
+              <button className="button primary" disabled={busy || !online}>
+                {busy ? "Enviando…" : "Enviar link de acesso"}
+              </button>
+            </form>
+            <details className="customer-code-entry">
+              <summary>Recebi um código por e-mail</summary>
+              <p>
+                Use esta opção somente se o e-mail mostrar um código. Informe o
+                mesmo e-mail do convite no campo acima.
+              </p>
+              <form
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  if (!emailInput.current?.reportValidity()) return;
+                  const ok = await act(async () => {
+                    const r = await client.auth.verifyOtp({
+                      email: email.trim().toLowerCase(),
+                      token: code.trim(),
+                      type: "email",
+                    });
+                    if (r.error) throw r.error;
+                    setSession(r.data.session);
+                    setCode("");
+                  });
+                  if (ok) await refresh();
+                }}
+              >
+                <label>
+                  Código recebido por e-mail
+                  <input
+                    type="text"
+                    required
+                    value={code}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    pattern="[0-9]{6,10}"
+                    maxLength={10}
+                    disabled={busy}
+                    onChange={(e) =>
+                      setCode(e.target.value.replace(/[^0-9]/g, ""))
+                    }
+                  />
+                </label>
+                <button
+                  className="button secondary"
+                  disabled={busy || !online || !email.trim()}
+                >
+                  {busy ? "Verificando…" : "Entrar no formulário"}
+                </button>
+              </form>
+            </details>
           </section>
         ) : data ? (
           <>

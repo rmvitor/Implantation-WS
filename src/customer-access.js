@@ -29,7 +29,7 @@ export function customerAuthClient(
     },
   });
 }
-export async function requestCustomerCode(client, invite) {
+export async function requestCustomerAccess(client, invite) {
   const { error } = await client.auth.signInWithOtp({
     email: invite.email,
     options: {
@@ -46,14 +46,14 @@ export const customerError = (error) => {
   if (error?.code === "PGRST202")
     return "O acesso externo ainda não foi ativado pela equipe.";
   if (error?.status === 429 || error?.code === "over_email_send_rate_limit")
-    return "Aguarde antes de solicitar outro código. Use o código mais recente recebido.";
+    return "Aguarde antes de solicitar outro acesso. Use o link ou código mais recente recebido.";
   if (
     error?.code === "otp_expired" ||
     error?.code === "otp_disabled" ||
     (error?.name?.startsWith("Auth") &&
       /expired|token.*invalid|code.*invalid/i.test(error.message || ""))
   )
-    return "Código inválido ou vencido. Solicite um novo código.";
+    return "Link ou código inválido ou vencido. Solicite um novo acesso.";
   if (error?.code === "42501")
     return "Acesso indisponível. Confira se usou o e-mail do convite ou solicite novo acesso à equipe.";
   return (

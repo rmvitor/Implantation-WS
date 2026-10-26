@@ -30,6 +30,7 @@ async function setup(page, { session = false, readFailure = false } = {}) {
     user,
   };
   const state = {
+    auth,
     calls: [],
     otp: [],
     fail: false,
@@ -162,12 +163,15 @@ for (const width of [390, 1440])
       .getByLabel("E-mail do responsável", { exact: true })
       .fill("ana@example.invalid");
     await page
+      .getByText("Recebi um código por e-mail", { exact: true })
+      .click();
+    await page
       .getByLabel("Código recebido por e-mail", { exact: true })
       .fill("000000");
     await page
       .getByRole("button", { name: "Entrar no formulário", exact: true })
       .click();
-    await expect(page.getByRole("alert")).toContainText("Código inválido");
+    await expect(page.getByRole("alert")).toContainText("código inválido");
     await page
       .getByLabel("Código recebido por e-mail", { exact: true })
       .fill("123456");
@@ -222,7 +226,7 @@ for (const width of [390, 1440])
       .getByRole("button", { name: "Sair do portal", exact: true })
       .click();
     await expect(
-      page.getByRole("button", { name: "Entrar no formulário", exact: true }),
+      page.getByRole("button", { name: "Enviar link de acesso", exact: true }),
     ).toBeVisible();
     expect(
       await page.evaluate(() => localStorage.getItem("sb-portal-auth-token")),
@@ -253,7 +257,7 @@ test("falha não confirma aceite e acesso revogado retira dados da tela", async 
   await expect(page.getByRole("alert")).toContainText("Acesso indisponível");
   await expect(page.getByRole("checkbox")).toHaveCount(0);
 });
-test("link inválido não abre o workspace; reenvio de código usa o e-mail digitado e o link do convite", async ({
+test("link inválido não abre o workspace; novo acesso usa o e-mail digitado e o retorno do convite", async ({
   page,
 }) => {
   const state = await setup(page);
@@ -265,11 +269,11 @@ test("link inválido não abre o workspace; reenvio de código usa o e-mail digi
     .getByLabel("E-mail do responsável", { exact: true })
     .fill("ana@example.invalid");
   await page
-    .getByRole("button", { name: "Solicitar novo código", exact: true })
+    .getByRole("button", { name: "Enviar link de acesso", exact: true })
     .click();
   expect(state.otp[0].email).toBe("ana@example.invalid");
   expect(state.otp[0].create_user).toBe(false);
-  await expect(page.getByRole("status")).toContainText("novo código");
+  await expect(page.getByRole("status")).toContainText("novo acesso");
 });
 
 test("cliente gera o termo do módulo com timbre e assina como cliente, preservando técnicos", async ({
@@ -383,4 +387,68 @@ test("uma leitura antiga não sobrescreve os pontos recebidos depois", async ({
       exact: true,
     }),
   ).toHaveCount(0);
+});
+
+for (const type of ["signup", "magiclink"])
+  test(`e-mail padrão ${type} abre o formulário pelo link sem digitar código e sem afetar a equipe`, async ({
+    page,
+  }) => {
+    const state = await setup(page);
+    state.data.points = [point()];
+    const hash = new URLSearchParams({
+      access_token: state.auth.access_token,
+      refresh_token: state.auth.refresh_token,
+      expires_in: "3600",
+      token_type: "bearer",
+      type,
+    });
+    await page.goto("/?aceite=" + invite + "#" + hash);
+    await expect(
+      page.getByRole("heading", { name: "Município do cliente", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("checkbox", {
+        name: "Meu aceite como responsável",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByLabel("Código recebido por e-mail", { exact: true }),
+    ).toHaveCount(0);
+    expect(state.calls.some((p) => p === "/auth/v1/verify")).toBe(false);
+    expect(
+      state.calls.some(
+        (p) => p.includes("implanta_access") || p.includes("implanta_read_v2"),
+      ),
+    ).toBe(false);
+    expect(await page.evaluate(() => location.hash)).toBe("");
+    expect(
+      await page.evaluate(() => localStorage.getItem("sb-portal-auth-token")),
+    ).toBe("INTERNAL-SESSION-UNCHANGED");
+  });
+
+test("link padrão vencido informa o motivo e permite pedir outro sem exigir código", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  await page.goto(
+    "/?aceite=" +
+      invite +
+      "#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired",
+  );
+  await expect(page.getByRole("alert")).toContainText(
+    "Link ou código inválido ou vencido",
+  );
+  await expect(
+    page.getByLabel("Código recebido por e-mail", { exact: true }),
+  ).not.toBeVisible();
+  await page
+    .getByLabel("E-mail do responsável", { exact: true })
+    .fill("ana@example.invalid");
+  await page
+    .getByRole("button", { name: "Enviar link de acesso", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText("novo acesso");
+  expect(state.otp[0].email).toBe("ana@example.invalid");
+  expect(state.calls.some((p) => p.includes("/rpc/"))).toBe(false);
 });

@@ -4,7 +4,7 @@ A área **Aceite da implantação** acompanha a apresentação final com o clien
 
 ## Portal opcional do cliente — 1.17.0
 
-O técnico pode atribuir responsáveis a cada ponto e enviar um acesso externo por e-mail. O cliente vê apenas seus pontos apresentados e confirma com sua própria conta, sem acesso à plataforma interna. A conferência na reunião continua funcionando. A ativação adicional e o SMTP estão no [guia do portal](portal-cliente.md).
+O técnico pode atribuir responsáveis a cada ponto e enviar um acesso externo por e-mail. O cliente vê apenas seus pontos apresentados e confirma com sua própria conta, sem acesso à plataforma interna. O template padrão do Supabase funciona pelo link; modelos com código são opcionais. A conferência na reunião continua funcionando. A ativação adicional e o SMTP estão no [guia do portal](portal-cliente.md).
 
 ## Ativar a atualização 1.16.0
 

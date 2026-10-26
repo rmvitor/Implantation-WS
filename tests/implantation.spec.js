@@ -1204,14 +1204,14 @@ test("convite usa SMTP pelo Auth separado; falha permite reenvio, renovação e 
   );
   await page.getByRole("button", { name: "Responsáveis", exact: true }).click();
   await page
-    .getByRole("button", { name: "Link e código para o cliente", exact: true })
+    .getByRole("button", { name: "Acesso externo do cliente", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toContainText(
     "Acesso externo do cliente",
   );
   state.smtpFail = true;
   await page
-    .getByRole("button", { name: "Gerar acesso e enviar código", exact: true })
+    .getByRole("button", { name: "Gerar acesso e enviar e-mail", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText("SMTP indisponível");
   expect(state.invites.length).toBe(1);
@@ -1239,7 +1239,7 @@ test("convite usa SMTP pelo Auth separado; falha permite reenvio, renovação e 
   ).toBe(stored);
   state.smtpFail = false;
   await page
-    .getByRole("button", { name: "Reenviar código", exact: true })
+    .getByRole("button", { name: "Reenviar e-mail", exact: true })
     .click();
   await expect(
     page
@@ -1294,16 +1294,16 @@ test("alterar o cadastro do cliente exige novo convite e não oferece reenvio ao
   await open(page);
   await page.getByRole("button", { name: "Responsáveis", exact: true }).click();
   await page
-    .getByRole("button", { name: "Link e código para o cliente", exact: true })
+    .getByRole("button", { name: "Acesso externo do cliente", exact: true })
     .click();
   await expect(
     page.getByRole("button", {
-      name: "Gerar acesso e enviar código",
+      name: "Gerar acesso e enviar e-mail",
       exact: true,
     }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Reenviar código", exact: true }),
+    page.getByRole("button", { name: "Reenviar e-mail", exact: true }),
   ).toHaveCount(0);
   await expect(
     page.getByLabel("Link do formulário", { exact: true }),

@@ -201,3 +201,14 @@
   color: #172033;
   border-color: #dbe2ec;
 }
+
+.customer-code-entry {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.customer-code-entry > summary {
+  cursor: pointer;
+  font-size: 13px;
+  padding: 8px 0;
+}

@@ -64,7 +64,7 @@ Novas versões exibem **Atualizar app**. A atualização aguarda o fechamento de
 
 ## Dados e equipe
 
-A versão **1.17.0** acrescenta o **portal opcional do cliente** nos aceites: o técnico atribui responsáveis por ponto e envia um convite com código pelo SMTP do Supabase, válido por 7 dias. O cliente acompanha seus pontos apresentados e confirma pessoalmente, sem acesso à plataforma. A rotina interna permanece disponível. Ative o novo SQL e os modelos de e-mail seguindo o [guia do portal](docs/portal-cliente.md).
+A versão **1.17.0** acrescenta o **portal opcional do cliente** nos aceites: o técnico atribui responsáveis por ponto e envia um convite por e-mail pelo SMTP do Supabase, válido por 7 dias. A entrada funciona pelo link do template padrão; código numérico é uma alternativa opcional. O cliente acompanha seus pontos apresentados e confirma pessoalmente, sem acesso à plataforma. A rotina interna permanece disponível. Ative o SQL do portal e configure os endereços de retorno seguindo o [guia do portal](docs/portal-cliente.md).
 
 A área **Aceite da implantação** contém o checklist final com o cliente por entidade e módulo, os 94 pontos dos modelos IPM 2026-3, abas por entidade/módulo, preenchimento direto com flags exclusivas e salvamento automático, filtros por aceite, limpeza por relatório com confirmação, modelos globais gerenciados pelo Master, múltiplos responsáveis e termos por módulo ou entidade com timbre para assinatura. A homologação da migração continua independente. Veja [preenchimento, perguntas e SQL de ativação](docs/homologacao-implantacao.md).
 
