@@ -1,0 +1,18 @@
+.activity-responsible {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+.activity-responsible select {
+  width: 100%;
+  min-width: 0;
+}
+.activity-responsible small {
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.activity-responsible a {
+  color: var(--primary);
+  font-size: 12px;
+  text-decoration: underline;
+}

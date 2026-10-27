@@ -23,6 +23,11 @@ async function setup(
   { role = "editor", loggedIn = true, normalized = false, tiers = false } = {},
 ) {
   const demo = createDemo();
+  for (const project of demo.projects)
+    for (const task of project.tasks) {
+      task.ownerId = role === "viewer" ? "00000000-0000-4000-8000-000000000002" : userId;
+      task.owner = role === "viewer" ? "Outro responsável" : "Colega teste";
+    }
   const state = {
     row: { id: demo.projects[0].id, data: demo.projects[0], version: 1 },
     role,
@@ -96,6 +101,9 @@ async function setup(
         status = 404;
         data = { code: "PGRST202", message: "Migration not applied" };
       }
+    } else if (path.endsWith("/rpc/implanta_activity_assignees")) {
+      if(state.assignmentUnavailable){status=404;data={code:"PGRST202",message:"Pending assignment migration"};}
+      else data={version:1,users:[{id:userId,name:"Colega teste",email:user.email},{id:"00000000-0000-4000-8000-000000000002",name:"Outro responsável",email:"outro@example.invalid"}]};
     } else if (path.endsWith("/rpc/implanta_commit_v2")) {
       const args = req.postDataJSON();
       state.commits.push(args);
@@ -954,7 +962,7 @@ for (const normalized of [false, true]) {
     const writes = state.writes;
     state.holdCommit = true;
     await page.getByRole("button", { name: "Nova atividade", exact: true }).click();
-    await expect(page.getByLabel("Responsável", { exact: true })).toHaveValue("Colega teste");
+    await expect(page.getByLabel("Responsável", { exact: true })).toHaveValue(userId);
     await page.getByLabel("Título da atividade").fill("Aguardar confirmação");
     await page.getByRole("button", { name: "Criar atividade", exact: true }).click();
     await expect.poll(() => state.commitHeld).toBe(true);
@@ -979,8 +987,8 @@ for (const normalized of [false, true]) {
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await expect.poll(() => state.readHeld).toBe(true);
     await page.getByRole("button", { name: "Nova atividade", exact: true }).click();
-    await expect(page.getByLabel("Responsável",{ exact: true })).toHaveValue("Colega teste");
-    await page.getByLabel("Responsável",{ exact: true }).fill("Outro responsável");
+    await expect(page.getByLabel("Responsável",{ exact: true })).toHaveValue(userId);
+    await page.getByLabel("Responsável",{ exact: true }).selectOption("00000000-0000-4000-8000-000000000002");
     await page.getByLabel("Título da atividade").fill("Tarefa criada sem recarregar");
     await page.getByRole("button", { name: "Criar atividade", exact: true }).click();
     const card = page.locator(".task-card").filter({ hasText: "Tarefa criada sem recarregar" });
@@ -1297,4 +1305,166 @@ test("Voltar restaura o município anterior sem gravar preferências ou desfazer
   await page.evaluate(() => history.back());
   await expect(page.getByRole("heading", { name: "Projetos e municípios", exact: true })).toBeVisible();
   expect(state.writes).toBe(writes);
+});
+
+for (const width of [390, 1440])
+  test(`apenas meus filtra pela conta em quadro, lista, tabela e calendário e persiste só no aparelho em ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 950 });
+    const state = await setup(page);
+    state.row.data.tasks = state.row.data.tasks
+      .slice(0, 3)
+      .map((t, i) => ({
+        ...t,
+        title: [
+          "Minha atribuição",
+          "Outro colega com meu nome",
+          "Autoria sem atribuição",
+        ][i],
+        owner: i === 1 ? "Colega teste" : "Outro responsável",
+        ownerId: i === 0 ? userId : "00000000-0000-4000-8000-000000000002",
+        createdBy: i === 2 ? userId : "other",
+        date: new Date().toISOString().slice(0, 10),
+      }));
+    await page.goto("/");
+    await page.locator(".municipality-card").click();
+    const writes = state.writes;
+    await page
+      .getByRole("button", { name: "Apenas meus", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Apenas meus", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    for (const view of ["Quadro", "Lista", "Tabela", "Calendário"]) {
+      await page.getByRole("button", { name: view, exact: true }).click();
+      await expect(
+        page.getByText("Minha atribuição", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByText("Outro colega com meu nome", { exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByText("Autoria sem atribuição", { exact: true }),
+      ).toHaveCount(0);
+    }
+    expect(state.writes).toBe(writes);
+    expect(state.preferences.boardOnlyMine).toBeUndefined();
+    await page.reload();
+    await page.locator(".municipality-card").click();
+    await expect(
+      page.getByRole("button", { name: "Apenas meus", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await page
+      .getByRole("button", { name: "Apenas meus", exact: true })
+      .click();
+    await expect(
+      page.getByText("Outro colega com meu nome", { exact: true }),
+    ).toBeVisible();
+  });
+test("responsáveis vêm dos editores do projeto e a troca é confirmada no banco sem recarregar", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 1000 });
+  const state = await setup(page, { normalized: true });
+  await page.goto("/");
+  await page.locator(".municipality-card").click();
+  await page
+    .getByRole("button", { name: "Nova atividade", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("Responsável", { exact: true })).toHaveValue(
+    userId,
+  );
+  await expect(
+    dialog.getByLabel("Responsável", { exact: true }).locator("option"),
+  ).toHaveCount(3);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: ".local/activity-responsible-390.png",
+    fullPage: true,
+  });
+  await dialog
+    .getByLabel("Título da atividade *", { exact: true })
+    .fill("Atividade com vínculo");
+  await dialog
+    .getByLabel("Responsável", { exact: true })
+    .selectOption("00000000-0000-4000-8000-000000000002");
+  await dialog
+    .getByRole("button", { name: "Criar atividade", exact: true })
+    .click();
+  await expect(
+    page.getByText("Atividade com vínculo", { exact: true }),
+  ).toBeVisible();
+  expect(
+    state.row.data.tasks.find((t) => t.title === "Atividade com vínculo")
+      .ownerId,
+  ).toBe("00000000-0000-4000-8000-000000000002");
+  await page.getByText("Atividade com vínculo", { exact: true }).click();
+  await dialog.getByLabel("Responsável", { exact: true }).selectOption(userId);
+  await dialog
+    .getByRole("button", { name: "Salvar alterações", exact: true })
+    .click();
+  await expect(dialog).toHaveCount(0);
+  expect(
+    state.row.data.tasks.find((t) => t.title === "Atividade com vínculo")
+      .ownerId,
+  ).toBe(userId);
+});
+test("sem SQL de responsáveis o formulário conserva os dados e orienta a ativação", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  state.assignmentUnavailable = true;
+  const before = structuredClone(state.row.data.tasks);
+  await page.goto("/");
+  await page.locator(".municipality-card").click();
+  await page
+    .getByRole("button", { name: "Nova atividade", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Ative o SQL dos responsáveis",
+  );
+  await expect(
+    page.getByRole("button", { name: "Criar atividade", exact: true }),
+  ).toBeDisabled();
+  expect(state.row.data.tasks).toEqual(before);
+});
+
+test("atividade antiga sem vínculo exige escolher um editor antes de salvar", async ({
+  page,
+}) => {
+  const state = await setup(page);
+  state.row.data.tasks[0].ownerId = null;
+  state.row.data.tasks[0].owner = "";
+  const original = state.row.data.tasks[0];
+  await page.goto("/");
+  await page.locator(".municipality-card").click();
+  await page.locator(`[data-task-id="${original.id}"]`).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("Responsável", { exact: true })).toHaveValue(
+    "",
+  );
+  await expect(dialog).toContainText(
+    "Selecione uma conta com edição no projeto",
+  );
+  await dialog
+    .getByRole("button", { name: "Salvar alterações", exact: true })
+    .click();
+  await expect(dialog).toBeVisible();
+  expect(state.row.data.tasks.find((t) => t.id === original.id).ownerId).toBe(
+    null,
+  );
+  await dialog.getByLabel("Responsável", { exact: true }).selectOption(userId);
+  await dialog
+    .getByRole("button", { name: "Salvar alterações", exact: true })
+    .click();
+  await expect(dialog).toHaveCount(0);
+  expect(state.row.data.tasks.find((t) => t.id === original.id).ownerId).toBe(
+    userId,
+  );
 });

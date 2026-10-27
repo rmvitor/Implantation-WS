@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 1.18.0 — 27/10/2026
+
+- Filtro Apenas meus nas atividades, por ID da conta responsável, nas quatro visualizações. Preferência local por conta e município, combinada com os filtros existentes, sem gravação no banco.
+- Responsável escolhido entre usuários ativos com edição efetiva no projeto, incluindo gestor e Master. Troca preserva a autoria; atividades criadas diretamente, por modelos ou pela homologação começam com a conta atual.
+- Novo SQL aditivo registra o criador no servidor, recupera autores conhecidos e vincula os nomes antigos quando não há ambiguidade. Atividades sem responsável recebem o criador elegível; sem criador identificável ou com edição, o gestor atual assume, sem alterar a autoria. Quando nem o gestor é elegível, a escolha é manual. Dados anteriores e histórico preservados. Validações também no banco e proteção contra retirada de edição enquanto houver atividades atribuídas.
+
 ## 1.17.2 — 26/10/2026
 
 - Entrada do portal orientada ao link dos e-mails padrão do Supabase, sem exigir edição dos templates ou código numérico. Solicitação de novo link em primeiro plano, código opcional recolhido e mensagens de convite/reenvio atualizadas.

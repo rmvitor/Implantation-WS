@@ -550,7 +550,7 @@ export function Operations({
                       const task = instantiateTemplate(
                         m,
                         project.entities,
-                        actor?.name || "",
+                        actor || "",
                       );
                       await edit((d) => ({
                         ...d,

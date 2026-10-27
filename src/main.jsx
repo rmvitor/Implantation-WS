@@ -112,6 +112,8 @@ import { PersonalAgenda, PersonalEventModal } from "./PersonalAgenda";
 import { BrandLogo } from "./BrandLogo";
 import "./project-controls.css";
 import { TeamHost, TeamSettings, useTeam } from "./Team";
+import { ActivityResponsible } from "./ActivityResponsible.jsx";
+import { isMyActivity } from "./activity-responsibility.js";
 import { CustomerPortal } from "./CustomerPortal.jsx";
 import { same } from "./team-domain";
 import { friendlyTeamError } from "./team-service";
@@ -319,11 +321,18 @@ function App() {
     });
   };
   const taskOrder = display.boardOrders?.[projectId] || "manual";
+  const onlyMine = display.boardOnlyMine?.[projectId] === true;
+  const setOnlyMine = (value) =>
+    setDisplay((d) => ({
+      ...d,
+      boardOnlyMine: { ...d.boardOnlyMine, [projectId]: value },
+    }));
   const tasks = sortActivities(
     projectTasks.filter(
       (t) =>
         matchesTask(t, search, module, priority) &&
-        (!typeFilter || t.type === typeFilter),
+        (!typeFilter || t.type === typeFilter) &&
+        (!onlyMine || isMyActivity(t, team.actor)),
     ),
     taskOrder,
   );
@@ -455,7 +464,7 @@ function App() {
     }
     setModal({
       type: "task",
-      task: newActivity(stage, date, team.actor?.name || ""),
+      task: newActivity(stage, date, team.actor || ""),
       isNew: true,
     });
   };
@@ -1054,12 +1063,22 @@ function App() {
                           <option key={m}>{m}</option>
                         ))}
                       </select>
+                      {team.actor && (
+                        <button
+                          type="button"
+                          className={`button filter-button ${onlyMine ? "selected" : ""}`}
+                          aria-pressed={onlyMine}
+                          onClick={() => setOnlyMine(!onlyMine)}
+                        >
+                          <Users size={15} /> Apenas meus
+                        </button>
+                      )}
                       <button
                         className={`button filter-button ${showFilters ? "selected" : ""}`}
                         onClick={() => setShowFilters(!showFilters)}
                       >
                         <SlidersHorizontal size={15} /> Filtros
-                        {(priority || typeFilter) && (
+                        {(priority || typeFilter || onlyMine) && (
                           <span className="filter-dot" />
                         )}
                       </button>
@@ -1138,6 +1157,7 @@ function App() {
                           setModule("");
                           setSearch("");
                           setTypeFilter("");
+                          setOnlyMine(false);
                         }}
                       >
                         Limpar filtros
@@ -1660,6 +1680,7 @@ function App() {
         )}
       {modal?.type === "task" && (
         <TaskModal
+          projectId={projectId}
           readOnly={!canEdit}
           task={modal.task}
           isNew={modal.isNew}
@@ -2192,6 +2213,7 @@ function Field({ label, children, hint, full }) {
   );
 }
 function TaskModal({
+  projectId,
   readOnly = false,
   task,
   isNew,
@@ -2201,7 +2223,9 @@ function TaskModal({
   onDelete,
 }) {
   const formId = useId();
-  const { actor } = useTeam();
+  const team = useTeam();
+  const { actor } = team;
+  const [responsibilityReady, setResponsibilityReady] = useState(!team.online);
   const [draft, setDraft] = useState(() => structuredClone(task));
   const [entity, setEntity] = useState(entities[0] || "");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -2238,7 +2262,7 @@ function TaskModal({
         <button
           type="submit"
           form={formId}
-          disabled={uploading || readOnly}
+          disabled={uploading || readOnly || !responsibilityReady}
           className="button primary task-save-top"
           aria-label={
             isNew ? "Criar atividade no topo" : "Salvar atividade no topo"
@@ -2253,6 +2277,7 @@ function TaskModal({
         id={formId}
         onSubmit={(e) => {
           e.preventDefault();
+          if (!responsibilityReady) return;
           const activity = { ...draft, title: draft.title.trim() };
           if (
             actor &&
@@ -2307,11 +2332,22 @@ function TaskModal({
               </select>
             </Field>
             <Field label="Responsável">
-              <input
-                value={draft.owner}
-                onChange={(e) => patch("owner", e.target.value)}
-                placeholder="Nome do responsável"
-              />
+              {team.online && !readOnly ? (
+                <ActivityResponsible
+                  team={team}
+                  projectId={projectId}
+                  draft={draft}
+                  onChange={setDraft}
+                  onReady={setResponsibilityReady}
+                  readOnly={readOnly}
+                />
+              ) : (
+                <input
+                  value={draft.owner}
+                  onChange={(e) => patch("owner", e.target.value)}
+                  placeholder="Nome do responsável"
+                />
+              )}
             </Field>
             <Field label="Prioridade">
               <select
@@ -2587,7 +2623,7 @@ function TaskModal({
             </button>
             <button
               type="submit"
-              disabled={uploading || readOnly}
+              disabled={uploading || readOnly || !responsibilityReady}
               className="button primary"
             >
               <Check size={16} />

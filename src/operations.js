@@ -70,7 +70,11 @@ export function instantiateTemplate(template, entities = [], owner = "") {
   const task = {
     ...newActivity(),
     ...structuredClone(template.activity),
-    owner: template.activity.owner?.trim() || owner,
+    owner:
+      typeof owner === "object"
+        ? owner.name || ""
+        : template.activity.owner?.trim() || owner,
+    ...(owner?.id ? { ownerId: owner.id } : {}),
     id: uid(),
     stage: "todo",
     validation: null,

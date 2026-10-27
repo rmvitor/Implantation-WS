@@ -16,7 +16,7 @@ export function clearRetiredDeviceData(storage) {
 }
 
 export function withoutDevicePreferences(data) {
-  const { boardViews, boardCollapsed, boardOrders, ...workspace } = data;
+  const { boardViews, boardCollapsed, boardOrders, boardOnlyMine, ...workspace } = data;
   return workspace;
 }
 
@@ -28,6 +28,7 @@ export function displayPreferences(data = {}) {
       ),
     );
   return {
+    boardOnlyMine: validMap(data.boardOnlyMine, (v) => typeof v === "boolean"),
     boardViews: validMap(data.boardViews, (v) =>
       ["kanban", "list", "table", "calendar"].includes(v),
     ),

@@ -1,4 +1,5 @@
 import pg from "pg";
+import { testActivityResponsibility } from "./test-activity-responsibility.mjs";
 import { testCustomerPortal } from "./test-customer-portal.mjs";
 import { testAcceptanceWorkflow } from "./test-acceptance-workflow.mjs";
 import { testRecords } from "./test-records.mjs";
@@ -324,6 +325,7 @@ try {
   await testImplantation(owner, url.href);
   await testAcceptanceWorkflow(owner, url.href);
   await testCustomerPortal(owner, url.href);
+  await testActivityResponsibility(owner, url.href);
 } finally {
   await Promise.all(clients.map((c) => c.end()));
   await owner.query(`drop database if exists ${database}`);

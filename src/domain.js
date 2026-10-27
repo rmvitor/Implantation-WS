@@ -142,7 +142,8 @@ export function newActivity(stage = "todo", date = "", owner = "") {
     module: "",
     stage,
     type: "tarefa",
-    owner,
+    owner: owner && typeof owner === "object" ? owner.name || "" : owner,
+    ...(owner?.id ? { ownerId: owner.id } : {}),
     priority: "normal",
     date,
     time: "",
@@ -322,6 +323,8 @@ export function validateBackup(value) {
         typeof t.date !== "string" ||
         typeof t.time !== "string" ||
         typeof t.owner !== "string" ||
+        (t.ownerId != null && typeof t.ownerId !== "string") ||
+        (t.createdBy != null && typeof t.createdBy !== "string") ||
         !stages.includes(t.stage) ||
         !Array.isArray(t.checklists) ||
         !t.checklists.every(
@@ -596,7 +599,7 @@ export function saveHomologationEntry(
     !project.tasks.some((t) => t.id === entry.taskId)
   ) {
     const task = {
-      ...newActivity("todo", "", actor?.name || ""),
+      ...newActivity("todo", "", actor || ""),
       title: `Corrigir migração de ${entry.module} — ${entry.entity}`,
       module: entry.module,
       type: "pendencia",
