@@ -114,6 +114,8 @@ import "./project-controls.css";
 import { TeamHost, TeamSettings, useTeam } from "./Team";
 import { ActivityResponsible } from "./ActivityResponsible.jsx";
 import { isMyActivity } from "./activity-responsibility.js";
+import { Attendance } from "./Attendance.jsx";
+import { AttendancePortal } from "./AttendancePortal.jsx";
 import { CustomerPortal } from "./CustomerPortal.jsx";
 import { same } from "./team-domain";
 import { friendlyTeamError } from "./team-service";
@@ -174,6 +176,7 @@ function App() {
   const dataRef = useRef(data);
   const applyData = (next) => { dataRef.current = next; setWorkspaceData(next); };
   const acceptanceUnsaved = useRef(false);
+  const attendancePending = useRef(false);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const pwa = usePwa();
@@ -272,7 +275,7 @@ function App() {
     scope: navigationScope,
     route: screenRoute(view, projectId),
     projects: data.projects,
-    blocked: () => savingRef.current || acceptanceUnsaved.current,
+    blocked: () => savingRef.current || acceptanceUnsaved.current || attendancePending.current,
     onRestore: (route) => {
       setView(route.view);
       if (route.projectId) setSelectedProjectId(route.projectId);
@@ -435,6 +438,7 @@ function App() {
       options,
     );
   const changeView = (v) => {
+    if (attendancePending.current) { setToast("Aguarde a confirmação da lista de presença antes de sair."); return; }
     if (acceptanceUnsaved.current && v !== "implantation") { setToast("Aguarde o salvamento dos aceites ou resolva as alterações não salvas antes de sair."); return; }
     setCardMenu(null);
     setProjectMenu(null);
@@ -531,6 +535,7 @@ function App() {
     event.target.value = "";
   };
   const selectProject = async (id) => {
+    if (attendancePending.current) { setToast("Aguarde a confirmação da lista de presença antes de trocar de município."); return false; }
     if (acceptanceUnsaved.current && id !== projectId) { setToast("Salve os aceites pendentes antes de trocar de município."); return false; }
     const selected = await setData((d) => ({ ...d, selectedId: id }));
     if (selected) setSelectedProjectId(id);
@@ -550,6 +555,7 @@ function App() {
     implantation: "Homologação da implantação",
     agenda: "Minha agenda",
     trainings: "Treinamento/Atendimento",
+    attendance: "Listas de presença",
     history: "Histórico de execução",
     details: "Dados do município",
     personalAgenda: "Agenda geral",
@@ -641,6 +647,13 @@ function App() {
             disabled={!project}
             active={view === "trainings"}
             onClick={() => changeView("trainings")}
+          />
+          <NavItem
+            icon={Users}
+            text="Listas de presença"
+            disabled={!project}
+            active={view === "attendance"}
+            onClick={() => changeView("attendance")}
           />
           <NavItem
             icon={Clock3}
@@ -846,6 +859,8 @@ function App() {
                         ? "Informações e contatos sempre à mão."
                         : view === "trainings"
                           ? "Capacitação e salas de atendimento remoto em uma agenda própria."
+                          : view === "attendance"
+                            ? "Participação nos treinamentos, por lista, link ou QR code."
                           : view === "homologation"
                             ? "Conferência e liberação dos dados migrados por módulo e entidade."
                             : view === "implantation"
@@ -909,7 +924,7 @@ function App() {
                       {view === "details" ? "Ver quadro" : "Dados do município"}
                     </span>
                   </button>
-                  {view !== "homologation" && (
+                  {view !== "homologation" && view !== "attendance" && (
                     <button
                       disabled={!canEdit}
                       className="button primary"
@@ -1468,6 +1483,9 @@ function App() {
                   onAdd={() => setModal({ type: "training", isNew: true })}
                 />
               )}
+              {view === "attendance" && (
+                <Attendance key={project.id} project={project} readOnly={!canEdit} Modal={Modal} onPending={(value) => { attendancePending.current = value; }} />
+              )}
               {view === "history" && (
                 <History
                   project={project}
@@ -1793,7 +1811,7 @@ function App() {
       {modal?.type === "backup" && (
         <Modal
           title="Seus dados, sob seu controle"
-          subtitle="Backup de todos os municípios e atividades."
+          subtitle="Backup de municípios e atividades."
           onClose={() => setModal(null)}
         >
           <div className="info-box">
@@ -1807,6 +1825,7 @@ function App() {
               antes de compartilhar.
             </p>
           </div>
+          {team.online && <p className="muted modal-note">Listas de presença ficam em tabelas próprias e não integram este JSON. Na área Listas de presença, use Imprimir lista para guardar uma cópia em PDF. O backup do banco Supabase deve incluir o esquema implanta_private.</p>}
           <div className="backup-options">
             <button onClick={exportData}>
               <Download size={24} />
@@ -3526,7 +3545,9 @@ function Empty({ icon: Icon, title, description, button, onClick }) {
 
 clearRetiredDeviceData();
 createRoot(document.getElementById("root")).render(
-  new URLSearchParams(location.search).has("aceite") ? (
+  new URLSearchParams(location.search).has("presenca") ? (
+    <AttendancePortal token={new URLSearchParams(location.search).get("presenca")} />
+  ) : new URLSearchParams(location.search).has("aceite") ? (
     <CustomerPortal inviteId={new URLSearchParams(location.search).get("aceite")} />
   ) : (
     <TeamHost>

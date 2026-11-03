@@ -15,6 +15,7 @@ import {
   Pencil,
   Trash2,
   CheckCheck,
+  Users,
   ChevronDown,
   Check,
 } from "lucide-react";
@@ -155,6 +156,7 @@ const AREAS = [
   { id: "implantation", label: "Aceite da implantação", icon: CheckCheck },
   { id: "agenda", label: "Agenda", icon: CalendarDays },
   { id: "trainings", label: "Capacitação", icon: GraduationCap },
+  { id: "attendance", label: "Presença", icon: Users },
   { id: "history", label: "Histórico", icon: Clock3 },
 ];
 

@@ -163,3 +163,7 @@ Backups incluem a agenda geral. Importar um backup antigo sem agenda pessoal con
 ## Versão 1.10.2
 
 A data de término da Agenda geral é opcional e inicia em branco. Sem término, o compromisso mostra **Término a definir**, permanece na lista de próximos e em andamento e marca apenas sua data inicial no calendário. Você pode informar ou retirar o término depois; o horário de término só é solicitado quando há uma data final. Compromissos existentes mantêm seus períodos e a alteração não exige migração SQL.
+
+### Listas de presença (v1.19.0)
+
+Listas de treinamento por município, preenchidas manualmente ou por formulário público com link/QR, sem vínculo obrigatório à agenda. CPF opcional, impressão no modelo IPM e registro de confirmação com data/hora. Aplique a nova migração antes de usar. Consulte [ativação, uso, privacidade e backup](docs/lista-presenca.md).

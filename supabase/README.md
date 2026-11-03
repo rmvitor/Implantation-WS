@@ -99,3 +99,7 @@ docker stop implanta-postgres-test
 ```
 
 Esse PostgreSQL contém somente dados artificiais. O script cria e remove uma base temporária própria, simula `auth.uid()` e executa a migração real. Ele verifica isolamento, acesso pendente, leitura/edição/administração, revogação, gravações concorrentes, auditoria e rollback da importação. A autenticação HTTP é simulada nos testes de navegador; a confirmação/recuperação de e-mail deve ser verificada no projeto Supabase real após ativá-lo.
+
+### Listas de presença (v1.19.0)
+
+Execute [`migrations/202611030001_training_attendance.sql`](migrations/202611030001_training_attendance.sql) no SQL Editor após os registros separados e níveis por projeto. Não exige substituir parâmetros nem alterar o SMTP. Cria tabelas privadas novas, sem modificar os dados existentes. Confira [o guia de uso, permissões e backup](../docs/lista-presenca.md).

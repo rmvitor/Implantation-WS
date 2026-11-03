@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 1.19.0 — 03/11/2026
+
+- Listas de presença por município, independentes ou vinculadas a treinamentos, com cadastro manual, edição, busca, confirmação e histórico de servidor.
+- Formulário externo por link/QR code local, validade configurável, renovação e encerramento; sem consulta aos demais participantes e sem alterar o login interno.
+- Campos do modelo IPM, CPF opcional e mascarado, impressão preenchida/em branco com espaço de assinatura; CPF completo somente para Master e com registro de acesso.
+- Tabelas separadas, controle de concorrência, envios idempotentes e atualização automática da tela. Nova ativação: `202611030001_training_attendance.sql`.
+- Testes PostgreSQL de permissões, privacidade, conflitos, repetição, revogação concorrente e preservação; testes de interface no celular e PC. O JSON de backup legado não inclui as novas tabelas; orientação explícita na tela e no guia.
+
 ## 1.18.0 — 27/10/2026
 
 - Filtro Apenas meus nas atividades, por ID da conta responsável, nas quatro visualizações. Preferência local por conta e município, combinada com os filtros existentes, sem gravação no banco.
