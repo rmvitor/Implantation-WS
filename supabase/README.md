@@ -103,3 +103,5 @@ Esse PostgreSQL contém somente dados artificiais. O script cria e remove uma ba
 ### Listas de presença (v1.19.0)
 
 Execute [`migrations/202611030001_training_attendance.sql`](migrations/202611030001_training_attendance.sql) no SQL Editor após os registros separados e níveis por projeto. Não exige substituir parâmetros nem alterar o SMTP. Cria tabelas privadas novas, sem modificar os dados existentes. Confira [o guia de uso, permissões e backup](../docs/lista-presenca.md).
+
+Para a **v1.19.1**, execute também [`migrations/202611030002_attendance_required_fields.sql`](migrations/202611030002_attendance_required_fields.sql). Nome, CPF, setor e e-mail passam a ser obrigatórios por padrão, com configuração por município pelos editores do projeto. Não preenche nem altera registros antigos.

@@ -7,7 +7,12 @@ const jwt = (role) =>
   `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ sub: actor, role, exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64url")}.test`;
 async function setup(
   page,
-  { publicPage = false, role = "editor", unavailable = false } = {},
+  {
+    publicPage = false,
+    role = "editor",
+    unavailable = false,
+    required = { name: true, cpf: false, sector: false, email: false },
+  } = {},
 ) {
   const workspace = createDemo(),
     project = workspace.projects[0];
@@ -35,6 +40,8 @@ async function setup(
     failRegister: false,
     reads: 0,
     unavailable,
+    required,
+    settingsRevision: 0,
   };
   await page.addInitScript(
     ({ auth, key }) => {
@@ -101,6 +108,20 @@ async function setup(
           ...l,
           count: state.people.filter((p) => p.list_id === l.id).length,
         }));
+    } else if (path.endsWith("/rpc/implanta_attendance_settings"))
+      data = {
+        requiredFields: state.required,
+        revision: state.settingsRevision,
+        audit: [],
+      };
+    else if (path.endsWith("/rpc/implanta_attendance_settings_save")) {
+      state.required = args.p_required;
+      state.settingsRevision++;
+      data = {
+        requiredFields: state.required,
+        revision: state.settingsRevision,
+        audit: [],
+      };
     } else if (path.endsWith("/rpc/implanta_attendance_save")) {
       if (state.fail) {
         status = 409;
@@ -165,6 +186,7 @@ async function setup(
         data = { code: "42501", message: "Link indisponível ou encerrado." };
       } else
         data = {
+          requiredFields: state.required,
           title: "Treinamento presencial",
           entity: "Prefeitura",
           city: "Quatro Barras",
@@ -511,4 +533,111 @@ test("conflito mantém participante, recarga é explícita e Voltar aguarda a co
   await expect(page.locator(".attendance-table")).toContainText(
     "Nome confirmado",
   );
+});
+
+for (const width of [390, 1440])
+  test(`editor configura obrigatoriedade para todas as listas e formulário em ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 950 });
+    const all = { name: true, cpf: true, sector: true, email: true };
+    const state = await setup(page, { required: all });
+    await page
+      .getByRole("button", { name: "Campos obrigatórios", exact: true })
+      .click();
+    const modal = page.getByRole("dialog");
+    await expect(modal).toContainText("todas as listas deste município");
+    for (const label of [
+      "Nome completo obrigatório",
+      "CPF obrigatório",
+      "Setor obrigatório",
+      "E-mail obrigatório",
+    ])
+      await expect(
+        modal.getByRole("checkbox", { name: label, exact: true }),
+      ).toBeChecked();
+    await modal
+      .getByRole("checkbox", { name: "CPF obrigatório", exact: true })
+      .uncheck();
+    await modal
+      .getByRole("checkbox", { name: "E-mail obrigatório", exact: true })
+      .uncheck();
+    await modal
+      .getByRole("button", { name: "Salvar campos obrigatórios", exact: true })
+      .click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(state.required).toEqual({
+      name: true,
+      cpf: false,
+      sector: true,
+      email: false,
+    });
+    const write = state.calls.find((c) =>
+      c.path.endsWith("/implanta_attendance_settings_save"),
+    );
+    expect(write.args.p_project).toBe("quatro-barras");
+    await page
+      .getByRole("button", { name: "Campos obrigatórios", exact: true })
+      .click();
+    await expect(
+      page.getByRole("checkbox", { name: "CPF obrigatório", exact: true }),
+    ).not.toBeChecked();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Cancelar", exact: true })
+      .click();
+    await page.goto(`/?presenca=${token}`);
+    await expect(page.getByLabel("Nome completo")).toHaveAttribute(
+      "required",
+      "",
+    );
+    await expect(page.getByLabel("Setor", { exact: false })).toHaveAttribute(
+      "required",
+      "",
+    );
+    await expect(
+      page.getByLabel("CPF (opcional)", { exact: true }),
+    ).not.toHaveAttribute("required");
+    await expect(
+      page.getByLabel("E-mail (opcional)", { exact: true }),
+    ).not.toHaveAttribute("required");
+    await page.getByLabel("Nome completo").fill("Cliente");
+    await page.getByRole("checkbox").check();
+    await page
+      .getByRole("button", { name: "Confirmar participação", exact: true })
+      .click();
+    expect(
+      state.calls.filter((c) =>
+        c.path.endsWith("/implanta_attendance_register"),
+      ),
+    ).toHaveLength(0);
+    await page.getByLabel("Setor", { exact: false }).fill("Frota");
+    await page
+      .getByRole("button", { name: "Confirmar participação", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Participação registrada" }),
+    ).toBeVisible();
+  });
+test("formulário assume todos obrigatórios sem configuração; visualizador não altera", async ({
+  page,
+}) => {
+  const state = await setup(page, { role: "viewer", required: null });
+  await expect(
+    page.getByRole("button", { name: "Campos obrigatórios", exact: true }),
+  ).toBeDisabled();
+  await page.goto(`/?presenca=${token}`);
+  for (const label of ["Nome completo", "CPF", "Setor", "E-mail"])
+    await expect(page.getByLabel(label, { exact: false })).toHaveAttribute(
+      "required",
+      "",
+    );
+  await page.getByLabel("Nome completo").fill("Cliente");
+  await page.getByRole("checkbox").check();
+  await page
+    .getByRole("button", { name: "Confirmar participação", exact: true })
+    .click();
+  expect(
+    state.calls.filter((c) => c.path.endsWith("/implanta_attendance_register")),
+  ).toHaveLength(0);
 });

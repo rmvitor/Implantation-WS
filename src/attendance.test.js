@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   attendanceUrl,
+  attendanceRequiredFields,
   attendanceTokenValid,
   newAttendance,
   renderAttendanceReport,
@@ -75,4 +76,17 @@ test("relatório mantém campos do modelo, espaço de assinatura e pagina nomes 
   const blank = renderAttendanceReport({ data }, people, { blank: true });
   assert(!blank.includes("Pessoa 0"));
   assert.equal((blank.match(/<td>\d\d<\/td>/g) || []).length, 14);
+});
+
+test("presença exige os quatro campos por padrão e só desmarca com booleano false", () => {
+  assert.deepEqual(attendanceRequiredFields(), {
+    name: true,
+    cpf: true,
+    sector: true,
+    email: true,
+  });
+  assert.deepEqual(
+    attendanceRequiredFields({ cpf: false, email: false, sector: "false" }),
+    { name: true, cpf: false, sector: true, email: false },
+  );
 });

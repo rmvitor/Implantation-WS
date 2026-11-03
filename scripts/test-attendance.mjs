@@ -424,6 +424,272 @@ export async function testAttendance(owner, connectionUrl) {
       1,
     );
     checks++;
+    // New policy is per municipality and additive: old participants remain intact.
+    const requiredMigration = await migration(
+      "202611030002_attendance_required_fields.sql",
+    );
+    const beforePolicy = (
+      await root.query(
+        "select * from implanta_private.attendance_people order by id",
+      )
+    ).rows;
+    await root.query(requiredMigration);
+    assert.deepEqual(
+      (
+        await root.query(
+          "select * from implanta_private.attendance_people order by id",
+        )
+      ).rows,
+      beforePolicy,
+    );
+    checks++;
+    const allRequired = { name: true, cpf: true, sector: true, email: true },
+      optional = { name: false, cpf: false, sector: false, email: false };
+    const policy = () => rpc(editor, "implanta_attendance_settings", ["p"]);
+    assert.deepEqual((await policy()).requiredFields, allRequired);
+    assert.equal((await policy()).revision, 0);
+    checks++;
+    assert.deepEqual(
+      (await rpc(anon, "implanta_attendance_public_read", [fourth]))
+        .requiredFields,
+      allRequired,
+    );
+    checks++;
+    await fail(anon, "select public.implanta_attendance_settings('p')");
+    await fail(editor, "select * from implanta_private.attendance_settings");
+    for (const c of [viewer, other, pending])
+      await fail(
+        c,
+        "select public.implanta_attendance_settings_save($1,0,$2)",
+        ["p", optional],
+      );
+    await fail(
+      editor,
+      "select public.implanta_attendance_settings_save($1,0,$2)",
+      ["p", { name: true, cpf: false }],
+      "23514",
+    );
+    await fail(
+      editor,
+      "select public.implanta_attendance_settings_save($1,0,$2)",
+      ["p", { ...allRequired, cpf: "false" }],
+      "23514",
+    );
+    const complete = {
+      name: "Cliente completo",
+      cpf: "52998224725",
+      sector: "Setor",
+      email: "complete@example.invalid",
+      confirmed: true,
+    };
+    for (const key of Object.keys(allRequired)) {
+      const missing = { ...complete, [key]: "", requiredFields: optional };
+      await fail(
+        anon,
+        "select public.implanta_attendance_register($1,$2,$3)",
+        [fourth, randomUUID(), missing],
+        "23514",
+      );
+      await fail(
+        editor,
+        "select public.implanta_attendance_person_save($1,$2,0,$3,false)",
+        [list, randomUUID(), missing],
+        "23514",
+      );
+    }
+    // A previously acknowledged request remains idempotent after the policy changes.
+    assert.equal(
+      (
+        await rpc(anon, "implanta_attendance_register", [
+          fourth,
+          request,
+          JSON.stringify(publicPerson),
+        ])
+      ).registered,
+      true,
+    );
+    checks++;
+    const withCpf = randomUUID();
+    await rpc(editor, "implanta_attendance_person_save", [
+      list,
+      withCpf,
+      0,
+      JSON.stringify(complete),
+      false,
+    ]);
+    await rpc(editor, "implanta_attendance_person_save", [
+      list,
+      withCpf,
+      1,
+      JSON.stringify({ ...complete, cpf: "", name: "Nome corrigido" }),
+      false,
+    ]);
+    assert.equal(
+      (
+        await root.query(
+          "select cpf from implanta_private.attendance_people where id=$1",
+          [withCpf],
+        )
+      ).rows[0].cpf,
+      complete.cpf,
+    );
+    checks++;
+    await fail(
+      editor,
+      "select public.implanta_attendance_person_save($1,$2,2,$3,true)",
+      [list, withCpf, { ...complete, cpf: "" }],
+      "23514",
+    );
+    // Two colleagues cannot silently overwrite the municipality setting.
+    const results = await Promise.allSettled(
+      [manager, editor].map((c) =>
+        rpc(c, "implanta_attendance_settings_save", [
+          "p",
+          0,
+          JSON.stringify({ ...allRequired, cpf: false }),
+        ]),
+      ),
+    );
+    assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
+    assert.equal(
+      results.find((r) => r.status === "rejected").reason.code,
+      "40001",
+    );
+    checks++;
+    const secondList = randomUUID(),
+      foreignList = randomUUID();
+    await save(editor, data, 0, secondList);
+    await save(other, data, 0, foreignList, "foreign");
+    const secondToken = (
+      await rpc(editor, "implanta_attendance_link", [
+        secondList,
+        "generate",
+        future,
+      ])
+    ).token;
+    const foreignToken = (
+      await rpc(other, "implanta_attendance_link", [
+        foreignList,
+        "generate",
+        future,
+      ])
+    ).token;
+    const changed = await rpc(editor, "implanta_attendance_settings_save", [
+      "p",
+      1,
+      JSON.stringify(optional),
+    ]);
+    assert.equal(changed.revision, 2);
+    assert.equal(changed.audit[0].actor_name, "editor");
+    checks++;
+    for (const t of [fourth, secondToken])
+      assert.deepEqual(
+        (await rpc(anon, "implanta_attendance_public_read", [t]))
+          .requiredFields,
+        optional,
+      );
+    checks++;
+    assert.deepEqual(
+      (await rpc(anon, "implanta_attendance_public_read", [foreignToken]))
+        .requiredFields,
+      allRequired,
+    );
+    checks++;
+    await rpc(anon, "implanta_attendance_register", [
+      secondToken,
+      randomUUID(),
+      JSON.stringify({
+        name: "",
+        cpf: "",
+        sector: "",
+        email: "",
+        confirmed: true,
+      }),
+    ]);
+    checks++;
+    await fail(
+      anon,
+      "select public.implanta_attendance_register($1,$2,$3)",
+      [
+        secondToken,
+        randomUUID(),
+        {
+          name: "",
+          cpf: "11111111111",
+          sector: "",
+          email: "",
+          confirmed: true,
+        },
+      ],
+      "23514",
+    );
+    await fail(
+      anon,
+      "select public.implanta_attendance_register($1,$2,$3)",
+      [
+        secondToken,
+        randomUUID(),
+        { name: "", cpf: "", sector: "", email: "invalid", confirmed: true },
+      ],
+      "23514",
+    );
+    // A submit already waiting when the editor changes requirements must use the new rules.
+    await editor.query("begin");
+    await rpc(editor, "implanta_attendance_settings_save", [
+      "p",
+      2,
+      JSON.stringify(allRequired),
+    ]);
+    const pendingSend = rpc(anon, "implanta_attendance_register", [
+      secondToken,
+      randomUUID(),
+      JSON.stringify({
+        name: "",
+        cpf: "",
+        sector: "",
+        email: "",
+        confirmed: true,
+      }),
+    ]).then(
+      () => null,
+      (e) => e,
+    );
+    try {
+      let blocked = false;
+      for (let i = 0; i < 100; i++) {
+        blocked = (
+          await root.query(
+            "select cardinality(pg_blocking_pids($1))>0 blocked",
+            [anon.processID],
+          )
+        ).rows[0].blocked;
+        if (blocked) break;
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      assert(blocked);
+    } finally {
+      await editor.query("commit");
+    }
+    assert.equal((await pendingSend)?.code, "23514");
+    checks++;
+    await rpc(editor, "implanta_attendance_settings_save", [
+      "p",
+      3,
+      JSON.stringify(optional),
+    ]);
+    await root.query(requiredMigration);
+    assert.deepEqual((await policy()).requiredFields, optional);
+    checks++;
+    for (const [c, id] of [
+      [editor, secondList],
+      [other, foreignList],
+    ])
+      await rpc(c, "implanta_attendance_delete", [
+        id,
+        null,
+        (await rpc(c, "implanta_attendance_read", [id, false])).list.revision,
+      ]);
+
     await root.query(
       "insert into implanta_private.attendance_people(id,list_id,name,origin) select gen_random_uuid(),$1,'Pessoa '||n,'manual' from generate_series(1,999)n",
       [list],

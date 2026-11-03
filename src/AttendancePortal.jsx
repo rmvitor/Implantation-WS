@@ -5,6 +5,7 @@ import {
   attendanceTokenValid,
   attendanceDate,
   attendanceError,
+  attendanceRequiredFields,
 } from "./attendance.js";
 import { ParticipantFields } from "./Attendance.jsx";
 import { version } from "../package.json";
@@ -95,6 +96,12 @@ export function AttendancePortal({ token }) {
       setDraft({ name: "", cpf: "", sector: "", email: "", confirmed: false });
     } catch (e) {
       setError(attendanceError(e));
+      if (e.code === "23514") {
+        const latest = await client.rpc("implanta_attendance_public_read", {
+          p_token: token,
+        });
+        if (!latest.error) setEvent(latest.data);
+      }
     } finally {
       sending.current = false;
       setBusy(false);
@@ -155,6 +162,7 @@ export function AttendancePortal({ token }) {
                 <div className="attendance-form">
                   <ParticipantFields
                     draft={draft}
+                    requiredFields={event.requiredFields}
                     onChange={(key, value) =>
                       setDraft((d) => ({ ...d, [key]: value }))
                     }
@@ -162,9 +170,12 @@ export function AttendancePortal({ token }) {
                   <p>
                     Seus dados serão usados pela equipe para registrar a
                     participação neste treinamento e emitir a lista de presença.
-                    O CPF é opcional. Os participantes não têm acesso aos dados
-                    uns dos outros. Para corrigir ou remover seus dados, procure
-                    o instrutor identificado acima.
+                    {attendanceRequiredFields(event.requiredFields).cpf
+                      ? "O CPF é obrigatório neste município. "
+                      : "O CPF é opcional neste município. "}
+                    Os participantes não têm acesso aos dados uns dos outros.
+                    Para corrigir ou remover seus dados, procure o instrutor
+                    identificado acima.
                   </p>
                   <label className="attendance-check">
                     <input

@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 1.19.1 — 03/11/2026
+
+- Campos de nome, CPF, setor e e-mail obrigatórios por padrão nas listas de presença, com botão para configurar a obrigatoriedade por município.
+- Master, gestor e editores do projeto podem alterar; a configuração é compartilhada no banco por todas as listas existentes e novas desse município, com histórico e proteção contra edição simultânea.
+- Validação no formulário público, cadastro manual e banco. Presenças antigas e CPFs já registrados são preservados; opcional não dispensa validar o formato de um dado informado.
+- Ativação adicional: `202611030002_attendance_required_fields.sql`, após o SQL original das listas.
+
 ## 1.19.0 — 03/11/2026
 
 - Listas de presença por município, independentes ou vinculadas a treinamentos, com cadastro manual, edição, busca, confirmação e histórico de servidor.

@@ -1,3 +1,13 @@
+export const ATTENDANCE_FIELDS = {
+  name: "Nome completo",
+  cpf: "CPF",
+  sector: "Setor",
+  email: "E-mail",
+};
+export const attendanceRequiredFields = (fields) =>
+  Object.fromEntries(
+    Object.keys(ATTENDANCE_FIELDS).map((key) => [key, fields?.[key] !== false]),
+  );
 export const attendanceTokenValid = (token) =>
   /^[a-f0-9]{64}$/.test(token || "");
 export function attendanceUrl(token, base = location.href) {

@@ -8,6 +8,8 @@ import {
   newAttendance,
   attendanceError,
   attendanceGuide,
+  ATTENDANCE_FIELDS,
+  attendanceRequiredFields,
 } from "./attendance.js";
 import { printAttendance } from "./attendance-print.js";
 import { appointmentDuration } from "./appointments.js";
@@ -33,6 +35,11 @@ export function Attendance({ project, readOnly, Modal, onPending }) {
     [error, setError] = useState(""),
     [loadError, setLoadError] = useState(""),
     [conflict, setConflict] = useState(false);
+  const [settings, setSettings] = useState({
+    requiredFields: attendanceRequiredFields(),
+    revision: 0,
+    pending: true,
+  });
   const [dialog, setDialog] = useState(null),
     [share, setShare] = useState(null),
     [search, setSearch] = useState("");
@@ -48,11 +55,26 @@ export function Attendance({ project, readOnly, Modal, onPending }) {
       const rows = await rpc(team.client, "implanta_attendance_lists", {
         p_project: project.id,
       });
+      const configResponse = await team.client.rpc(
+        "implanta_attendance_settings",
+        { p_project: project.id },
+      );
+      let config = configResponse.data;
+      if (configResponse.error) {
+        if (configResponse.error.code !== "PGRST202")
+          throw configResponse.error;
+        config = {
+          requiredFields: attendanceRequiredFields(),
+          revision: 0,
+          pending: true,
+        };
+      }
       const next = rows.some((l) => l.id === id) ? id : rows[0]?.id || "";
       const value = next
         ? await rpc(team.client, "implanta_attendance_read", { p_id: next })
         : null;
       if (!mounted.current || ticket !== epoch.current) return;
+      setSettings(config);
       setLists(rows);
       setSelected(next);
       selectedRef.current = next;
@@ -112,7 +134,11 @@ export function Attendance({ project, readOnly, Modal, onPending }) {
       if (close) setDialog(null);
       return true;
     } catch (e) {
-      setError(attendanceError(e));
+      setError(
+        e.code === "40001" && dialog?.type === "settings"
+          ? "A configuração foi alterada por outro editor. Feche e abra Campos obrigatórios para revisar os valores atuais antes de salvar."
+          : attendanceError(e),
+      );
       setConflict(e.code === "40001");
       return false;
     } finally {
@@ -228,6 +254,16 @@ export function Attendance({ project, readOnly, Modal, onPending }) {
             onClick={() => load()}
           >
             <RefreshCw size={15} /> Atualizar
+          </button>
+          <button
+            className="button secondary"
+            disabled={!editable || busy}
+            onClick={() => {
+              setError("");
+              setDialog({ type: "settings", initial: settings });
+            }}
+          >
+            Campos obrigatórios
           </button>
           <button
             className="button primary"
@@ -390,7 +426,7 @@ export function Attendance({ project, readOnly, Modal, onPending }) {
               )}
               <p className="attendance-status" role="status">
                 {detail.people.length} participante(s) · Atualização automática
-                a cada 5 segundos. CPF opcional e mascarado.
+                a cada 5 segundos. CPF mascarado.
               </p>
               <label className="search-input">
                 <input
@@ -414,7 +450,7 @@ export function Attendance({ project, readOnly, Modal, onPending }) {
                     {people.map((p) => (
                       <tr key={p.id}>
                         <td data-label="Participante">
-                          <strong>{p.name}</strong>
+                          <strong>{p.name || "Nome não informado"}</strong>
                           <small>{p.cpf || "CPF não informado"}</small>
                         </td>
                         <td data-label="Setor / e-mail">
@@ -497,6 +533,30 @@ export function Attendance({ project, readOnly, Modal, onPending }) {
           )}
         </div>
       )}
+      {dialog?.type === "settings" && (
+        <RequiredFieldsEditor
+          Modal={Modal}
+          project={project}
+          initial={dialog.initial}
+          busy={busy}
+          failure={failure}
+          onClose={close}
+          onSave={(required) =>
+            action(async () => {
+              const value = await rpc(
+                team.client,
+                "implanta_attendance_settings_save",
+                {
+                  p_project: project.id,
+                  p_revision: dialog.initial.revision,
+                  p_required: required,
+                },
+              );
+              setSettings(value);
+            })
+          }
+        />
+      )}
       {dialog?.type === "list" && (
         <ListEditor
           key={`${dialog.entry?.id || "new"}:${dialog.generation || 0}`}
@@ -527,6 +587,7 @@ export function Attendance({ project, readOnly, Modal, onPending }) {
           Modal={Modal}
           initial={dialog.initial}
           person={dialog.person}
+          requiredFields={settings.requiredFields}
           busy={busy}
           failure={failure}
           onClose={close}
@@ -750,45 +811,147 @@ function ListEditor({
     </Modal>
   );
 }
-export function ParticipantFields({ draft, onChange, editing = false }) {
+export function ParticipantFields({
+  draft,
+  onChange,
+  editing = false,
+  hasCpf = false,
+  requiredFields,
+}) {
+  const required = attendanceRequiredFields(requiredFields);
   return (
     <>
-      {[
-        ["name", "Nome completo *", "text"],
-        [
-          "cpf",
-          editing
-            ? "Novo CPF (opcional; vazio mantém o atual)"
-            : "CPF (opcional)",
-          "text",
-        ],
-        ["sector", "Setor (opcional)", "text"],
-        ["email", "E-mail (opcional)", "email"],
-      ].map(([key, label, type]) => (
-        <label key={key}>
-          {label}
-          <input
-            type={type}
-            name={key}
-            required={key === "name"}
-            minLength={key === "name" ? 2 : undefined}
-            maxLength={key === "cpf" ? 14 : key === "email" ? 254 : 200}
-            autoComplete={
-              key === "name" ? "name" : key === "email" ? "email" : "off"
-            }
-            inputMode={key === "cpf" ? "numeric" : undefined}
-            value={draft[key]}
-            onChange={(e) => onChange(key, e.target.value)}
-          />
-        </label>
-      ))}
+      {Object.entries(ATTENDANCE_FIELDS).map(([key, label]) => {
+        const keepCpf = editing && key === "cpf" && hasCpf;
+        return (
+          <label key={key}>
+            {keepCpf
+              ? "Novo CPF (vazio mantém o atual)"
+              : `${label}${required[key] ? " *" : " (opcional)"}`}
+            <input
+              type={key === "email" ? "email" : "text"}
+              name={key}
+              required={required[key] && !keepCpf}
+              minLength={key === "name" ? 2 : undefined}
+              maxLength={key === "cpf" ? 14 : key === "email" ? 254 : 200}
+              autoComplete={
+                key === "name" ? "name" : key === "email" ? "email" : "off"
+              }
+              inputMode={key === "cpf" ? "numeric" : undefined}
+              value={draft[key]}
+              onChange={(e) => onChange(key, e.target.value)}
+            />
+            {keepCpf && required.cpf && (
+              <small>
+                CPF obrigatório neste município. O CPF já registrado será
+                preservado se você não informar outro.
+              </small>
+            )}
+          </label>
+        );
+      })}
     </>
+  );
+}
+function RequiredFieldsEditor({
+  Modal,
+  project,
+  initial,
+  busy,
+  failure,
+  onClose,
+  onSave,
+}) {
+  const [fields, setFields] = useState(() =>
+    attendanceRequiredFields(initial.requiredFields),
+  );
+  return (
+    <Modal title="Campos obrigatórios da presença" onClose={onClose}>
+      <form
+        className="attendance-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSave(fields);
+        }}
+      >
+        <p>
+          Configuração de <strong>{project.name}</strong>. Vale para todas as
+          listas deste município, existentes e novas, no cadastro manual e no
+          formulário por link ou QR code. Os registros já preenchidos são
+          preservados.
+        </p>
+        <fieldset
+          disabled={busy || initial.pending}
+          className="readonly-fields"
+        >
+          <div className="attendance-form">
+            {Object.entries(ATTENDANCE_FIELDS).map(([key, label]) => (
+              <label key={key} className="attendance-check">
+                <input
+                  type="checkbox"
+                  checked={fields[key]}
+                  onChange={(e) =>
+                    setFields((f) => ({ ...f, [key]: e.target.checked }))
+                  }
+                />
+                {label} obrigatório
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <p>
+          Todos os campos são obrigatórios por padrão. Desmarque os que poderão
+          ficar em branco. A confirmação de participação continua necessária
+          para enviar o formulário externo.
+        </p>
+        {initial.pending && (
+          <p className="team-error" role="alert">
+            Ative a configuração no Supabase executando o novo SQL indicado no{" "}
+            <a href={attendanceGuide} target="_blank" rel="noreferrer">
+              guia de ativação
+            </a>
+            .
+          </p>
+        )}
+        {failure}
+        <div className="attendance-actions">
+          <button className="button primary" disabled={busy || initial.pending}>
+            {busy ? "Salvando…" : "Salvar campos obrigatórios"}
+          </button>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={busy}
+            onClick={onClose}
+          >
+            Cancelar
+          </button>
+        </div>
+        {initial.audit?.length > 0 && (
+          <details className="attendance-audit">
+            <summary>Histórico da configuração</summary>
+            <ul>
+              {initial.audit.map((a, i) => (
+                <li key={i}>
+                  {when(a.at)} · {a.actor_name} · Obrigatórios:{" "}
+                  {Object.entries(ATTENDANCE_FIELDS)
+                    .filter(([key]) => a.required_fields[key])
+                    .map(([, label]) => label)
+                    .join(", ") || "nenhum"}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </form>
+    </Modal>
   );
 }
 function PersonEditor({
   Modal,
   initial,
   person,
+  requiredFields,
   busy,
   failure,
   onClose,
@@ -796,6 +959,9 @@ function PersonEditor({
 }) {
   const [draft, setDraft] = useState(initial),
     [clear, setClear] = useState(false);
+  useEffect(() => {
+    if (attendanceRequiredFields(requiredFields).cpf) setClear(false);
+  }, [requiredFields?.cpf]);
   return (
     <Modal
       title={person ? "Editar participante" : "Adicionar participante"}
@@ -816,12 +982,15 @@ function PersonEditor({
                 setDraft((d) => ({ ...d, [key]: value }))
               }
               editing={!!person}
+              hasCpf={!!person?.hasCpf && !clear}
+              requiredFields={requiredFields}
             />
             {person?.hasCpf && (
               <label className="attendance-check">
                 <input
                   type="checkbox"
                   checked={clear}
+                  disabled={attendanceRequiredFields(requiredFields).cpf}
                   onChange={(e) => setClear(e.target.checked)}
                 />
                 Remover CPF existente ({person.cpf})
