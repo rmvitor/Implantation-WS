@@ -119,7 +119,7 @@ import { AttendancePortal } from "./AttendancePortal.jsx";
 import { CustomerPortal } from "./CustomerPortal.jsx";
 import { same } from "./team-domain";
 import { friendlyTeamError } from "./team-service";
-import { usePwa, PwaControls, InstallModal } from "./PwaControls";
+import { usePwa, PwaProvider, PwaControls, InstallModal } from "./PwaControls";
 import { stampChanges } from "./operations.js";
 import { publicBackup, preserveOmittedData } from "./privacy.js";
 import { AuditHistory } from "./AuditHistory.jsx";
@@ -3545,7 +3545,7 @@ function Empty({ icon: Icon, title, description, button, onClick }) {
 
 clearRetiredDeviceData();
 createRoot(document.getElementById("root")).render(
-  new URLSearchParams(location.search).has("presenca") ? (
+  <PwaProvider>{new URLSearchParams(location.search).has("presenca") ? (
     <AttendancePortal token={new URLSearchParams(location.search).get("presenca")} />
   ) : new URLSearchParams(location.search).has("aceite") ? (
     <CustomerPortal inviteId={new URLSearchParams(location.search).get("aceite")} />
@@ -3553,7 +3553,7 @@ createRoot(document.getElementById("root")).render(
     <TeamHost>
       <App />
     </TeamHost>
-  ),
+  )}</PwaProvider>,
 );
 
 function ProjectActionModal({

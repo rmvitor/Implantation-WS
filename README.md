@@ -169,3 +169,7 @@ A data de término da Agenda geral é opcional e inicia em branco. Sem término,
 Listas de treinamento por município, preenchidas manualmente ou por formulário público com link/QR, sem vínculo obrigatório à agenda. Obrigatoriedade dos campos configurável por município, impressão no modelo IPM e registro de confirmação com data/hora. Aplique a nova migração antes de usar. Consulte [ativação, uso, privacidade e backup](docs/lista-presenca.md).
 
 A v1.19.1 adiciona **Campos obrigatórios** por município: nome, CPF, setor e e-mail começam obrigatórios. Editores podem ajustar a regra para todas as listas do projeto. Aplique também [`202611030002_attendance_required_fields.sql`](supabase/migrations/202611030002_attendance_required_fields.sql), sem apagar dados existentes.
+
+### Acesso no celular e atualização (v1.19.2)
+
+O PWA agora verifica atualizações antes de entrar no workspace. Se o app instalado estiver preso numa versão antiga, use [a recuperação de atualização](https://rmvitor.github.io/Implantation-WS/assets/atualizar.html), sem apagar os dados. Consulte [o diagnóstico e as instruções](docs/acesso-no-celular.md). Esta correção não exige novo SQL.

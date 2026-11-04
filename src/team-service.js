@@ -21,7 +21,7 @@ function recordResult(data) {
 }
 export function friendlyTeamError(error) {
   if (["PGRST202", "PGRST205", "42P01"].includes(error?.code))
-    return "A estrutura do banco ainda não foi aplicada. Execute o SQL do guia de ativação no painel Supabase e verifique o acesso novamente.";
+    return "A API do banco não encontrou uma função ou tabela solicitada. Atualize o aplicativo e confira a conexão deste aparelho. Se persistir, verifique a estrutura e o cache da API no Supabase; essa mensagem, sozinha, não confirma falta de SQL.";
   if (error?.code === "42501")
     return "Seu acesso a esta operação não está liberado. Confira as permissões com o administrador.";
   if (error?.code === "23505")

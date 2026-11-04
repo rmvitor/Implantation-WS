@@ -355,3 +355,9 @@
     animation: none;
   }
 }
+.auth-update-controls {display:grid;gap:12px;margin:22px 0;padding-top:18px;border-top:1px solid var(--border);line-height:1.6}
+.auth-update-controls .button {width:100%}
+.auth-update-controls a {text-decoration:underline;color:var(--primary)}
+.auth-update-controls small {color:var(--text-secondary)}
+.auth-diagnostic {margin:18px 0;overflow-wrap:anywhere;line-height:1.7}
+.auth-diagnostic p {font-size:12px}

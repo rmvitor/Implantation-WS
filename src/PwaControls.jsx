@@ -1,8 +1,22 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Download, RefreshCw, WifiOff, Check } from "lucide-react";
 import { registerSW } from "virtual:pwa-register";
 
-export function usePwa() {
+const PwaContext = createContext(null);
+export function PwaProvider({ children }) {
+  const controller = usePwaController();
+  return (
+    <PwaContext.Provider value={controller}>{children}</PwaContext.Provider>
+  );
+}
+export const usePwa = () => useContext(PwaContext);
+function usePwaController() {
   const [installable, setInstallable] = useState(false);
   const [installed, setInstalled] = useState(
     () =>
@@ -15,6 +29,7 @@ export function usePwa() {
   const [error, setError] = useState("");
   const prompt = useRef(null);
   const update = useRef(null);
+  const registrationRef = useRef(null);
   useEffect(() => {
     const media = matchMedia("(display-mode: standalone)");
     const beforeInstall = (e) => {
@@ -46,6 +61,8 @@ export function usePwa() {
         onOfflineReady: () => setOfflineReady(true),
         onRegisteredSW: (_, r) => {
           registration = r;
+          registrationRef.current = r;
+          if (r?.waiting) setUpdateReady(true);
         },
         onRegisterError: () =>
           setError(
@@ -82,6 +99,54 @@ export function usePwa() {
       return false;
     }
   };
+  const checkForUpdates = async () => {
+    if (!navigator.onLine)
+      throw new Error("Conecte à internet para verificar a atualização.");
+    if (!("serviceWorker" in navigator))
+      throw new Error(
+        "Use o link de recuperação abaixo para abrir a versão atual.",
+      );
+    const registration =
+      registrationRef.current ||
+      (await navigator.serviceWorker.getRegistration());
+    if (!registration)
+      throw new Error(
+        "A atualização ainda está sendo preparada. Tente novamente ou use o link de recuperação abaixo.",
+      );
+    await registration.update();
+    const candidate = registration.installing;
+    if (
+      candidate &&
+      candidate.state !== "installed" &&
+      candidate.state !== "redundant"
+    ) {
+      await new Promise((resolve, reject) => {
+        const done = () => {
+          if (
+            candidate.state === "installed" ||
+            candidate.state === "redundant"
+          ) {
+            clearTimeout(timer);
+            candidate.removeEventListener("statechange", done);
+            resolve();
+          }
+        };
+        const timer = setTimeout(() => {
+          candidate.removeEventListener("statechange", done);
+          reject(
+            new Error(
+              "A atualização ainda está sendo baixada. Tente novamente em instantes.",
+            ),
+          );
+        }, 20000);
+        candidate.addEventListener("statechange", done);
+        done();
+      });
+    }
+    const ready = !!registration.waiting;
+    setUpdateReady(ready);
+    return ready;
+  };
   const refresh = async () => {
     try {
       await update.current?.(true);
@@ -100,6 +165,7 @@ export function usePwa() {
     error,
     install,
     refresh,
+    checkForUpdates,
   };
 }
 export function PwaControls({ pwa, onInstall, editing }) {
@@ -190,9 +256,10 @@ export function InstallModal({ Modal, pwa, onClose }) {
             : "Abra com internet pela primeira vez para preparar o acesso offline."}
         </p>
         <p className="muted">
-          Os dados ficam neste aparelho, sem sincronização automática. Para
-          transferir cadastros, use Dados e backup. Se os dados do navegador não
-          aparecerem no app instalado, exporte no navegador e restaure no app.
+          No modo equipe, os dados ficam no banco online e seguem os acessos da
+          sua conta. No modo local, os dados ficam neste aparelho; use Dados e
+          backup para transferi-los. Atualizar o app não exige apagar os dados
+          do navegador.
         </p>
         {pwa.error && <p role="status">{pwa.error}</p>}
         <div className="modal-actions">

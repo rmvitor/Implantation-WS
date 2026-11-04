@@ -95,7 +95,8 @@ async function setup(
       state.commitHeld = true;
       await new Promise((resolve) => { state.releaseCommit = resolve; });
     }
-    if (path.endsWith("/rpc/implanta_read_v2")) {
+    if (state.accessError && path.endsWith("/rpc/implanta_access")) {status=404;data={code:state.accessError,message:"RPC unavailable"};}
+    else if (path.endsWith("/rpc/implanta_read_v2")) {
       if (normalized) data = modernRead();
       else {
         status = 404;
@@ -1467,4 +1468,22 @@ test("atividade antiga sem vínculo exige escolher um editor antes de salvar", a
   expect(state.row.data.tasks.find((t) => t.id === original.id).ownerId).toBe(
     userId,
   );
+});
+
+test('erro de acesso permite atualizar e diagnosticar sem afirmar falta de SQL ou expor credenciais',async({page})=>{
+ await page.setViewportSize({width:390,height:900});
+ const state=await setup(page,{normalized:true});state.accessError='PGRST202';
+ await page.goto('/');await expect(page.getByRole('heading',{name:'Seu acesso à equipe'})).toBeVisible();
+ await expect(page.getByRole('alert')).toContainText('não confirma falta de SQL');
+ await expect(page.getByRole('button',{name:'Atualizar aplicativo',exact:true})).toBeEnabled();
+ await expect(page.getByRole('link',{name:'Recuperar atualização deste aparelho'})).toHaveAttribute('href','http://127.0.0.1:5173/assets/atualizar.html');
+ await page.getByText('Diagnóstico do acesso',{exact:true}).click();
+ await expect(page.locator('.auth-diagnostic')).toContainText('test.supabase.co');await expect(page.locator('.auth-diagnostic')).toContainText('PGRST202');await expect(page.locator('.auth-diagnostic')).toContainText('implanta_access');
+ await page.screenshot({path:'.local/auth-recovery-mobile.png',fullPage:true});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ const body=await page.locator('.auth-box').innerText();expect(body).not.toContain('access_token');expect(body).not.toContain('test-refresh');expect(body).not.toContain(jwt('anon'));
+ const before=await page.evaluate(()=>({session:localStorage.getItem('sb-test-auth-token'),data:localStorage.getItem('implanta.workspace.v1'),connection:localStorage.getItem('implanta.team.connection.v1')}));
+ await page.getByRole('button',{name:'Usar conexão padrão do Implanta'}).click();await expect(page.getByRole('button',{name:'Confirmar conexão padrão'})).toBeVisible();await page.locator('.auth-diagnostic').getByRole('button',{name:'Cancelar',exact:true}).click();
+ expect(await page.evaluate(()=>({session:localStorage.getItem('sb-test-auth-token'),data:localStorage.getItem('implanta.workspace.v1'),connection:localStorage.getItem('implanta.team.connection.v1')}))).toEqual(before);
+ state.accessError='';await page.getByRole('button',{name:'Verificar acesso',exact:true}).click();await expect(page.getByRole('heading',{name:'Projetos e municípios',exact:true})).toBeVisible();
 });

@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 1.19.2 — Recuperação de acesso no app instalado
+
+- Atualização do PWA iniciada antes do login e do carregamento do workspace, com controle também na tela de acesso.
+- Página independente de recuperação em `assets/atualizar.html`, acessível mesmo com o fallback de versões antigas. Atualiza o worker do Implanta sem limpar sessão, conexão, cadastros ou outros caches.
+- Erros de esquema não afirmam automaticamente ausência de SQL. Diagnóstico mostra versão, servidor, conta, etapa e código, sem tokens; restaurar a conexão padrão exige confirmação.
+- Testes do PWA real para acesso bloqueado e tela antiga sem JavaScript, mantendo a proteção de formulários em edição. Nenhuma nova migração SQL.
+
 ## 1.19.1 — 03/11/2026
 
 - Campos de nome, CPF, setor e e-mail obrigatórios por padrão nas listas de presença, com botão para configurar a obrigatoriedade por município.

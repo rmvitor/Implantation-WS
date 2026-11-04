@@ -76,10 +76,10 @@ test("verificação distingue chave aceita, migração ausente e políticas rest
     { connection: "unreachable", schema: "unknown" },
   );
 });
-test("ausência da estrutura aponta o SQL necessário, sem declarar o cadastro liberado", () => {
-  assert.match(friendlyTeamError({ code: "PGRST202" }), /Execute o SQL/);
+test("erro de esquema não afirma que falta SQL e orienta conferir app e conexão", () => {
+  assert.match(friendlyTeamError({ code: "PGRST202" }), /Atualize o aplicativo/);
   assert.match(
     friendlyTeamError({ code: "PGRST205" }),
-    /ainda não foi aplicada/,
+    /não confirma falta de SQL/,
   );
 });

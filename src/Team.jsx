@@ -19,6 +19,7 @@ import { AccountPassword } from "./AccountPassword";
 import { accountRole, hasProjectRoles, isMaster, canCreateProject, canManageProject, canEditProject, projectAccessLabel } from "./permissions.js";
 import { AccessAudit, ProjectAccessManager } from "./ProjectAccessManager.jsx";
 import "./team.css";
+import { AccessRecovery } from "./AccessRecovery.jsx";
 
 const CONNECTION = "implanta.team.connection.v1";
 const TeamContext = createContext({ online: false });
@@ -136,6 +137,7 @@ export function TeamHost({ children }) {
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(!!client);
   const [error, setError] = useState("");
+  const [accessDiagnostic, setAccessDiagnostic] = useState(null);
   const [stale, setStale] = useState(false);
   const [recovery, setRecovery] = useState(false);
   const editing = useRef(false);
@@ -181,6 +183,7 @@ export function TeamHost({ children }) {
       const generation = service.generation;
       const current = () =>
         active && !service.committing && service.generation === generation;
+      let stage = "Verificação da conta (implanta_access)";
       try {
         const access = await client.rpc("implanta_access");
         if (!current()) return;
@@ -192,8 +195,11 @@ export function TeamHost({ children }) {
         setProfile(access.data);
         if (!access.data.active) {
           setWorkspace(null);
+          setError("");
+          setAccessDiagnostic(null);
           return;
         }
+        stage = "Carregamento dos projetos (implanta_read_v2)";
         const result = await service.read();
         // A read begun before a save may finish after it. It must not replace
         // the newly confirmed workspace or re-open a dismissed stale warning.
@@ -216,8 +222,12 @@ export function TeamHost({ children }) {
           setStale(false);
         }
         setError("");
+        setAccessDiagnostic(null);
       } catch (e) {
-        if (current()) setError(friendlyTeamError(e));
+        if (current()) {
+          setError(friendlyTeamError(e));
+          setAccessDiagnostic({ stage, code: /^[A-Z0-9_]{2,30}$/.test(e?.code || "") ? e.code : "Sem código de API" });
+        }
       } finally {
         refreshing = false;
         if (active) setLoading(false);
@@ -308,6 +318,8 @@ export function TeamHost({ children }) {
         session={session}
         profile={profile}
         error={error}
+        diagnostic={accessDiagnostic}
+        connection={config}
         loading={loading}
         recovery={recovery}
         onRecovered={() => setRecovery(false)}
@@ -365,6 +377,8 @@ function AuthScreen({
   session,
   profile,
   error,
+  diagnostic,
+  connection,
   loading,
   recovery,
   onRecovered,
@@ -468,7 +482,7 @@ function AuthScreen({
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Abrir guia de ativação do banco
+                  Abrir guia de conexão e banco
                 </a>
               </>
             )}
@@ -574,6 +588,7 @@ function AuthScreen({
             )}
           </form>
         )}
+        <AccessRecovery session={session} connection={connection} diagnostic={diagnostic} disabled={busy || loading} onRestoreDefault={() => { localStorage.setItem(CONNECTION, JSON.stringify(defaultConnection)); location.reload(); }} />
         <button className="auth-connection" onClick={() => setSetup(!setup)}>
           Configurar conexão da equipe
         </button>
