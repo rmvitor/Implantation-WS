@@ -3,8 +3,11 @@ import artwork from "./assets/ipm-letterhead-clean.png";
 import {
   createTimeAdjustmentPdf,
   renderTimeAdjustmentHtml,
+  timeAdjustmentDocuments,
+  fitTimeAdjustmentPrint,
 } from "./time-adjustment-report.js";
 export async function downloadTimeAdjustmentPdf(data) {
+  const documents = timeAdjustmentDocuments(data);
   const response = await fetch(templateUrl);
   if (!response.ok)
     throw new Error(
@@ -25,7 +28,7 @@ export async function downloadTimeAdjustmentPdf(data) {
     ),
     a = document.createElement("a");
   a.href = url;
-  a.download = `ajuste-ponto-${data.occurrenceDate}-${data.employeeName
+  a.download = `ajuste-ponto-${documents[0].occurrenceDate}${documents.length > 1 ? `-${documents.length}-datas` : ""}-${documents[0].employeeName
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-zA-Z0-9]+/g, "-")
@@ -47,8 +50,8 @@ export async function printTimeAdjustment(data) {
   Object.assign(frame.style, {
     position: "fixed",
     left: "-10000px",
-    width: "1px",
-    height: "1px",
+    width: "800px",
+    height: "1123px",
     border: 0,
   });
   try {
@@ -61,6 +64,7 @@ export async function printTimeAdjustment(data) {
     await loaded;
     await frame.contentDocument.fonts.ready;
     await Promise.all([...frame.contentDocument.images].map((i) => i.decode()));
+    fitTimeAdjustmentPrint(frame.contentDocument);
     frame.contentWindow.addEventListener("afterprint", () => frame.remove(), {
       once: true,
     });

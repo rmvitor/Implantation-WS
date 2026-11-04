@@ -79,7 +79,15 @@ export async function testTimeAdjustments(owner, connection) {
       ),
       "utf8",
     );
+    const batchSql = await readFile(
+      new URL(
+        "../supabase/migrations/202611040002_time_adjustment_batches.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
     await root.query(sql);
+    await root.query(batchSql);
     const user = await open("user"),
       other = await open("other"),
       master = await open("master"),
@@ -236,6 +244,70 @@ export async function testTimeAdjustments(owner, connection) {
       ["created", "updated", "deleted"],
     );
     assert(audit.every((a) => a.actor_name === "user"));
+    checks++;
+    const batchFn = "implanta_time_adjustment_batch_save";
+    const firstId = randomUUID(),
+      secondId = randomUUID();
+    const items = [
+      { id: firstId, revision: 0, data },
+      {
+        id: secondId,
+        revision: 0,
+        data: { ...data, occurrenceDate: "2026-11-05" },
+      },
+    ];
+    for (const c of [anon, pending])
+      await fail(c, batchFn, [JSON.stringify(items)]);
+    await fail(
+      user,
+      batchFn,
+      [JSON.stringify([items[0], { ...items[1], data: empty }])],
+      "23514",
+    );
+    assert.equal((await rpc(user, "implanta_time_adjustments")).length, 0);
+    checks++;
+    assert.equal(
+      (
+        await root.query(
+          "select count(*) from implanta_private.time_adjustment_audit",
+        )
+      ).rows[0].count,
+      "3",
+    );
+    checks++;
+    await fail(user, batchFn, [JSON.stringify([items[0], items[0]])], "23514");
+    await fail(user, batchFn, [JSON.stringify([])], "23514");
+    await fail(user, batchFn, [JSON.stringify({})], "23514");
+    const batch = await rpc(user, batchFn, [JSON.stringify(items)]);
+    assert.equal(batch.length, 2);
+    assert(batch.every((r) => r.user_id === ids.user && r.revision === 1));
+    checks++;
+    for (const c of [other, master])
+      await fail(
+        c,
+        batchFn,
+        [JSON.stringify([{ ...items[0], revision: 1 }])],
+        "40001",
+      );
+    await fail(user, batchFn, [JSON.stringify(items)], "40001");
+    // A new item preceding a stale edit must also roll back.
+    const third = { id: randomUUID(), revision: 0, data };
+    await fail(user, batchFn, [JSON.stringify([third, items[0]])], "40001");
+    assert.equal((await rpc(user, "implanta_time_adjustments")).length, 2);
+    checks++;
+    const updatedBatch = await rpc(user, batchFn, [
+      JSON.stringify([
+        { ...items[0], revision: 1, data: { ...data, place: "Novo local" } },
+        third,
+      ]),
+    ]);
+    assert.equal(updatedBatch[0].revision, 2);
+    assert.equal(updatedBatch[1].revision, 1);
+    checks++;
+    await root.query(batchSql);
+    assert.equal((await rpc(user, "implanta_time_adjustments")).length, 3);
+    checks++;
+    assert.deepEqual(await rpc(other, "implanta_time_adjustments"), []);
     checks++;
     assert.equal(
       (await root.query("select count(*) from public.implanta_projects"))

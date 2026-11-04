@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 1.20.1 — Ajustes de ponto em várias datas
+
+- Formulário mais largo no computador, com marcações em duas colunas e adaptação ao celular.
+- Inclusão de várias datas com os mesmos horários/justificativa; um registro por data, salvamento atômico e atualização imediata do histórico.
+- Seleção opcional de projeto copia o nome e o fiscal para entidade contratante e gerente, mantendo a edição manual.
+- PDF e impressão em uma página A4 por data, preservando texto e espaço para assinatura; textos excessivos são avisados antes de emitir, sem cortes.
+- SQL aditivo `202611040002_time_adjustment_batches.sql` para salvar lotes no Supabase. Salvamento de uma data permanece compatível com o SQL anterior.
+
 ## 1.20.0 — Ajuste de ponto
 
 - Rotina pessoal na área geral, sem relação obrigatória a município, com nome do usuário, cargo e data/hora de emissão preenchidos inicialmente.

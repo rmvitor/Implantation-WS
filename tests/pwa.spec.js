@@ -357,7 +357,7 @@ test("recuperação ultrapassa tela antiga sem JavaScript, atualiza o worker e p
   }
 });
 
-test("ajuste de ponto baixa PDF e salva histórico pessoal offline sem depender de município", async ({
+test("ajuste de ponto em várias datas baixa PDF e salva histórico pessoal offline", async ({
   page,
   context,
 }) => {
@@ -376,25 +376,42 @@ test("ajuste de ponto baixa PDF e salva histórico pessoal offline sem depender 
     .getByRole("textbox", { name: "Justificativa *", exact: true })
     .fill("Esquecimento de batida, conforme o boletim.");
   await page.getByLabel("Local *", { exact: true }).fill("São José / SC");
+  await page
+    .getByLabel("Data da ocorrência 1 *", { exact: true })
+    .fill("2026-11-04");
+  await page
+    .getByRole("button", { name: "Adicionar data", exact: true })
+    .click();
+  await page
+    .getByLabel("Data da ocorrência 2 *", { exact: true })
+    .fill("2026-11-05");
   await context.setOffline(true);
   const download = page.waitForEvent("download");
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Baixar PDF", exact: true })
     .click();
-  expect((await download).suggestedFilename()).toMatch(/\.pdf$/);
+  const file = await download;
+  const { PDFDocument } = await import("pdf-lib");
+  expect(
+    (await PDFDocument.load(await readFile(await file.path()))).getPageCount(),
+  ).toBe(2);
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Salvar ajuste", exact: true })
     .first()
     .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.locator(".time-adjustment-card")).toContainText("08:15");
+  await expect(page.locator(".time-adjustment-card")).toHaveCount(2);
+  await expect(page.locator(".time-adjustment-card").first()).toContainText(
+    "08:15",
+  );
   await page.reload();
   await page
     .getByRole("button", { name: "Ajuste de ponto", exact: true })
     .click();
-  await expect(page.locator(".time-adjustment-card")).toContainText(
+  await expect(page.locator(".time-adjustment-card")).toHaveCount(2);
+  await expect(page.locator(".time-adjustment-card").first()).toContainText(
     "Técnico Local",
   );
 });

@@ -40,8 +40,17 @@ export function wrapReportText(text, width, measure) {
   }
   return lines;
 }
-export async function createTimeAdjustmentPdf(data, templateBytes) {
-  validateTimeAdjustment(data);
+export function timeAdjustmentDocuments(value) {
+  const documents = Array.isArray(value) ? value : [value];
+  if (!documents.length) throw new Error("Adicione pelo menos uma data.");
+  return documents.map(validateTimeAdjustment);
+}
+const onePageError = () =>
+  new Error(
+    "O texto não cabe em uma folha com tamanho legível. Reduza os textos ou as linhas em branco e tente emitir novamente. Nenhuma informação foi cortada.",
+  );
+export async function createTimeAdjustmentPdf(value, templateBytes) {
+  const documents = timeAdjustmentDocuments(value);
   const {
     PDFDocument,
     StandardFonts,
@@ -52,55 +61,85 @@ export async function createTimeAdjustmentPdf(data, templateBytes) {
     setWordSpacing,
     setCharacterSqueeze,
   } = await import("pdf-lib");
-  const pdf = await PDFDocument.load(templateBytes);
-  const base = await PDFDocument.load(templateBytes);
+  const pdf = await PDFDocument.create(),
+    base = await PDFDocument.load(templateBytes);
   const font = await pdf.embedFont(StandardFonts.Helvetica),
     bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const extras = [];
-  const write = (page, text, x, top, size = 10, chosen = font) =>
-    page.drawText(text, {
-      x,
-      y: page.getHeight() - top - size,
-      size,
-      font: chosen,
-      color: rgb(0, 0, 0),
-    });
-  const white = (page, x, top, width, height) =>
-    page.drawRectangle({
-      x,
-      y: page.getHeight() - top - height,
-      width,
-      height,
-      color: rgb(1, 1, 1),
-    });
-  const box = (page, value, x, top, width, height, label) => {
-    if (!value) return;
-    let size = 10,
-      lines;
-    while (size >= 7.5) {
-      lines = wrapReportText(value, width, (s) =>
-        font.widthOfTextAtSize(s, size),
-      );
-      if (lines.length * size * 1.2 <= height) break;
-      size -= 0.5;
+  const x = 84,
+    width = 428,
+    top = 147,
+    bottom = 738,
+    padding = 4;
+  for (const d of documents) {
+    let layout;
+    // Measure the entire form before drawing. Never clip or add continuation sheets.
+    for (let size = 10; size >= 7.5; size -= 0.25) {
+      const lineHeight = size * 1.2;
+      const lines = (text, w = width - padding * 2, chosen = font) =>
+        wrapReportText(text, w, (s) => chosen.widthOfTextAtSize(s, size));
+      const row = (text, heading = false, minHeight = 0) => {
+        const content = lines(text, width - padding * 2, heading ? bold : font);
+        return {
+          lines: content,
+          heading,
+          height: Math.max(
+            minHeight,
+            content.length * lineHeight + padding * 2,
+          ),
+        };
+      };
+      const rows = [
+        row("FUNCIONÁRIO", true),
+        row("Nome: " + d.employeeName),
+        row("Cargo: " + d.jobTitle),
+        row("OCORRÊNCIA", true),
+        row("DATA: " + timeAdjustmentDate(d.occurrenceDate)),
+        { punch: true, height: lineHeight + padding * 2, heading: true },
+        ...Object.entries(PUNCH_FIELDS).map(([key, label]) => ({
+          punch: true,
+          label,
+          point: d.punches[key],
+          height: lineHeight + padding * 2,
+        })),
+        row("JUSTIFICATIVA (PREENCHIDO PELO CLIENTE)", true),
+        row(d.justification, false, 95),
+        row("Entidade contratante: " + d.entity),
+        row("Gerente do contrato: " + d.contractManager),
+      ];
+      const location = lines(placeDate(d)),
+        signer = lines(
+          "Nome: " + (d.signerName || "________________________________"),
+          width - 40,
+        ),
+        registration = lines(
+          "Registro funcional: " +
+            (d.signerRegistration || "________________________"),
+          width - 40,
+        );
+      const tail =
+        18 +
+        location.length * lineHeight +
+        12 +
+        40 +
+        (signer.length + registration.length) * lineHeight;
+      const height = rows.reduce((sum, r) => sum + r.height, 0);
+      if (height + tail <= bottom - top) {
+        layout = {
+          size,
+          lineHeight,
+          rows,
+          location,
+          signer,
+          registration,
+          height,
+          tail,
+        };
+        break;
+      }
     }
-    if (size < 7.5) {
-      extras.push(label + ": " + value);
-      write(page, "Ver complemento ao final do documento.", x, top, 8);
-      return;
-    }
-    lines.forEach((line, i) =>
-      write(page, line, x, top + i * size * 1.2, size),
-    );
-  };
-  const noteLines = wrapReportText(data.justification, 414, (s) =>
-    font.widthOfTextAtSize(s, 10),
-  );
-  const perPage = 9,
-    total = Math.max(1, Math.ceil(noteLines.length / perPage));
-  for (let n = 0; n < total; n++) {
-    const page = n === 0 ? pdf.getPage(0) : (await pdf.copyPages(base, [0]))[0];
-    if (n) pdf.addPage(page);
+    if (!layout) throw onePageError();
+    const [page] = await pdf.copyPages(base, [0]);
+    pdf.addPage(page);
     page.pushOperators(
       beginText(),
       setCharacterSpacing(0),
@@ -108,97 +147,138 @@ export async function createTimeAdjustmentPdf(data, templateBytes) {
       setCharacterSqueeze(100),
       endText(),
     );
-    box(page, data.employeeName, 132, 182, 375, 23, "Nome do funcionário");
-    box(page, data.jobTitle, 132, 212, 375, 23, "Cargo");
-    white(page, 85.5, 266.3, 425, 13.6);
-    write(
-      page,
-      "DATA: " + timeAdjustmentDate(data.occurrenceDate),
-      88,
-      267,
-      10,
-    );
-    Object.entries(PUNCH_FIELDS).forEach(([key], i) => {
-      const point = data.punches[key];
-      if (point.selected) {
-        write(page, "X", 96, 295 + i * 15, 10);
-        white(page, 360, 296 + i * 15, 75, 13.9);
-        write(page, point.time, 378, 295 + i * 15, 10);
-      }
+    // Preserve the original IPM header, title and footer; rebuild the form in its body area.
+    page.drawRectangle({
+      x: 80,
+      y: page.getHeight() - 746,
+      width: 437,
+      height: 604,
+      color: rgb(1, 1, 1),
     });
-    noteLines
-      .slice(n * perPage, (n + 1) * perPage)
-      .forEach((line, i) => write(page, line, 90, 389 + i * 14, 10));
-    box(page, data.entity, 215, 535, 291, 24, "Entidade contratante");
-    box(page, data.contractManager, 210, 565, 296, 24, "Gerente do contrato");
-    white(page, 89, 621, 420, 16);
-    box(
-      page,
-      placeDate(data),
-      91,
-      623,
-      415,
-      12,
-      "Local, data e hora de emissão",
-    );
-    box(
-      page,
-      data.signerName,
-      192,
-      705,
-      251,
-      14,
-      "Nome do responsável pela assinatura",
-    );
-    box(
-      page,
-      data.signerRegistration,
-      258,
-      719,
-      187,
-      14,
-      "Registro funcional do responsável",
-    );
-    if (total > 1)
-      write(page, `Justificativa: página ${n + 1} de ${total}`, 88, 136, 7);
-  }
-  if (extras.length) {
-    const text = [...new Set(extras)].join("\n\n"),
-      lines = wrapReportText(text, 480, (s) => font.widthOfTextAtSize(s, 10));
-    for (let start = 0; start < lines.length; start += 51) {
-      const page = pdf.addPage([595.22, 842]);
-      write(page, "Complemento da justificativa de ponto", 55, 45, 15, bold);
-      write(
-        page,
-        "Ocorrência: " + timeAdjustmentDate(data.occurrenceDate),
-        55,
-        73,
-        10,
-      );
-      lines
-        .slice(start, start + 51)
-        .forEach((line, i) => write(page, line, 55, 105 + i * 13, 10));
+    const { size, lineHeight } = layout;
+    const write = (text, left, y, chosen = font) =>
+      page.drawText(text, {
+        x: left,
+        y: page.getHeight() - y - size,
+        size,
+        font: chosen,
+        color: rgb(0, 0, 0),
+      });
+    let y = top;
+    for (const row of layout.rows) {
+      page.drawRectangle({
+        x,
+        y: page.getHeight() - y - row.height,
+        width,
+        height: row.height,
+        color: row.heading ? rgb(0.9, 0.9, 0.9) : rgb(1, 1, 1),
+        borderColor: rgb(0, 0, 0),
+        borderWidth: 0.5,
+      });
+      if (row.punch) {
+        const middle = x + width * 0.52;
+        page.drawLine({
+          start: { x: middle, y: page.getHeight() - y },
+          end: { x: middle, y: page.getHeight() - y - row.height },
+          thickness: 0.5,
+          color: rgb(0, 0, 0),
+        });
+        write(
+          row.heading
+            ? "Ausência de registro"
+            : `(${row.point.selected ? "X" : " "}) ${row.label}`,
+          x + padding,
+          y + padding,
+          row.heading ? bold : font,
+        );
+        write(
+          row.heading
+            ? "Horário não registrado"
+            : row.point.selected
+              ? row.point.time
+              : "____:____",
+          middle + padding,
+          y + padding,
+          row.heading ? bold : font,
+        );
+      } else
+        row.lines.forEach((line, i) =>
+          write(
+            line,
+            x + padding,
+            y + padding + i * lineHeight,
+            row.heading ? bold : font,
+          ),
+        );
+      y += row.height;
     }
+    y += 18;
+    layout.location.forEach((line, i) =>
+      write(line, x + padding, y + i * lineHeight),
+    );
+    y += layout.location.length * lineHeight;
+    write("Local e data", x + width / 2 - 25, y);
+    y += 12 + 35;
+    // Keep generous signature space even with a short justification.
+    y = Math.max(
+      y,
+      Math.min(
+        697,
+        bottom -
+          5 -
+          (layout.signer.length + layout.registration.length) * lineHeight,
+      ),
+    );
+    page.drawLine({
+      start: { x: x + 20, y: page.getHeight() - y },
+      end: { x: x + width - 20, y: page.getHeight() - y },
+      thickness: 0.5,
+      color: rgb(0, 0, 0),
+    });
+    y += 5;
+    [...layout.signer, ...layout.registration].forEach((line, i) =>
+      write(line, x + 20, y + i * lineHeight),
+    );
   }
   pdf.setCreationDate(new Date());
   pdf.setModificationDate(new Date());
-  pdf.setTitle("Justificativa de ponto — " + data.employeeName);
-  pdf.setAuthor(data.employeeName);
+  pdf.setTitle("Justificativa de ponto — " + documents[0].employeeName);
+  pdf.setAuthor(documents[0].employeeName);
   pdf.setSubject("Solicitação de ajuste para assinatura");
   pdf.setCreator("Implanta");
   return pdf.save();
 }
-export function renderTimeAdjustmentHtml(d, header = "") {
-  validateTimeAdjustment(d);
-  const e = escape;
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Justificativa de ponto — ${e(d.employeeName)}</title><style>@page{size:A4;margin:12mm 18mm}*{box-sizing:border-box}body{font:11pt Arial;color:#111;background:white;margin:0;overflow-wrap:anywhere;line-height:1.45}.art{height:25mm;margin-bottom:7mm;overflow:hidden}.art img{width:100%;height:auto;transform:translateY(-16mm)}h1{font-size:13pt;text-align:center;margin:0 0 6mm}table{border-collapse:collapse;width:100%;table-layout:fixed}th,td{border:1px solid #111;text-align:left;padding:2mm;white-space:pre-wrap}th{background:#f2f2f2;text-align:center}thead{display:table-header-group}.note{min-height:50mm;white-space:pre-wrap;padding:3mm;border:1px solid #111;border-top:0}.details{margin:0}p{margin:3mm 0}.signature{margin:17mm 12mm 3mm;break-inside:avoid}.sign-line{border-top:1px solid #111;margin-bottom:2mm}.location{text-align:center;margin-top:10mm;break-inside:avoid}.label{font-size:9pt;color:#444}tr{break-inside:avoid}@media screen{body{max-width:210mm;margin:20px auto;padding:12mm;border:1px solid #ddd}}</style></head><body><div class="art"><img src="${e(header)}" alt="IPM sistemas"></div><h1>JUSTIFICATIVA DE AUSÊNCIA DE PONTO ELETRÔNICO - Dream</h1><table><tbody><tr><th colspan="2">FUNCIONÁRIO</th></tr><tr><td colspan="2"><b>Nome:</b> ${e(d.employeeName)}</td></tr><tr><td colspan="2"><b>Cargo:</b> ${e(d.jobTitle)}</td></tr><tr><th colspan="2">OCORRÊNCIA</th></tr><tr><td colspan="2"><b>DATA:</b> ${e(timeAdjustmentDate(d.occurrenceDate))}</td></tr><tr><td>Ausência de registro</td><td>Horário de ponto não registrado</td></tr>${Object.entries(
-    PUNCH_FIELDS,
-  )
+export function renderTimeAdjustmentHtml(value, header = "") {
+  const documents = timeAdjustmentDocuments(value),
+    e = escape;
+  const sheets = documents
     .map(
-      ([key, label]) =>
-        `<tr><td>(${d.punches[key].selected ? "X" : " "}) ${e(label)}</td><td>${d.punches[key].selected ? e(d.punches[key].time) : "____:____"}</td></tr>`,
+      (d) =>
+        `<section class="sheet"><div class="art"><img src="${e(header)}" alt="IPM sistemas"></div><h1>JUSTIFICATIVA DE AUSÊNCIA DE PONTO ELETRÔNICO - Dream</h1><div class="content"><table><tbody><tr><th colspan="2">FUNCIONÁRIO</th></tr><tr><td colspan="2"><b>Nome:</b> ${e(d.employeeName)}</td></tr><tr><td colspan="2"><b>Cargo:</b> ${e(d.jobTitle)}</td></tr><tr><th colspan="2">OCORRÊNCIA</th></tr><tr><td colspan="2"><b>DATA:</b> ${e(timeAdjustmentDate(d.occurrenceDate))}</td></tr><tr><td>Ausência de registro</td><td>Horário não registrado</td></tr>${Object.entries(
+          PUNCH_FIELDS,
+        )
+          .map(
+            ([key, label]) =>
+              `<tr><td>(${d.punches[key].selected ? "X" : " "}) ${e(label)}</td><td>${d.punches[key].selected ? e(d.punches[key].time) : "____:____"}</td></tr>`,
+          )
+          .join(
+            "",
+          )}<tr><th colspan="2">JUSTIFICATIVA (PREENCHIDO PELO CLIENTE)</th></tr><tr><td colspan="2" class="note">${e(d.justification)}</td></tr><tr><td colspan="2"><b>Entidade contratante:</b> ${e(d.entity)}</td></tr><tr><td colspan="2"><b>Gerente do contrato:</b> ${e(d.contractManager)}</td></tr></tbody></table><div class="location">${e(placeDate(d))}<div class="label">Local e data</div></div><div class="signature"><div class="sign-line"></div><div>Nome: ${e(d.signerName || "________________________________")}</div><div>Registro funcional: ${e(d.signerRegistration || "________________________")}</div></div></div></section>`,
     )
-    .join(
-      "",
-    )}<tr><th colspan="2">JUSTIFICATIVA (PREENCHIDO PELO CLIENTE)</th></tr></tbody></table><div class="note">${e(d.justification)}</div><table class="details"><tbody><tr><td><b>Entidade contratante:</b> ${e(d.entity)}</td></tr><tr><td><b>Gerente do contrato:</b> ${e(d.contractManager)}</td></tr></tbody></table><div class="location">${e(placeDate(d))}<div class="label">Local e data</div></div><div class="signature"><div class="sign-line"></div><div>Nome: ${e(d.signerName || "________________________________")}</div><div>Registro funcional: ${e(d.signerRegistration || "________________________")}</div></div></body></html>`;
+    .join("");
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Justificativa de ponto — ${e(documents[0].employeeName)}</title><style>@page{size:A4;margin:12mm 18mm}*{box-sizing:border-box}body{font:10pt Arial;color:#111;background:white;margin:0;overflow-wrap:anywhere;line-height:1.2}.sheet{height:272mm;break-after:page;display:flex;flex-direction:column}.sheet:last-child{break-after:auto}.art{height:24mm;margin-bottom:5mm;overflow:hidden;flex-shrink:0}.art img{width:100%;height:auto;transform:translateY(-16mm)}h1{font-size:12pt;text-align:center;margin:0 0 6mm;flex-shrink:0}.content{flex:1;min-height:0}table{border-collapse:collapse;width:100%;table-layout:fixed}th,td{border:1px solid #111;text-align:left;padding:1.6mm;white-space:pre-wrap}th{background:#eee;text-align:center}.note{height:32mm;vertical-align:top}.signature{margin:12mm 8mm 0;white-space:pre-wrap}.sign-line{border-top:1px solid #111;margin-bottom:2mm}.location{text-align:center;margin-top:5mm;white-space:pre-wrap}.label{font-size:.85em;color:#444}@media screen{body{width:174mm;margin:20px auto}.sheet{outline:1px solid #ddd;margin-bottom:20px}}</style></head><body>${sheets}</body></html>`;
+}
+// Measure real browser fonts (including Unicode) before printing each fixed A4 sheet.
+export function fitTimeAdjustmentPrint(doc) {
+  for (const content of doc.querySelectorAll(".content")) {
+    let fits = false;
+    for (let size = 10; size >= 7.5; size -= 0.25) {
+      content.style.fontSize = size + "pt";
+      if (content.scrollHeight <= content.clientHeight) {
+        fits = true;
+        break;
+      }
+    }
+    if (!fits) throw onePageError();
+  }
 }

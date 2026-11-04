@@ -19,26 +19,41 @@ export function readLocalTimeAdjustments(storage, key) {
   return rows;
 }
 export function saveLocalTimeAdjustment(storage, key, id, revision, data) {
-  validateTimeAdjustment(data);
+  return saveLocalTimeAdjustments(storage, key, [{ id, revision, data }])[0];
+}
+// Validate every item before the one storage write; a conflict preserves the whole batch.
+export function saveLocalTimeAdjustments(storage, key, items) {
+  if (
+    !Array.isArray(items) ||
+    !items.length ||
+    new Set(items.map((i) => i.id)).size !== items.length
+  )
+    throw new Error("Lote de ajustes inválido.");
   const rows = readLocalTimeAdjustments(storage, key),
-    old = rows.find((r) => r.id === id);
-  if (revision !== (old?.revision || 0))
-    throw Object.assign(new Error("O ajuste foi alterado em outra janela."), {
-      code: "40001",
-    });
-  const now = new Date().toISOString(),
-    row = {
+    now = new Date().toISOString();
+  const saved = items.map(({ id, revision, data }) => {
+    validateTimeAdjustment(data);
+    const old = rows.find((r) => r.id === id);
+    if (!id || !Number.isInteger(revision) || revision < 0)
+      throw new Error("Registro de ponto inválido.");
+    if (revision !== (old?.revision || 0))
+      throw Object.assign(new Error("O ajuste foi alterado em outra janela."), {
+        code: "40001",
+      });
+    return {
       id,
       data,
       revision: revision + 1,
       created_at: old?.created_at || now,
       updated_at: now,
     };
+  });
+  const ids = new Set(saved.map((r) => r.id));
   storage.setItem(
     key,
-    JSON.stringify([row, ...rows.filter((r) => r.id !== id)]),
+    JSON.stringify([...saved, ...rows.filter((r) => !ids.has(r.id))]),
   );
-  return row;
+  return saved;
 }
 export function deleteLocalTimeAdjustment(storage, key, id, revision) {
   const rows = readLocalTimeAdjustments(storage, key),

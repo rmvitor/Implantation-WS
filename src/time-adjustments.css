@@ -162,3 +162,54 @@
   min-height: 40px;
   cursor: pointer;
 }
+
+.modal.time-adjustment-modal {
+  width: 840px;
+}
+.time-adjustment-dates {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+.time-adjustment-dates legend {
+  padding: 0 6px;
+}
+.time-adjustment-dates > button {
+  justify-self: start;
+}
+.time-adjustment-date-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.time-adjustment-date-row {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  min-width: 0;
+}
+.time-adjustment-date-row > label {
+  flex: 1;
+}
+@media (min-width: 651px) {
+  .time-adjustment-punches {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 20px;
+  }
+  .time-adjustment-punch {
+    grid-template-columns: minmax(0, 1fr) 125px;
+    gap: 8px;
+  }
+  .time-adjustment-punch:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+}
+@media (max-width: 650px) {
+  .time-adjustment-date-list {
+    grid-template-columns: 1fr;
+  }
+}

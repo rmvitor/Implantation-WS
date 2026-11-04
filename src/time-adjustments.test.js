@@ -17,6 +17,7 @@ import {
 import {
   readLocalTimeAdjustments,
   saveLocalTimeAdjustment,
+  saveLocalTimeAdjustments,
   deleteLocalTimeAdjustment,
   timeAdjustmentStorageKey,
 } from "./time-adjustment-store.js";
@@ -128,7 +129,7 @@ test("histórico local pessoal conserva versões e não sobrescreve edições co
   deleteLocalTimeAdjustment(storage, key, "one", 2);
   assert.equal(readLocalTimeAdjustments(storage, key).length, 0);
 });
-test("PDF usa modelo A4 original, pagina texto longo e HTML trata conteúdo como texto", async () => {
+test("PDF gera uma folha por data, sem cortar texto; HTML escapa dados", async () => {
   const bytes = await readFile(
     new URL("./assets/ipm-justificativa-ponto.pdf", import.meta.url),
   );
@@ -146,10 +147,29 @@ test("PDF usa modelo A4 original, pagina texto longo e HTML trata conteúdo como
         40,
       ),
   };
-  assert(
+  assert.equal(
     (
       await PDFDocument.load(await createTimeAdjustmentPdf(long, bytes))
-    ).getPageCount() > 1,
+    ).getPageCount(),
+    1,
+  );
+  const dates = [filled(), { ...long, occurrenceDate: "2026-11-05" }];
+  assert.equal(
+    (
+      await PDFDocument.load(await createTimeAdjustmentPdf(dates, bytes))
+    ).getPageCount(),
+    2,
+  );
+  assert.equal(
+    (renderTimeAdjustmentHtml(dates).match(/class="sheet"/g) || []).length,
+    2,
+  );
+  await assert.rejects(
+    createTimeAdjustmentPdf(
+      { ...filled(), justification: "x\n".repeat(1000) },
+      bytes,
+    ),
+    /não cabe em uma folha/,
   );
   const html = renderTimeAdjustmentHtml({
     ...filled(),
@@ -163,5 +183,43 @@ test("PDF usa modelo A4 original, pagina texto longo e HTML trata conteúdo como
     wrapReportText("x".repeat(100), 10, (s) => s.length).every(
       (s) => s.length <= 10,
     ),
+  );
+});
+
+test("lote local é atômico e mantém registros independentes por data", () => {
+  let raw = null,
+    writes = 0;
+  const storage = {
+    getItem: () => raw,
+    setItem: (k, v) => {
+      raw = v;
+      writes++;
+    },
+  };
+  const key = "test",
+    items = [
+      { id: "a", revision: 0, data: filled() },
+      {
+        id: "b",
+        revision: 0,
+        data: { ...filled(), occurrenceDate: "2026-11-05" },
+      },
+    ];
+  assert.equal(saveLocalTimeAdjustments(storage, key, items).length, 2);
+  assert.equal(writes, 1);
+  const before = raw;
+  assert.throws(
+    () =>
+      saveLocalTimeAdjustments(storage, key, [
+        { id: "c", revision: 0, data: filled() },
+        { id: "a", revision: 0, data: filled() },
+      ]),
+    (e) => e.code === "40001",
+  );
+  assert.equal(raw, before);
+  assert.equal(writes, 1);
+  assert.throws(
+    () => saveLocalTimeAdjustments(storage, key, [items[0], items[0]]),
+    /inválido/,
   );
 });

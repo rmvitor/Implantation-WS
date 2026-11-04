@@ -14,7 +14,7 @@ import {
 } from "./time-adjustments.js";
 import {
   readLocalTimeAdjustments,
-  saveLocalTimeAdjustment,
+  saveLocalTimeAdjustments,
   deleteLocalTimeAdjustment,
   timeAdjustmentStorageKey,
 } from "./time-adjustment-store.js";
@@ -30,7 +30,7 @@ const rpc = async (client, name, args) => {
   if (r.error) throw r.error;
   return r.data;
 };
-export function TimeAdjustments({ Modal, onPending }) {
+export function TimeAdjustments({ Modal, onPending, projects = [] }) {
   const team = useTeam(),
     key = timeAdjustmentStorageKey(team.actor?.id);
   const [rows, setRows] = useState([]),
@@ -103,27 +103,43 @@ export function TimeAdjustments({ Modal, onPending }) {
       if (mounted.current) setBusy(false);
     }
   };
-  const save = async (row, data) => {
-    const id = row?.id || crypto.randomUUID();
-    return act(async () => {
-      const saved = team.online
-        ? await rpc(team.client, "implanta_time_adjustment_save", {
-            p_id: id,
-            p_revision: row?.revision || 0,
-            p_data: data,
-          })
-        : saveLocalTimeAdjustment(
-            localStorage,
-            key,
-            id,
-            row?.revision || 0,
-            data,
+  const save = async (items) =>
+    act(async () => {
+      let saved;
+      if (!team.online)
+        saved = saveLocalTimeAdjustments(localStorage, key, items);
+      else if (items.length === 1) {
+        const item = items[0];
+        saved = [
+          await rpc(team.client, "implanta_time_adjustment_save", {
+            p_id: item.id,
+            p_revision: item.revision,
+            p_data: item.data,
+          }),
+        ];
+      } else {
+        try {
+          saved = await rpc(
+            team.client,
+            "implanta_time_adjustment_batch_save",
+            { p_items: items },
           );
-      setRows((current) => [saved, ...current.filter((r) => r.id !== id)]);
+        } catch (e) {
+          if (["PGRST202", "42883"].includes(e.code))
+            throw new Error(
+              "Para salvar várias datas juntas, aplique o SQL 202611040002_time_adjustment_batches.sql do guia de ativação. O preenchimento foi preservado e você pode baixar o PDF sem salvar.",
+            );
+          throw e;
+        }
+      }
+      const ids = new Set(saved.map((r) => r.id));
+      setRows((current) => [
+        ...saved,
+        ...current.filter((r) => !ids.has(r.id)),
+      ]);
       setModal(null);
       setError("");
     });
-  };
   const emit = (data, print = false) =>
     act(() =>
       print ? printTimeAdjustment(data) : downloadTimeAdjustmentPdf(data),
@@ -267,12 +283,14 @@ export function TimeAdjustments({ Modal, onPending }) {
         <TimeAdjustmentEditor
           Modal={Modal}
           initial={modal.data}
+          row={modal.row}
+          projects={projects}
           busy={busy}
           onClose={() => {
             if (working.current) return false;
             setModal(null);
           }}
-          onSave={(data) => save(modal.row, data)}
+          onSave={save}
           onEmit={emit}
         />
       )}
@@ -333,12 +351,18 @@ export function TimeAdjustments({ Modal, onPending }) {
 function TimeAdjustmentEditor({
   Modal,
   initial,
+  row,
+  projects,
   busy,
   onClose,
   onSave,
   onEmit,
 }) {
-  const [draft, setDraft] = useState(initial),
+  const [dates, setDates] = useState([
+      { id: row.id, revision: row.revision || 0, date: initial.occurrenceDate },
+    ]),
+    [selectedProject, setSelectedProject] = useState(""),
+    [draft, setDraft] = useState(initial),
     [error, setError] = useState(""),
     [suggestion, setSuggestion] = useState("delay"),
     [locating, setLocating] = useState(false),
@@ -364,16 +388,34 @@ function TimeAdjustmentEditor({
   const perform = async (type) => {
     setError("");
     try {
-      const value = validateTimeAdjustment(cleanTimeAdjustment(draft));
-      if (type === "save") await onSave(value);
-      else await onEmit(value, type === "print");
+      const unique = new Set(dates.map((d) => d.date));
+      if (unique.size !== dates.length)
+        throw new Error(
+          "Há datas repetidas. Informe cada data apenas uma vez.",
+        );
+      const items = dates.map((d) => ({
+        id: d.id,
+        revision: d.revision,
+        data: validateTimeAdjustment(
+          cleanTimeAdjustment({ ...draft, occurrenceDate: d.date }),
+        ),
+      }));
+      if (type === "save") await onSave(items);
+      else
+        await onEmit(
+          items.map((d) => d.data),
+          type === "print",
+        );
     } catch (e) {
       setError(timeAdjustmentError(e));
     }
   };
   const close = () => {
     if (busy) return false;
-    const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+    const dirty =
+      JSON.stringify(draft) !== JSON.stringify(initial) ||
+      dates.length !== 1 ||
+      dates[0].date !== initial.occurrenceDate;
     if (
       dirty &&
       !window.confirm("Descartar as alterações não salvas deste ajuste?")
@@ -383,6 +425,7 @@ function TimeAdjustmentEditor({
   };
   return (
     <Modal
+      className="time-adjustment-modal"
       title="Justificativa de ajuste de ponto"
       subtitle="Preencha os horários conforme o boletim. Somente as marcações selecionadas serão informadas."
       onClose={close}
@@ -419,7 +462,8 @@ function TimeAdjustmentEditor({
         </div>
         <p className="muted">
           Você pode emitir o documento sem salvar. Use Salvar ajuste para
-          mantê-lo no histórico.
+          mantê-lo no histórico. Cada data gera uma folha e um registro próprio,
+          com os mesmos horários e justificativa.
         </p>
         {error && (
           <p className="team-error" role="alert">
@@ -447,16 +491,61 @@ function TimeAdjustmentEditor({
                   onChange={(e) => patch("jobTitle", e.target.value)}
                 />
               </label>
-              <label>
-                Data da ocorrência *
-                <input
-                  required
-                  type="date"
-                  value={draft.occurrenceDate}
-                  onChange={(e) => patch("occurrenceDate", e.target.value)}
-                />
-              </label>
             </div>
+            <fieldset className="time-adjustment-dates">
+              <legend>Datas das ocorrências *</legend>
+              <div className="time-adjustment-date-list">
+                {dates.map((d, i) => (
+                  <div key={d.id} className="time-adjustment-date-row">
+                    <label>
+                      Data da ocorrência {i + 1} *
+                      <input
+                        type="date"
+                        required
+                        value={d.date}
+                        onChange={(e) => {
+                          setError("");
+                          setDates((current) =>
+                            current.map((item) =>
+                              item.id === d.id
+                                ? { ...item, date: e.target.value }
+                                : item,
+                            ),
+                          );
+                        }}
+                      />
+                    </label>
+                    {i > 0 && (
+                      <button
+                        type="button"
+                        className="button secondary"
+                        aria-label={`Remover data ${i + 1}`}
+                        onClick={() =>
+                          setDates((current) =>
+                            current.filter((item) => item.id !== d.id),
+                          )
+                        }
+                      >
+                        Remover
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() =>
+                  setDates((current) => [
+                    ...current,
+                    { id: crypto.randomUUID(), revision: 0, date: "" },
+                  ])
+                }
+              >
+                <Plus size={15} />
+                Adicionar data
+              </button>
+            </fieldset>
             <fieldset className="time-adjustment-punches">
               <legend>Marcações que precisam de ajuste *</legend>
               {Object.entries(PUNCH_FIELDS).map(([key, label]) => (
@@ -544,6 +633,37 @@ function TimeAdjustmentEditor({
                 onChange={(e) => patch("justification", e.target.value)}
               />
             </label>
+            <label>
+              Preencher a partir do projeto (opcional)
+              <select
+                value={selectedProject}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setSelectedProject(id);
+                  const project = projects.find((p) => p.id === id);
+                  if (project) {
+                    setError("");
+                    setDraft((d) => ({
+                      ...d,
+                      entity: project.name || "",
+                      contractManager: project.fiscal || "",
+                    }));
+                  }
+                }}
+              >
+                <option value="">Preenchimento manual</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.status === "closed" ? " (encerrado)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="muted">
+              Copia o nome do projeto e o fiscal para os campos abaixo, que
+              continuam editáveis.
+            </p>
             <div className="time-adjustment-fields">
               <label>
                 Entidade contratante

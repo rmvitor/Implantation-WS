@@ -780,7 +780,7 @@ function App() {
               </div>
             )}
           {view === "timeAdjustments" ? (
-            <TimeAdjustments Modal={Modal} onPending={(value) => {timeAdjustmentPending.current=value;}} />
+            <TimeAdjustments projects={data.projects} Modal={Modal} onPending={(value) => {timeAdjustmentPending.current=value;}} />
           ) : view === "operations" ? (
             <Operations
               onEditing={setOperationsEditing}
@@ -2151,6 +2151,7 @@ function Modal({
   children,
   onClose,
   wide = false,
+  className = "",
   headerAction,
 }) {
   const ref = useRef();
@@ -2202,7 +2203,7 @@ function Modal({
     >
       <section
         ref={ref}
-        className={`modal ${wide ? "wide-modal" : ""}`}
+        className={`modal ${wide ? "wide-modal" : ""} ${className}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
