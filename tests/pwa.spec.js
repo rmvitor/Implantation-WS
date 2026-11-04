@@ -385,6 +385,8 @@ test("ajuste de ponto em várias datas baixa PDF e salva histórico pessoal offl
   await page
     .getByLabel("Data da ocorrência 2 *", { exact: true })
     .fill("2026-11-05");
+  await page.getByRole("checkbox", { name: "Saída", exact: true }).check();
+  await page.getByLabel("Horário de saída", { exact: false }).fill("18:20");
   await context.setOffline(true);
   const download = page.waitForEvent("download");
   await page
@@ -414,4 +416,21 @@ test("ajuste de ponto em várias datas baixa PDF e salva histórico pessoal offl
   await expect(page.locator(".time-adjustment-card").first()).toContainText(
     "Técnico Local",
   );
+  const later = page
+    .locator(".time-adjustment-card")
+    .filter({
+      has: page.getByRole("heading", { name: "05/11/2026", exact: true }),
+    });
+  await expect(later).toContainText("Saída · 18:20");
+  await expect(later).not.toContainText("Entrada · 08:15");
+  await later.getByRole("button", { name: "Editar", exact: true }).click();
+  await expect(
+    page.getByRole("checkbox", { name: "Saída", exact: true }),
+  ).toBeChecked();
+  await expect(
+    page.getByRole("checkbox", { name: "Entrada", exact: true }),
+  ).not.toBeChecked();
+  await expect(
+    page.getByLabel("Horário de saída", { exact: false }),
+  ).toHaveValue("18:20");
 });

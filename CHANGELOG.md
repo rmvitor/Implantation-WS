@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 1.20.2 — Marcações independentes por data
+
+- Cada ocorrência tem suas próprias marcações e horários, com seleção da data em edição no formulário.
+- Novas datas começam sem batidas selecionadas; a validação identifica a data que precisa ser completada.
+- PDF, impressão e histórico mantêm as marcações de cada dia. Justificativa e demais dados permanecem comuns durante o preenchimento.
+- Compatível com os SQLs existentes de ajuste de ponto; não requer nova migração.
+
 ## 1.20.1 — Ajustes de ponto em várias datas
 
 - Formulário mais largo no computador, com marcações em duas colunas e adaptação ao celular.

@@ -213,3 +213,27 @@
     grid-template-columns: 1fr;
   }
 }
+
+.time-adjustment-occurrence {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+.time-adjustment-date-select {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+.time-adjustment-date-select span {
+  font-size: 11px;
+}
+.time-adjustment-date-select[aria-pressed="true"] {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.time-adjustment-punch-date {
+  grid-column: 1 / -1;
+}

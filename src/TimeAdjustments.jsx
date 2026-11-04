@@ -359,14 +359,37 @@ function TimeAdjustmentEditor({
   onEmit,
 }) {
   const [dates, setDates] = useState([
-      { id: row.id, revision: row.revision || 0, date: initial.occurrenceDate },
+      {
+        id: row.id,
+        revision: row.revision || 0,
+        date: initial.occurrenceDate,
+        punches: structuredClone(initial.punches),
+      },
     ]),
+    [activeDateId, setActiveDateId] = useState(row.id),
     [selectedProject, setSelectedProject] = useState(""),
     [draft, setDraft] = useState(initial),
     [error, setError] = useState(""),
     [suggestion, setSuggestion] = useState("delay"),
     [locating, setLocating] = useState(false),
     [locationNote, setLocationNote] = useState("");
+  const activeDate = dates.find((d) => d.id === activeDateId) || dates[0];
+  const patchPunch = (key, changes) => {
+    setError("");
+    setDates((current) =>
+      current.map((d) =>
+        d.id === activeDate.id
+          ? {
+              ...d,
+              punches: {
+                ...d.punches,
+                [key]: { ...d.punches[key], ...changes },
+              },
+            }
+          : d,
+      ),
+    );
+  };
   const mounted = useRef(true),
     locationRequest = useRef(0),
     placeInput = useRef("");
@@ -393,13 +416,26 @@ function TimeAdjustmentEditor({
         throw new Error(
           "Há datas repetidas. Informe cada data apenas uma vez.",
         );
-      const items = dates.map((d) => ({
-        id: d.id,
-        revision: d.revision,
-        data: validateTimeAdjustment(
-          cleanTimeAdjustment({ ...draft, occurrenceDate: d.date }),
-        ),
-      }));
+      const items = dates.map((d, i) => {
+        try {
+          return {
+            id: d.id,
+            revision: d.revision,
+            data: validateTimeAdjustment(
+              cleanTimeAdjustment({
+                ...draft,
+                occurrenceDate: d.date,
+                punches: d.punches,
+              }),
+            ),
+          };
+        } catch (e) {
+          setActiveDateId(d.id);
+          throw new Error(
+            `Data ${i + 1}${d.date ? ` (${timeAdjustmentDate(d.date)})` : ""}: ${e.message}`,
+          );
+        }
+      });
       if (type === "save") await onSave(items);
       else
         await onEmit(
@@ -415,7 +451,8 @@ function TimeAdjustmentEditor({
     const dirty =
       JSON.stringify(draft) !== JSON.stringify(initial) ||
       dates.length !== 1 ||
-      dates[0].date !== initial.occurrenceDate;
+      dates[0].date !== initial.occurrenceDate ||
+      JSON.stringify(dates[0].punches) !== JSON.stringify(initial.punches);
     if (
       dirty &&
       !window.confirm("Descartar as alterações não salvas deste ajuste?")
@@ -463,7 +500,8 @@ function TimeAdjustmentEditor({
         <p className="muted">
           Você pode emitir o documento sem salvar. Use Salvar ajuste para
           mantê-lo no histórico. Cada data gera uma folha e um registro próprio,
-          com os mesmos horários e justificativa.
+          com marcações e horários próprios. A justificativa e os demais dados
+          são compartilhados entre as datas.
         </p>
         {error && (
           <p className="team-error" role="alert">
@@ -496,51 +534,78 @@ function TimeAdjustmentEditor({
               <legend>Datas das ocorrências *</legend>
               <div className="time-adjustment-date-list">
                 {dates.map((d, i) => (
-                  <div key={d.id} className="time-adjustment-date-row">
-                    <label>
-                      Data da ocorrência {i + 1} *
-                      <input
-                        type="date"
-                        required
-                        value={d.date}
-                        onChange={(e) => {
-                          setError("");
-                          setDates((current) =>
-                            current.map((item) =>
-                              item.id === d.id
-                                ? { ...item, date: e.target.value }
-                                : item,
-                            ),
-                          );
-                        }}
-                      />
-                    </label>
-                    {i > 0 && (
-                      <button
-                        type="button"
-                        className="button secondary"
-                        aria-label={`Remover data ${i + 1}`}
-                        onClick={() =>
-                          setDates((current) =>
-                            current.filter((item) => item.id !== d.id),
-                          )
-                        }
-                      >
-                        Remover
-                      </button>
-                    )}
+                  <div key={d.id} className="time-adjustment-occurrence">
+                    <div className="time-adjustment-date-row">
+                      <label>
+                        Data da ocorrência {i + 1} *
+                        <input
+                          type="date"
+                          required
+                          value={d.date}
+                          onFocus={() => setActiveDateId(d.id)}
+                          onChange={(e) => {
+                            setError("");
+                            setDates((current) =>
+                              current.map((item) =>
+                                item.id === d.id
+                                  ? { ...item, date: e.target.value }
+                                  : item,
+                              ),
+                            );
+                          }}
+                        />
+                      </label>
+                      {i > 0 && (
+                        <button
+                          type="button"
+                          className="button secondary"
+                          aria-label={`Remover data ${i + 1}`}
+                          onClick={() =>
+                            setDates((current) =>
+                              current.filter((item) => item.id !== d.id),
+                            )
+                          }
+                        >
+                          Remover
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      className="button secondary time-adjustment-date-select"
+                      aria-label={`Marcações da data ${i + 1}`}
+                      aria-pressed={activeDate.id === d.id}
+                      onClick={() => setActiveDateId(d.id)}
+                    >
+                      Marcações ·{" "}
+                      {
+                        Object.values(d.punches).filter((p) => p.selected)
+                          .length
+                      }
+                      <span>
+                        {activeDate.id === d.id ? "Em edição" : "Editar"}
+                      </span>
+                    </button>
                   </div>
                 ))}
               </div>
               <button
                 type="button"
                 className="button secondary"
-                onClick={() =>
+                onClick={() => {
+                  const id = crypto.randomUUID();
                   setDates((current) => [
                     ...current,
-                    { id: crypto.randomUUID(), revision: 0, date: "" },
-                  ])
-                }
+                    {
+                      id,
+                      revision: 0,
+                      date: "",
+                      punches: newTimeAdjustment().punches,
+                    },
+                  ]);
+                  setActiveDateId(id);
+                  setError("");
+                }}
               >
                 <Plus size={15} />
                 Adicionar data
@@ -548,45 +613,37 @@ function TimeAdjustmentEditor({
             </fieldset>
             <fieldset className="time-adjustment-punches">
               <legend>Marcações que precisam de ajuste *</legend>
+              <p className="muted time-adjustment-punch-date">
+                Data {dates.findIndex((d) => d.id === activeDate.id) + 1}
+                {activeDate.date
+                  ? ` · ${timeAdjustmentDate(activeDate.date)}`
+                  : " · Selecione a data da ocorrência"}
+                . As marcações abaixo se aplicam somente a esta data.
+              </p>
               {Object.entries(PUNCH_FIELDS).map(([key, label]) => (
                 <div key={key} className="time-adjustment-punch">
                   <label className="time-adjustment-check">
                     <input
                       type="checkbox"
-                      checked={draft.punches[key].selected}
+                      checked={activeDate.punches[key].selected}
                       onChange={(e) =>
-                        setDraft((d) => ({
-                          ...d,
-                          punches: {
-                            ...d.punches,
-                            [key]: {
-                              ...d.punches[key],
-                              selected: e.target.checked,
-                            },
-                          },
-                        }))
+                        patchPunch(key, {
+                          selected: e.target.checked,
+                          ...(!e.target.checked ? { time: "" } : {}),
+                        })
                       }
                     />
                     {label}
                   </label>
-                  {draft.punches[key].selected && (
+                  {activeDate.punches[key].selected && (
                     <label>
                       Horário de {label.toLowerCase()} *
                       <input
                         type="time"
                         required
-                        value={draft.punches[key].time}
+                        value={activeDate.punches[key].time}
                         onChange={(e) =>
-                          setDraft((d) => ({
-                            ...d,
-                            punches: {
-                              ...d.punches,
-                              [key]: {
-                                ...d.punches[key],
-                                time: e.target.value,
-                              },
-                            },
-                          }))
+                          patchPunch(key, { time: e.target.value })
                         }
                       />
                     </label>

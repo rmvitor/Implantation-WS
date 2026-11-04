@@ -1,11 +1,11 @@
-# Ajuste de ponto — v1.20.1
+# Ajuste de ponto — v1.20.2
 
 Abra **Ajuste de ponto** na área geral da navegação lateral, depois de Agenda geral. Não é necessário selecionar ou cadastrar um município. Cada pessoa tem seu próprio histórico, independente de acesso a projetos.
 
 ## Preencher e emitir
 
 1. Clique em **Novo ajuste**. O nome vem da conta logada, o cargo começa como **Técnico de implantação** e as datas da ocorrência/emissão e a hora de emissão começam com o momento atual do aparelho. Nome/cargo são editáveis para adequar a identificação no documento.
-2. Em **Adicionar data**, inclua outras ocorrências semelhantes. Horários, justificativa e demais campos serão iguais para todas as datas. Cada data gera uma folha no mesmo PDF e um registro independente no histórico. Datas repetidas no mesmo preenchimento são recusadas. Para horários diferentes, preencha outro ajuste. Marque as batidas necessárias: **Entrada**, **Intervalo**, **Retorno do intervalo** e **Saída**. Cada marcação abre seu horário, inicialmente vazio. Informe-o manualmente conforme o boletim. Não há preenchimento automático dessas horas, nem cálculo ou imposição de ordem da jornada.
+2. Em **Adicionar data**, inclua outras ocorrências semelhantes. A justificativa e os demais dados são compartilhados entre as datas; as marcações e os horários são independentes. Clique em **Marcações** na data desejada para editar suas batidas. Uma nova data começa sem marcações selecionadas. Cada data gera uma folha no mesmo PDF e um registro independente no histórico. Datas repetidas no mesmo preenchimento são recusadas. Marque as batidas necessárias: **Entrada**, **Intervalo**, **Retorno do intervalo** e **Saída**. Cada marcação abre seu horário, inicialmente vazio, somente para a data em edição. Informe-o manualmente conforme o boletim. Não há preenchimento automático dessas horas, nem cálculo ou imposição de ordem da jornada.
 3. Digite a justificativa ou escolha um texto de atraso, deslocamento a serviço ou esquecimento de batida e clique em **Inserir sugestão**. A sugestão é acrescentada ao texto atual, sem apagá-lo, e pode ser editada. Confira se o texto corresponde ao que ocorreu.
 4. Em **Preencher a partir do projeto**, selecione um município ao qual você tenha acesso: o nome do projeto preenche **Entidade contratante** e o fiscal preenche **Gerente do contrato**. Os dois campos continuam editáveis, e o preenchimento manual continua disponível. Trata-se somente de uma cópia dos textos; não cria vínculo nem altera o projeto.
 5. Informe o local. Opcionalmente, clique em **Usar cidade atual**. A data/hora de emissão é separada dos horários de batida e pode ser ajustada; **Usar data e hora atuais** atualiza só a emissão.
@@ -43,7 +43,7 @@ O JSON de **Dados e backup** não inclui o histórico desta rotina. Os PDFs são
 - Crie um ajuste sem nenhum município cadastrado; confira nome/cargo e data/hora de emissão.
 - Marque Entrada e Saída e preencha manualmente. As outras batidas devem permanecer em branco no relatório.
 - Insira uma sugestão após um texto digitado e confira que ambos foram mantidos.
-- Adicione duas datas, escolha um projeto, edite o gerente e emita: confira uma folha por data, com os mesmos horários e dados. Salvar deve mostrar os dois registros imediatamente, e editar um deles não pode alterar o outro.
+- Adicione duas datas, escolha um projeto, edite o gerente e emita: preencha Entrada na primeira data e Saída na segunda; confira uma folha por data, com os horários e marcações específicos de cada uma. Salvar deve mostrar os dois registros imediatamente, e editar um deles não pode alterar o outro.
 - Baixe o PDF antes de salvar: ele deve conter os dados atuais do formulário. Salve e depois abra pelo histórico para editar ou reemitir.
 - Teste a cidade com permissão concedida e negada; confira que o local continua editável.
 - Com outro usuário, confira que os ajustes pessoais anteriores não aparecem.

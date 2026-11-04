@@ -405,6 +405,38 @@ for (const width of [390, 1440])
     await page
       .getByLabel("Data da ocorrência 2 *", { exact: true })
       .fill("2026-11-05");
+    await dialog
+      .getByRole("button", { name: "Baixar PDF", exact: true })
+      .click();
+    await expect(dialog.getByRole("alert")).toContainText(
+      "Data 2 (05/11/2026)",
+    );
+    await expect(dialog.getByRole("alert")).toContainText(
+      "pelo menos uma marcação",
+    );
+    await page.getByRole("checkbox", { name: "Saída", exact: true }).check();
+    await page.getByLabel("Horário de saída", { exact: false }).fill("17:40");
+    await page
+      .getByRole("button", { name: "Marcações da data 1", exact: true })
+      .click();
+    await expect(
+      page.getByRole("checkbox", { name: "Entrada", exact: true }),
+    ).toBeChecked();
+    await expect(
+      page.getByRole("checkbox", { name: "Saída", exact: true }),
+    ).not.toBeChecked();
+    await expect(
+      page.getByLabel("Horário de entrada", { exact: false }),
+    ).toHaveValue("08:10");
+    await page
+      .getByRole("button", { name: "Marcações da data 2", exact: true })
+      .click();
+    await expect(
+      page.getByRole("checkbox", { name: "Entrada", exact: true }),
+    ).not.toBeChecked();
+    await expect(
+      page.getByLabel("Horário de saída", { exact: false }),
+    ).toHaveValue("17:40");
     const note =
       "Atividades e horários conforme boletim, para conferência e assinatura. ".repeat(
         40,
@@ -452,6 +484,22 @@ for (const width of [390, 1440])
     expect(
       state.rows.every((r) => r.data.contractManager === "Gerente ajustado"),
     ).toBe(true);
+    expect(state.rows[0].data.punches.entry).toEqual({
+      selected: true,
+      time: "08:10",
+    });
+    expect(state.rows[0].data.punches.exit).toEqual({
+      selected: false,
+      time: "",
+    });
+    expect(state.rows[1].data.punches.entry).toEqual({
+      selected: false,
+      time: "",
+    });
+    expect(state.rows[1].data.punches.exit).toEqual({
+      selected: true,
+      time: "17:40",
+    });
     const batches = state.calls.filter((c) =>
       c.path.endsWith("/implanta_time_adjustment_batch_save"),
     );
@@ -486,6 +534,22 @@ for (const width of [390, 1440])
     expect(
       state.rows.find((r) => r.data.occurrenceDate === "2026-11-05").data.place,
     ).toBe("São José / SC");
+    await page
+      .locator(".time-adjustment-card")
+      .filter({
+        has: page.getByRole("heading", { name: "05/11/2026", exact: true }),
+      })
+      .getByRole("button", { name: "Editar", exact: true })
+      .click();
+    await expect(
+      page.getByRole("checkbox", { name: "Entrada", exact: true }),
+    ).not.toBeChecked();
+    await expect(
+      page.getByRole("checkbox", { name: "Saída", exact: true }),
+    ).toBeChecked();
+    await expect(
+      page.getByLabel("Horário de saída", { exact: false }),
+    ).toHaveValue("17:40");
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
