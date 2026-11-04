@@ -20,6 +20,8 @@ import { accountRole, hasProjectRoles, isMaster, canCreateProject, canManageProj
 import { AccessAudit, ProjectAccessManager } from "./ProjectAccessManager.jsx";
 import "./team.css";
 import { AccessRecovery } from "./AccessRecovery.jsx";
+import { authErrorInfo, authErrorMessage } from "./auth-errors.js";
+import { Eye, EyeOff } from "lucide-react";
 
 const CONNECTION = "implanta.team.connection.v1";
 const TeamContext = createContext({ online: false });
@@ -166,6 +168,8 @@ export function TeamHost({ children }) {
         setProfile(null);
         setWorkspace(null);
         setPermissions([]);
+        setError("");
+        setAccessDiagnostic(null);
       }
     });
     return () => {
@@ -391,19 +395,23 @@ function AuthScreen({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [failure, setFailure] = useState("");
+  const [authDiagnostic,setAuthDiagnostic] = useState(null);
+  const [showPassword,setShowPassword] = useState(false);
+  useEffect(()=>setShowPassword(false),[mode,recovery]);
   const [setup, setSetup] = useState(false);
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true);
     setMessage("");
-    setFailure("");
+    setFailure("");setAuthDiagnostic(null);
     try {
+      const mailbox=email.trim().toLowerCase();
       const redirectTo = new URL(import.meta.env.BASE_URL, location.href).href;
       const result = recovery
         ? await client.auth.updateUser({ password })
         : mode === "signup"
           ? await client.auth.signUp({
-              email,
+              email: mailbox,
               password,
               options: {
                 data: { display_name: name.trim() },
@@ -411,8 +419,8 @@ function AuthScreen({
               },
             })
           : mode === "reset"
-            ? await client.auth.resetPasswordForEmail(email, { redirectTo })
-            : await client.auth.signInWithPassword({ email, password });
+            ? await client.auth.resetPasswordForEmail(mailbox, { redirectTo })
+            : await client.auth.signInWithPassword({ email:mailbox, password });
       if (result.error) throw result.error;
       if (recovery) {
         await client.auth.signOut();
@@ -428,11 +436,11 @@ function AuthScreen({
           "Se existir uma conta para esse e-mail, você receberá as instruções de recuperação.",
         );
     } catch (err) {
-      setFailure(
-        mode === "login" && !recovery
-          ? "Não foi possível entrar. Confira e-mail e senha ou tente novamente."
-          : "Não foi possível concluir a solicitação. Confira os dados e tente novamente.",
-      );
+      if(mode === "login" && !recovery) {
+        const info=authErrorInfo(err);
+        setFailure(authErrorMessage(err));
+        setAuthDiagnostic({...info,stage:"Autenticação por e-mail (Entrar)",operation:"login"});
+      }else setFailure("Não foi possível concluir a solicitação. Confira os dados e tente novamente.");
     } finally {
       setBusy(false);
     }
@@ -505,6 +513,9 @@ function AuthScreen({
                   type="email"
                   required
                   autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -525,9 +536,12 @@ function AuthScreen({
             {(mode !== "reset" || recovery) && (
               <label>
                 {recovery ? "Nova senha" : "Senha"}
-                <input
-                  type="password"
+                <span className="auth-password-field"><input
+                  type={showPassword ? "text" : "password"}
                   required
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   minLength={mode === "signup" || recovery ? 10 : undefined}
                   autoComplete={
                     mode === "signup" || recovery
@@ -536,7 +550,7 @@ function AuthScreen({
                   }
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                />
+                /><button type="button" aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} aria-pressed={showPassword} onClick={()=>setShowPassword(v=>!v)}>{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button></span>
               </label>
             )}
             {failure && (
@@ -588,7 +602,7 @@ function AuthScreen({
             )}
           </form>
         )}
-        <AccessRecovery session={session} connection={connection} diagnostic={diagnostic} disabled={busy || loading} onRestoreDefault={() => { localStorage.setItem(CONNECTION, JSON.stringify(defaultConnection)); location.reload(); }} />
+        <AccessRecovery session={session} connection={connection} diagnostic={authDiagnostic || diagnostic} accountEmail={email} disabled={busy || loading} onRestoreDefault={() => { localStorage.setItem(CONNECTION, JSON.stringify(defaultConnection)); location.reload(); }} />
         <button className="auth-connection" onClick={() => setSetup(!setup)}>
           Configurar conexão da equipe
         </button>

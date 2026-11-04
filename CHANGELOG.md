@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 1.19.3 — Diagnóstico da autenticação
+
+- Login diferencia credenciais recusadas, confirmação de e-mail, falha de conexão, bloqueio de conta, limites e falhas da sessão, sem refletir descrições arbitrárias do servidor.
+- Diagnóstico aberto automaticamente no erro, disponível mesmo sem sessão, com código e HTTP. A etapa de autenticação é separada do carregamento dos projetos.
+- E-mail normalizado para login e opção de visualizar a senha, sem modificar seu conteúdo; autocorreção desativada nesses campos no celular.
+- Testes com autenticação simulada para falhas e nova tentativa; nenhuma redefinição de senha, e-mail real ou alteração de acesso executada. Sem novo SQL.
+
 ## 1.19.2 — Recuperação de acesso no app instalado
 
 - Atualização do PWA iniciada antes do login e do carregamento do workspace, com controle também na tela de acesso.

@@ -122,7 +122,10 @@ async function setup(
       state.row.version++;
       state.writes++;
       data = modernRead();
-    } else if (path === "/auth/v1/token") data = session;
+    } else if (path === "/auth/v1/token") {
+      if(state.loginError){status=state.loginError.status || 400;data={code:state.loginError.code,msg:state.loginError.message || "Auth error"};}
+      else data = session;
+    }
     else if (path === "/auth/v1/user") {
       data = user;
       if (req.method() === "PUT") {
@@ -1477,7 +1480,7 @@ test('erro de acesso permite atualizar e diagnosticar sem afirmar falta de SQL o
  await expect(page.getByRole('alert')).toContainText('não confirma falta de SQL');
  await expect(page.getByRole('button',{name:'Atualizar aplicativo',exact:true})).toBeEnabled();
  await expect(page.getByRole('link',{name:'Recuperar atualização deste aparelho'})).toHaveAttribute('href','http://127.0.0.1:5173/assets/atualizar.html');
- await page.getByText('Diagnóstico do acesso',{exact:true}).click();
+ if((await page.locator('.auth-diagnostic').getAttribute('open'))===null)await page.getByText('Diagnóstico do acesso',{exact:true}).click();
  await expect(page.locator('.auth-diagnostic')).toContainText('test.supabase.co');await expect(page.locator('.auth-diagnostic')).toContainText('PGRST202');await expect(page.locator('.auth-diagnostic')).toContainText('implanta_access');
  await page.screenshot({path:'.local/auth-recovery-mobile.png',fullPage:true});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -1486,4 +1489,16 @@ test('erro de acesso permite atualizar e diagnosticar sem afirmar falta de SQL o
  await page.getByRole('button',{name:'Usar conexão padrão do Implanta'}).click();await expect(page.getByRole('button',{name:'Confirmar conexão padrão'})).toBeVisible();await page.locator('.auth-diagnostic').getByRole('button',{name:'Cancelar',exact:true}).click();
  expect(await page.evaluate(()=>({session:localStorage.getItem('sb-test-auth-token'),data:localStorage.getItem('implanta.workspace.v1'),connection:localStorage.getItem('implanta.team.connection.v1')}))).toEqual(before);
  state.accessError='';await page.getByRole('button',{name:'Verificar acesso',exact:true}).click();await expect(page.getByRole('heading',{name:'Projetos e municípios',exact:true})).toBeVisible();
+});
+
+for(const [code,expected] of [['invalid_credentials','combinação de e-mail e senha'],['email_not_confirmed','precisa ser confirmado'],['over_request_rate_limit','limitou temporariamente']]) test(`login mostra ${code} e diagnóstico sem sessão no celular`,async({page})=>{
+ const state=await setup(page,{loggedIn:false});state.loginError={code,status:code==='over_request_rate_limit'?429:400};
+ await page.setViewportSize({width:390,height:900});await page.goto('/');
+ await page.getByLabel('E-mail',{exact:true}).fill('teste@example.invalid');await page.getByLabel('Senha',{exact:true}).fill('Senha-preservada-123');
+ await page.getByRole('button',{name:'Mostrar senha',exact:true}).click();await expect(page.getByLabel('Senha',{exact:true})).toHaveAttribute('type','text');await page.getByRole('button',{name:'Ocultar senha',exact:true}).click();
+ await page.getByRole('button',{name:'Entrar',exact:true}).click();await expect(page.getByRole('alert')).toContainText(expected);
+ await expect(page.locator('.auth-diagnostic')).toBeVisible();await expect(page.locator('.auth-diagnostic')).toContainText(code);await expect(page.locator('.auth-diagnostic')).toContainText('Autenticação por e-mail');
+ await expect(page.getByLabel('Senha',{exact:true})).toHaveValue('Senha-preservada-123');expect(await page.locator('.auth-diagnostic').innerText()).not.toContain('Senha-preservada-123');
+ expect(state.writes).toBe(0);await expect(page.locator('.municipality-card')).toHaveCount(0);
+ state.loginError=null;await page.getByRole('button',{name:'Entrar',exact:true}).click();await expect(page.locator('.municipality-card')).toHaveCount(1);
 });

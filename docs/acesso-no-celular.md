@@ -29,3 +29,11 @@ O diagnóstico identifica a fase `implanta_access` (conta) ou `implanta_read_v2`
 Checagens anônimas com `limit=0` ou chamadas protegidas recusadas confirmam apenas a presença pública dos objetos consultados. Elas não validam a sessão do celular nem comprovam que todas as funções funcionam para aquela conta. A correção de atualização não substitui essa investigação quando o erro persiste.
 
 Testes automatizados cobrem registro do PWA na tela de falha de acesso, recuperação de uma página antiga sem JavaScript, atualização com formulários abertos, preservação de sessão/cadastros e caches de outros aplicativos. Nenhum dado de produção é alterado pelos testes.
+
+## Erro depois de tocar em Entrar (v1.19.3)
+
+A autenticação acontece antes de consultar os projetos. A mensagem antiga “Não foi possível entrar. Confira e-mail e senha ou tente novamente” encobria também erros de rede, e-mail não confirmado e limites do serviço. A v1.19.3 distingue esses casos e abre o diagnóstico mesmo sem sessão. Informe somente o código e a etapa, nunca a senha ou token.
+
+`invalid_credentials` indica que o serviço recusou a combinação de e-mail/senha; não determina qual dos dois está incorreto. Use a opção de visualizar a senha para conferir o preenchimento no aparelho ou a recuperação de senha pelo próprio usuário. `email_not_confirmed` pede confirmar o e-mail; `network_error` indica conexão ao serviço; HTTP 429 indica limite temporário. `session_lock_timeout` pede fechar outras janelas e repetir a operação. Uma sessão ainda aberta no PC não comprova que a senha digitada no celular é a atual.
+
+Nenhuma senha é modificada ou enviada pela manutenção. Uma redefinição só ocorre quando o próprio usuário a solicita no aplicativo. O diagnóstico exibe códigos controlados, sem reproduzir corpos de requisições, descrições arbitrárias ou credenciais.

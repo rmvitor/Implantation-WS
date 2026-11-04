@@ -6,6 +6,7 @@ import { version } from "../package.json";
 export function AccessRecovery({
   session,
   connection,
+  accountEmail,
   diagnostic,
   disabled,
   onRestoreDefault,
@@ -60,19 +61,26 @@ export function AccessRecovery({
         </small>
         {message && <p role="status">{message}</p>}
       </div>
-      {session && (
-        <details className="auth-diagnostic">
+      {(session || diagnostic) && (
+        <details className="auth-diagnostic" open={!!diagnostic}>
           <summary>Diagnóstico do acesso</summary>
           <p>
             Versão: {version}
             <br />
             Servidor: {new URL(connection.url).hostname}
             <br />
-            Conta: {session.user.email}
+            Conta:{" "}
+            {session?.user.email || accountEmail?.trim() || "Não informada"}
             <br />
             Etapa: {diagnostic?.stage || "Verificação da conta"}
             <br />
             Código: {diagnostic?.code || "Não informado"}
+            {diagnostic?.status && (
+              <>
+                <br />
+                HTTP: {diagnostic.status}
+              </>
+            )}
           </p>
           {connection.url !== defaultConnection.url &&
             (confirm ? (

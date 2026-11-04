@@ -361,3 +361,6 @@
 .auth-update-controls small {color:var(--text-secondary)}
 .auth-diagnostic {margin:18px 0;overflow-wrap:anywhere;line-height:1.7}
 .auth-diagnostic p {font-size:12px}
+.auth-password-field{position:relative;display:block}
+.auth-password-field input{padding-right:44px}
+.auth-password-field button{position:absolute;right:3px;top:3px;bottom:3px;width:38px;display:grid;place-items:center}
