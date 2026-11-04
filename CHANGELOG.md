@@ -1,5 +1,14 @@
 # Histórico de versões
 
+## 1.20.0 — Ajuste de ponto
+
+- Rotina pessoal na área geral, sem relação obrigatória a município, com nome do usuário, cargo e data/hora de emissão preenchidos inicialmente.
+- Seleção de Entrada, Intervalo, Retorno e Saída abre somente os horários necessários, sempre manuais; justificativas sugeridas editáveis para atraso, deslocamento e esquecimento.
+- Local digitado ou sugerido por consulta opcional à cidade atual, com permissão do navegador, sem salvar coordenadas.
+- PDF direto no formulário IPM fornecido e impressão com espaço para assinatura, nome e registro funcional do responsável. Emissão disponível sem salvar.
+- Histórico por usuário com edição, confirmação de exclusão, controle de concorrência e atualização imediata; novo SQL aditivo `202611040001_time_adjustments.sql` para histórico online.
+- Testes de validação, geração/paginação do PDF, localização, isolamento entre contas, concorrência e interface no celular/PC.
+
 ## 1.19.3 — Diagnóstico da autenticação
 
 - Login diferencia credenciais recusadas, confirmação de e-mail, falha de conexão, bloqueio de conta, limites e falhas da sessão, sem refletir descrições arbitrárias do servidor.

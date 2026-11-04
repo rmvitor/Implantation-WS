@@ -42,7 +42,7 @@ export default defineConfig({
       },
       workbox: {
         cacheId: "implanta",
-        globPatterns: ["**/*.{js,css,html,svg,png,woff2,webmanifest}"],
+        globPatterns: ["**/*.{js,css,html,svg,png,pdf,woff2,webmanifest}"],
         globIgnores: ["**/icons/app-*.png"],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         cleanupOutdatedCaches: true,

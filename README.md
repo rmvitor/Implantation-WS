@@ -173,3 +173,7 @@ A v1.19.1 adiciona **Campos obrigatórios** por município: nome, CPF, setor e e
 ### Acesso no celular e atualização (v1.19.2)
 
 O PWA agora verifica atualizações antes de entrar no workspace. Se o app instalado estiver preso numa versão antiga, use [a recuperação de atualização](https://rmvitor.github.io/Implantation-WS/assets/atualizar.html), sem apagar os dados. Consulte [o diagnóstico e as instruções](docs/acesso-no-celular.md). Esta correção não exige novo SQL.
+
+### Ajuste de ponto (v1.20.0)
+
+Na área geral, **Ajuste de ponto** prepara justificativas pessoais sem selecionar município. Horários são manuais por batida marcada; há justificativas sugeridas, cidade opcional por localização e PDF no modelo fornecido para assinatura. Emissão sem salvar e histórico pessoal protegido entre usuários. [Uso, localização, privacidade e ativação do histórico](docs/ajuste-ponto.md).

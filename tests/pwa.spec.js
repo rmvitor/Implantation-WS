@@ -356,3 +356,45 @@ test("recuperação ultrapassa tela antiga sem JavaScript, atualiza o worker e p
     await writeFile(path, original);
   }
 });
+
+test("ajuste de ponto baixa PDF e salva histórico pessoal offline sem depender de município", async ({
+  page,
+  context,
+}) => {
+  await page.goto(url);
+  await controlled(page);
+  await page
+    .getByRole("button", { name: "Ajuste de ponto", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Novo ajuste", exact: true }).click();
+  await page
+    .getByLabel("Nome do funcionário", { exact: false })
+    .fill("Técnico Local");
+  await page.getByRole("checkbox", { name: "Entrada", exact: true }).check();
+  await page.getByLabel("Horário de entrada", { exact: false }).fill("08:15");
+  await page
+    .getByRole("textbox", { name: "Justificativa *", exact: true })
+    .fill("Esquecimento de batida, conforme o boletim.");
+  await page.getByLabel("Local *", { exact: true }).fill("São José / SC");
+  await context.setOffline(true);
+  const download = page.waitForEvent("download");
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Baixar PDF", exact: true })
+    .click();
+  expect((await download).suggestedFilename()).toMatch(/\.pdf$/);
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Salvar ajuste", exact: true })
+    .first()
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator(".time-adjustment-card")).toContainText("08:15");
+  await page.reload();
+  await page
+    .getByRole("button", { name: "Ajuste de ponto", exact: true })
+    .click();
+  await expect(page.locator(".time-adjustment-card")).toContainText(
+    "Técnico Local",
+  );
+});

@@ -108,6 +108,7 @@ import {
 } from "./ProjectControls";
 import { projectColor, PROJECT_COLORS } from "./project-identity";
 import { orderedProjects, reorderProjects } from "./project-order";
+import { TimeAdjustments } from "./TimeAdjustments.jsx";
 import { PersonalAgenda, PersonalEventModal } from "./PersonalAgenda";
 import { BrandLogo } from "./BrandLogo";
 import "./project-controls.css";
@@ -177,6 +178,7 @@ function App() {
   const applyData = (next) => { dataRef.current = next; setWorkspaceData(next); };
   const acceptanceUnsaved = useRef(false);
   const attendancePending = useRef(false);
+  const timeAdjustmentPending = useRef(false);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const pwa = usePwa();
@@ -224,7 +226,7 @@ function App() {
       selectedProjectId &&
       !team.workspace.projects.some((p) => p.id === selectedProjectId) &&
       view !== "personalAgenda" &&
-      view !== "operations"
+      view !== "operations" && view !== "timeAdjustments"
     ) {
       setModal(null);
       setView("municipalities");
@@ -275,7 +277,7 @@ function App() {
     scope: navigationScope,
     route: screenRoute(view, projectId),
     projects: data.projects,
-    blocked: () => savingRef.current || acceptanceUnsaved.current || attendancePending.current,
+    blocked: () => savingRef.current || acceptanceUnsaved.current || attendancePending.current || timeAdjustmentPending.current,
     onRestore: (route) => {
       setView(route.view);
       if (route.projectId) setSelectedProjectId(route.projectId);
@@ -438,6 +440,7 @@ function App() {
       options,
     );
   const changeView = (v) => {
+    if(timeAdjustmentPending.current) {setToast("Aguarde a confirmação do ajuste de ponto antes de sair.");return;}
     if (attendancePending.current) { setToast("Aguarde a confirmação da lista de presença antes de sair."); return; }
     if (acceptanceUnsaved.current && v !== "implantation") { setToast("Aguarde o salvamento dos aceites ou resolva as alterações não salvas antes de sair."); return; }
     setCardMenu(null);
@@ -535,6 +538,7 @@ function App() {
     event.target.value = "";
   };
   const selectProject = async (id) => {
+    if(timeAdjustmentPending.current) {setToast("Aguarde a confirmação do ajuste de ponto antes de trocar de município.");return false;}
     if (attendancePending.current) { setToast("Aguarde a confirmação da lista de presença antes de trocar de município."); return false; }
     if (acceptanceUnsaved.current && id !== projectId) { setToast("Salve os aceites pendentes antes de trocar de município."); return false; }
     const selected = await setData((d) => ({ ...d, selectedId: id }));
@@ -560,10 +564,11 @@ function App() {
     details: "Dados do município",
     personalAgenda: "Agenda geral",
     operations: "Acompanhamento geral",
+    timeAdjustments: "Ajuste de ponto",
   };
   useEffect(() => {
     document.title =
-      view === "operations"
+      view === "timeAdjustments" ? "Ajuste de ponto · Implanta" : view === "operations"
         ? "Acompanhamento geral · Implanta"
         : view === "personalAgenda"
           ? "Agenda geral · Implanta"
@@ -577,7 +582,7 @@ function App() {
   return (
     <NavigationContext.Provider value={navigation}>
     <div
-      className={`app-shell ${project && view !== "personalAgenda" ? "has-active-project" : ""} ${saving ? "app-saving" : ""}`}
+      className={`app-shell ${project && !["personalAgenda","timeAdjustments"].includes(view) ? "has-active-project" : ""} ${saving ? "app-saving" : ""}`}
       style={{ "--project-color": projectColor(project) }}
     >
       {sidebar && (
@@ -669,6 +674,7 @@ function App() {
             active={view === "personalAgenda"}
             onClick={() => changeView("personalAgenda")}
           />
+          <NavItem icon={Clock3} text="Ajuste de ponto" active={view === "timeAdjustments"} onClick={() => changeView("timeAdjustments")} />
           <NavItem
             icon={LayoutDashboard}
             text="Acompanhamento geral"
@@ -764,7 +770,7 @@ function App() {
           {team.online &&
             (team.stale ||
               team.error ||
-              (project && !canEdit && view !== "personalAgenda")) && (
+              (project && !canEdit && !["personalAgenda","timeAdjustments"].includes(view))) && (
               <div className="team-sync-bar">
                 <Users size={15} />{" "}
                 {team.error ||
@@ -773,7 +779,9 @@ function App() {
                     : "Este projeto está liberado somente para leitura.")}
               </div>
             )}
-          {view === "operations" ? (
+          {view === "timeAdjustments" ? (
+            <TimeAdjustments Modal={Modal} onPending={(value) => {timeAdjustmentPending.current=value;}} />
+          ) : view === "operations" ? (
             <Operations
               onEditing={setOperationsEditing}
               data={data}
@@ -1508,7 +1516,7 @@ function App() {
             <span>
               <ShieldCheck size={13} />{" "}
               {team.online
-                ? view === "personalAgenda"
+                ? view === "timeAdjustments" ? "Ajustes de ponto pessoais · salvos na sua conta" : view === "personalAgenda"
                   ? "Agenda pessoal salva na sua conta"
                   : "Dados salvos no banco da equipe"
                 : "Dados salvos neste navegador"}
@@ -1825,7 +1833,7 @@ function App() {
               antes de compartilhar.
             </p>
           </div>
-          {team.online && <p className="muted modal-note">Listas de presença ficam em tabelas próprias e não integram este JSON. Na área Listas de presença, use Imprimir lista para guardar uma cópia em PDF. O backup do banco Supabase deve incluir o esquema implanta_private.</p>}
+          {team.online && <p className="muted modal-note">Listas de presença e ajustes de ponto ficam em tabelas próprias e não integram este JSON. Use os relatórios em PDF das respectivas áreas para guardar cópias. O backup do banco Supabase deve incluir o esquema implanta_private.</p>}
           <div className="backup-options">
             <button onClick={exportData}>
               <Download size={24} />
