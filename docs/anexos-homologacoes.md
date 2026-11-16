@@ -1,4 +1,4 @@
-# Responsável e anexos das homologações — v1.21.1
+# Responsável e anexos das homologações — v1.21.2
 
 O painel **Responsável e anexos** aparece na conferência de dados migrados (ao abrir um módulo/entidade) e no relatório de cada módulo/entidade dos **Aceites da implantação**. São recursos independentes: um anexo da migração não aparece no aceite, nem em outro módulo, entidade ou município.
 
@@ -12,6 +12,12 @@ O painel **Responsável e anexos** aparece na conferência de dados migrados (ao
 Requer os registros separados, níveis de acesso e a homologação da implantação já usados pelo sistema (`202610090002`, `202610150001` e `202610240001`, com a ativação v2 posterior quando aplicável). A migração cria tabelas próprias e o bucket **privado** `homologation-attachments`, com limite de **15 × 1024 × 1024 bytes** por arquivo. Pode ser reaplicada sem apagar os arquivos ou as escolhas existentes. Não remove nem modifica projetos, respostas, assinaturas ou OKs.
 
 Se o SQL ainda não estiver ativo, o painel mostra o guia e as conferências anteriores continuam disponíveis. Sem conexão da equipe, os campos antigos continuam funcionando, e o painel explica que responsável/anexos compartilhados exigem o modo online.
+
+## Erro “Início do gravador não reconhecido”
+
+A primeira versão do SQL `202611160002` verificava um formato exato de `BEGIN` e da linha seguinte. Isso podia recusar uma função válida com outra indentação, quebra de linha ou uma instrução anterior à verificação de acesso.
+
+Reabra o arquivo [`202611160002_homologation_validator.sql`](../supabase/migrations/202611160002_homologation_validator.sql) atualizado, substitua o conteúdo da query no SQL Editor pelo arquivo inteiro e execute novamente. Não é necessário apagar dados ou reaplicar os SQLs anteriores. O script preserva a verificação de acesso e acrescenta o bloqueio antes dela; se a versão não for reconhecida, a transação é recusada.
 
 ## Responsável
 

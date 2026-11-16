@@ -1,5 +1,11 @@
 # Histórico de versões
 
+## 1.21.2 — Correção da ativação de Validado por
+
+- O SQL complementar deixa de exigir `BEGIN` com uma quebra de linha e indentação exatas. Reconhece a verificação de acesso com variações de espaços, caixa, CRLF e instruções anteriores, preservando seu conteúdo.
+- Mantém permissões, controle de concorrência e reaplicação segura. Versões sem a verificação de acesso esperada continuam sendo recusadas, com rollback.
+- Testes reproduzem formatos que o script anterior rejeitava e conferem o registro do responsável, a autoria real do operador e a preservação dos dados.
+
 ## 1.21.1 — Responsável em Validado por
 
 - Uma única seleção em **Validado por** define o responsável pela homologação da migração, entre os usuários do projeto. O nome escolhido é respeitado ao registrar o OK.

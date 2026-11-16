@@ -104,6 +104,109 @@ export async function testHomologationResources(owner, connection) {
     const validatorMigration = await sql(
       "202611160002_homologation_validator.sql",
     );
+    const writer =
+      "public.implanta_commit_v2(jsonb,jsonb,jsonb,jsonb,jsonb,boolean)";
+    const currentDefinition = async () =>
+      (
+        await root.query("select pg_get_functiondef($1::regprocedure) value", [
+          writer,
+        ])
+      ).rows[0].value;
+    const originalDefinition = await currentDefinition();
+    const originalAcl = (
+      await root.query(
+        "select proacl::text acl from pg_proc where oid=$1::regprocedure",
+        [writer],
+      )
+    ).rows[0].acl;
+    // Reproduce the old failure on valid writers whose BEGIN/access guard differ
+    // only in formatting or already have a statement before the access check.
+    const variants = [
+      [
+        "one-space indentation",
+        originalDefinition.replace(
+          "begin\n  if not implanta_private.enabled()",
+          "begin\n if not implanta_private.enabled()",
+        ),
+      ],
+      [
+        "CRLF and tabs",
+        originalDefinition.replace(
+          "begin\n  if not implanta_private.enabled()",
+          "BEGIN\r\n\tIF NOT implanta_private.enabled()",
+        ),
+      ],
+      [
+        "existing lock and comments",
+        originalDefinition.replace(
+          "begin\n  if not implanta_private.enabled()",
+          "BEGIN\n perform pg_advisory_xact_lock(2026100901);\n -- início do gravador\n IF NOT implanta_private.enabled()",
+        ),
+      ],
+      [
+        "blank lines and one-line block",
+        originalDefinition.replace(
+          "begin\n  if not implanta_private.enabled()",
+          "begin /* guarda de acesso */ if not implanta_private.enabled()",
+        ),
+      ],
+    ];
+    for (const [label, definition] of variants) {
+      assert.notEqual(definition, originalDefinition, label);
+      await root.query(definition);
+      assert(
+        !(await currentDefinition()).includes(
+          "begin\n  if not implanta_private.enabled()",
+        ),
+        label + ": old guard would fail",
+      );
+      checks++;
+      await root.query(validatorMigration);
+      const patched = await currentDefinition();
+      assert(
+        patched.includes("implanta_private.homologation_validation("),
+        label,
+      );
+      assert.match(patched, /if\s+not\s+implanta_private\.enabled\(\)/i, label);
+      assert(
+        patched.indexOf("pg_advisory_xact_lock(2026100901)") <
+          patched.indexOf("-- Locks in deterministic order"),
+        label,
+      );
+      assert.equal(
+        (
+          await root.query(
+            "select proacl::text acl from pg_proc where oid=$1::regprocedure",
+            [writer],
+          )
+        ).rows[0].acl,
+        originalAcl,
+      );
+      checks++;
+      await root.query(validatorMigration);
+      assert.equal(
+        await currentDefinition(),
+        patched,
+        label + ": repeat is idempotent",
+      );
+      checks++;
+    }
+    // An unrecognized access check still aborts and rolls back, rather than
+    // bypassing permissions or partially replacing the writer.
+    const unsupported = originalDefinition.replaceAll(
+      "implanta_private.enabled()",
+      "implanta_private.enabled_not_supported()",
+    );
+    await root.query(unsupported);
+    const beforeFailure = await currentDefinition();
+    await assert.rejects(
+      root.query(validatorMigration),
+      (e) => e.code === "P0001" && /Verificação de acesso/.test(e.message),
+    );
+    await root.query("rollback");
+    assert.equal(await currentDefinition(), beforeFailure);
+    checks++;
+    await root.query(originalDefinition);
     await root.query(validatorMigration);
     const editor = await open("editor"),
       viewer = await open("viewer"),

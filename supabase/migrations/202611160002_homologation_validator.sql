@@ -30,16 +30,17 @@ revoke all on function implanta_private.homologation_validation(text,text,jsonb,
 -- Preserve the current writer, including ACLs, CAS, imports and all other routines.
 -- Abort rather than replacing an unknown version of the function.
 do $$
-declare definition text; original text := 'payload || jsonb_build_object(''validatedActorId'',auth.uid(),''validatedBy'',author,''validatedAt'',stamp,''validationSource'',''server'')';
+declare definition text; access_guard text := '(?i)(\mif[[:space:]]+not[[:space:]]+implanta_private[[:space:]]*[.][[:space:]]*enabled[[:space:]]*[(][[:space:]]*[)][[:space:]]+then)'; original text := 'payload || jsonb_build_object(''validatedActorId'',auth.uid(),''validatedBy'',author,''validatedAt'',stamp,''validationSource'',''server'')';
 begin
  select pg_get_functiondef('public.implanta_commit_v2(jsonb,jsonb,jsonb,jsonb,jsonb,boolean)'::regprocedure) into definition;
  if position('implanta_private.homologation_validation(' in definition)=0 then
   if position(original in definition)=0 then raise exception 'Versão do gravador não reconhecida. Nenhuma alteração foi aplicada.'; end if;
   definition:=replace(definition,original,'implanta_private.homologation_validation(project_id,record_id,payload,stamp,author)');
   definition:=replace(definition,'if kind=''conference'' and payload->>''status''=''ok'' and (old_data','if kind=''conference'' and (payload->>''status''=''ok'' or payload ? ''validatedResponsibleId'') and (old_data');
-  -- Same lock order used by resource edits and permission changes.
-  if position(E'begin\n  if not implanta_private.enabled()' in definition)=0 then raise exception 'Início do gravador não reconhecido.'; end if;
-  definition:=replace(definition,E'begin\n  if not implanta_private.enabled()',E'begin\n  perform pg_advisory_xact_lock(2026100901);\n  if not implanta_private.enabled()');
+  -- Add the lock before the access guard, preserving the guard verbatim.
+  -- Do not depend on BEGIN indentation, line endings, comments or earlier statements.
+  if substring(definition from access_guard) is null then raise exception 'Verificação de acesso do gravador não reconhecida. Nenhuma alteração foi aplicada.'; end if;
+  definition:=regexp_replace(definition,access_guard,E'perform pg_advisory_xact_lock(2026100901);\n  \\1');
   execute definition;
  end if;
  select pg_get_functiondef('public.implanta_homologation_resources(text,text,text)'::regprocedure) into definition;
