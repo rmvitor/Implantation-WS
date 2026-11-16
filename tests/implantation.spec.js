@@ -272,6 +272,7 @@ async function setup(
       const resource = () =>
         (state.resources[scopeKey] ||= {
           revision: 0,
+          validatorVersion: 1,
           responsibleId: null,
           responsibleName: "",
           users: [
@@ -1548,7 +1549,7 @@ test("falha de upload fica pendente e não interfere nos OKs; SQL ausente preser
   expect(state.changes).toEqual([]);
 });
 
-test("homologação da migração mostra os mesmos recursos sem alterar o validador autenticado", async ({
+test("homologação usa o responsável escolhido em Validado por", async ({
   page,
 }) => {
   const { configureHomologation, homologationId } = await import(
@@ -1557,7 +1558,7 @@ test("homologação da migração mostra os mesmos recursos sem alterar o valida
   const project = configureHomologation(preparedImplantation(), [
     homologationId("Frota", "Prefeitura"),
   ]);
-  await setup(page, { project, normalized: true });
+  const state = await setup(page, { project, normalized: true });
   await page.goto("/");
   await page.locator(".municipality-card").click();
   await page
@@ -1570,19 +1571,30 @@ test("homologação da migração mostra os mesmos recursos sem alterar o valida
   const panel = page.getByRole("region", {
     name: "Responsável e anexos da homologação",
   });
-  await panel
-    .getByRole("combobox")
+  await expect(page.getByLabel("Validado por", { exact: true })).toBeEnabled();
+  await page
+    .getByLabel("Validado por", { exact: true })
     .selectOption("00000000-0000-4000-8000-000000000099");
-  await panel
-    .getByRole("button", { name: "Salvar responsável", exact: true })
-    .click();
-  await expect(panel.getByRole("status")).toHaveText("Responsável salvo.");
-  await expect(page.getByLabel("Validado por", { exact: true })).toHaveValue(
-    "Consultor autenticado",
-  );
   await expect(
-    page.getByLabel("Validado por", { exact: true }),
-  ).not.toBeEditable();
+    panel.getByRole("button", { name: "Salvar responsável", exact: true }),
+  ).toHaveCount(0);
+  for (const check of await page.locator(".migration-check input").all())
+    await check.check();
+  await page.getByLabel("Resultado da conferência").selectOption("ok");
+  await page
+    .getByLabel("Referência / evidência da conferência")
+    .fill("Comparação de saldos com o responsável");
+  await page.getByRole("button", { name: "Registrar OK", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const conference = state.changes.find((r) => r.kind === "conference");
+  expect(conference.data.validatedBy).toBe("Colega do projeto");
+  expect(conference.data.validatedActorId).toBe(
+    "00000000-0000-4000-8000-000000000099",
+  );
+  expect(conference.data.responsibleRevision).toBe(0);
+  expect(conference.data.validatedResponsibleId).toBe(
+    "00000000-0000-4000-8000-000000000099",
+  );
 });
 
 test("leitor baixa anexos sem alterar responsável nem arquivos", async ({
@@ -1638,13 +1650,11 @@ test("resposta perdida após confirmar não apaga nem duplica anexo já salvo", 
   const panel = page.getByRole("region", {
     name: "Responsável e anexos da homologação",
   });
-  await panel
-    .getByLabel("Adicionar anexo à homologação")
-    .setInputFiles({
-      name: "recibo.txt",
-      mimeType: "text/plain",
-      buffer: Buffer.from("Recibo"),
-    });
+  await panel.getByLabel("Adicionar anexo à homologação").setInputFiles({
+    name: "recibo.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("Recibo"),
+  });
   await expect(panel.getByRole("alert")).toContainText(
     "Confirmação indisponível",
   );

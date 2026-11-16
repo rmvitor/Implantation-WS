@@ -18,6 +18,8 @@ export function HomologationResources({
   entryId,
   readOnly = false,
   onPending,
+  onResponsibleChange,
+  hideResponsible = false,
 }) {
   const team = useTeam();
   const [value, setValue] = useState(null),
@@ -30,13 +32,18 @@ export function HomologationResources({
     working = useRef(false),
     epoch = useRef(0),
     fileInput = useRef(),
-    pendingRef = useRef(onPending);
+    pendingRef = useRef(onPending),
+    responsibleRef = useRef(onResponsibleChange);
+  responsibleRef.current = onResponsibleChange;
   pendingRef.current = onPending;
   const args = { p_project: projectId, p_kind: kind, p_entry: entryId };
   const apply = (data, updateSelection = false) => {
     if (mounted.current) {
       setValue(data);
-      if (updateSelection) setSelected(data.responsibleId || "");
+      if (updateSelection) {
+        setSelected(data.responsibleId || "");
+        responsibleRef.current?.(data);
+      }
     }
   };
   const load = async (keepSelection = false) => {
@@ -58,7 +65,10 @@ export function HomologationResources({
         );
       if (mounted.current && ticket === epoch.current) {
         setValue(data);
-        if (!keepSelection) setSelected(data.responsibleId || "");
+        if (!keepSelection) {
+          setSelected(data.responsibleId || "");
+          responsibleRef.current?.(data);
+        }
         setError("");
       }
     } catch (e) {
@@ -105,7 +115,9 @@ export function HomologationResources({
   if (!team.online)
     return (
       <section className="homologation-resources">
-        <h3>Responsável e anexos</h3>
+        <h3>
+          {hideResponsible ? "Anexos da homologação" : "Responsável e anexos"}
+        </h3>
         <p>
           Conecte à equipe para escolher um usuário do projeto e compartilhar
           anexos.
@@ -118,7 +130,9 @@ export function HomologationResources({
       aria-label="Responsável e anexos da homologação"
     >
       <div className="homologation-resource-heading">
-        <h3>Responsável e anexos</h3>
+        <h3>
+          {hideResponsible ? "Anexos da homologação" : "Responsável e anexos"}
+        </h3>
         <button
           type="button"
           className="button secondary"
@@ -129,8 +143,9 @@ export function HomologationResources({
         </button>
       </div>
       <p className="muted">
-        Salvos separadamente dos OKs. Escolher o responsável não altera quem
-        registrou as validações.
+        {kind === "migration"
+          ? "O responsável é definido em Validado por ao salvar a conferência. Os arquivos são salvos separadamente."
+          : "Salvos separadamente dos OKs. Escolher o responsável não altera quem registrou as validações."}
       </p>
       {error && (
         <p role="alert">
@@ -146,56 +161,58 @@ export function HomologationResources({
       )}
       {value && (
         <>
-          <div className="homologation-resource-owner">
-            <label>
-              Responsável pela homologação
-              <select
-                aria-label="Responsável pela homologação"
-                value={selected}
-                disabled={readOnly || busy}
-                onChange={(e) => setSelected(e.target.value)}
-              >
-                <option value="">Não definido</option>
-                {value.responsibleId &&
-                  !value.users.some((u) => u.id === value.responsibleId) && (
-                    <option value={value.responsibleId}>
-                      {value.responsibleName} (sem acesso ativo)
+          {!hideResponsible && (
+            <div className="homologation-resource-owner">
+              <label>
+                Responsável pela homologação
+                <select
+                  aria-label="Responsável pela homologação"
+                  value={selected}
+                  disabled={readOnly || busy}
+                  onChange={(e) => setSelected(e.target.value)}
+                >
+                  <option value="">Não definido</option>
+                  {value.responsibleId &&
+                    !value.users.some((u) => u.id === value.responsibleId) && (
+                      <option value={value.responsibleId}>
+                        {value.responsibleName} (sem acesso ativo)
+                      </option>
+                    )}
+                  {value.users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
                     </option>
-                  )}
-                {value.users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              className="button secondary"
-              disabled={
-                readOnly || busy || selected === (value.responsibleId || "")
-              }
-              onClick={() =>
-                act(async () => {
-                  apply(
-                    await rpc(
-                      team.client,
-                      "implanta_homologation_responsible",
-                      {
-                        ...args,
-                        p_user: selected || null,
-                        p_revision: value.revision,
-                      },
-                    ),
-                    true,
-                  );
-                  setNotice("Responsável salvo.");
-                })
-              }
-            >
-              Salvar responsável
-            </button>
-          </div>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="button secondary"
+                disabled={
+                  readOnly || busy || selected === (value.responsibleId || "")
+                }
+                onClick={() =>
+                  act(async () => {
+                    apply(
+                      await rpc(
+                        team.client,
+                        "implanta_homologation_responsible",
+                        {
+                          ...args,
+                          p_user: selected || null,
+                          p_revision: value.revision,
+                        },
+                      ),
+                      true,
+                    );
+                    setNotice("Responsável salvo.");
+                  })
+                }
+              >
+                Salvar responsável
+              </button>
+            </div>
+          )}
           <label>
             Anexos (até 15 MB por arquivo)
             <input

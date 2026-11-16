@@ -1,4 +1,4 @@
-# Responsável e anexos das homologações — v1.21.0
+# Responsável e anexos das homologações — v1.21.1
 
 O painel **Responsável e anexos** aparece na conferência de dados migrados (ao abrir um módulo/entidade) e no relatório de cada módulo/entidade dos **Aceites da implantação**. São recursos independentes: um anexo da migração não aparece no aceite, nem em outro módulo, entidade ou município.
 
@@ -6,7 +6,8 @@ O painel **Responsável e anexos** aparece na conferência de dados migrados (ao
 
 1. No projeto Supabase da equipe, faça uma cópia de segurança do banco.
 2. Abra **SQL Editor → New query**, cole todo o arquivo [`202611160001_homologation_resources.sql`](../supabase/migrations/202611160001_homologation_resources.sql) e clique em **Run**.
-3. Atualize o Implanta e abra uma homologação. Não é necessário configurar chaves privadas no site, criar outro servidor ou contratar um serviço de assinatura.
+3. Execute também [`202611160002_homologation_validator.sql`](../supabase/migrations/202611160002_homologation_validator.sql) para que o responsável da migração seja usado em **Validado por**. Quem já aplicou o primeiro SQL precisa executar somente esse complemento.
+4. Atualize o Implanta e abra uma homologação. Não é necessário configurar chaves privadas no site nem criar outro servidor.
 
 Requer os registros separados, níveis de acesso e a homologação da implantação já usados pelo sistema (`202610090002`, `202610150001` e `202610240001`, com a ativação v2 posterior quando aplicável). A migração cria tabelas próprias e o bucket **privado** `homologation-attachments`, com limite de **15 × 1024 × 1024 bytes** por arquivo. Pode ser reaplicada sem apagar os arquivos ou as escolhas existentes. Não remove nem modifica projetos, respostas, assinaturas ou OKs.
 
@@ -14,11 +15,11 @@ Se o SQL ainda não estiver ativo, o painel mostra o guia e as conferências ant
 
 ## Responsável
 
-Escolha uma conta ativa com acesso ao projeto e clique em **Salvar responsável**. Inclui gestor, membros de edição/leitura e Master. Não exibe usuários sem acesso ao município. O banco valida novamente a permissão ao salvar; uma conta desativada ou que perdeu o acesso não pode receber nova atribuição.
+Na migração, escolha a conta em **Validado por** e salve a conferência; essa escolha também define o responsável. Nos aceites da implantação, use **Salvar responsável** no painel de anexos. Inclui gestor, membros de edição/leitura e Master. Não exibe usuários sem acesso ao município. O banco valida novamente a permissão ao salvar; uma conta desativada ou que perdeu o acesso não pode receber nova atribuição.
 
-O responsável organiza o trabalho. **Validado por**, aceites técnicos/clientes e liberações continuam registrando o autor real pela sessão autenticada. A seleção não registra um OK nem transfere a autoria das validações. Não há preenchimento automático ou migração presumindo quem era responsável nas homologações antigas; a seleção começa como **Não definido**.
+Na **homologação da migração**, **Validado por** é a única seleção de responsável. A escolha é salva junto da conferência e usada ao registrar o OK. O banco confirma nome e vínculo da conta; se não houver uma escolha, utiliza o usuário autenticado e o define como responsável. O operador que fez a gravação fica registrado separadamente em `recordedActorId`, `recordedBy` e no histórico do banco. A escolha, sozinha, não registra um OK nem reatribui OKs passados. Aceites técnicos/clientes e liberações mantêm suas regras de autoria. OKs antigos não são reatribuídos pela migração SQL. Na conferência da migração, o campo inicia com o usuário logado quando ainda não há responsável salvo; nos aceites da implantação, a seleção inicial continua como **Não definido**.
 
-A edição usa uma revisão própria. Se outra pessoa alterar o responsável, a gravação conflitante é recusada e sua seleção é mantida. Use **Atualizar anexos e responsável** para rever o valor atual antes de escolher e salvar novamente. A atribuição anterior permanece no histórico, inclusive se a pessoa perder o acesso.
+A edição usa uma revisão própria. Se outra pessoa alterar o responsável, a gravação conflitante é recusada e sua seleção é mantida. Use **Atualizar anexos e responsável** para rever o valor atual antes de escolher e salvar novamente. Na migração, um conflito mantém o formulário aberto para revisão. A atribuição anterior permanece no histórico, inclusive se a pessoa perder o acesso.
 
 ## Arquivos
 
@@ -41,7 +42,7 @@ Excluir um projeto remove seus metadados pelo vínculo do banco e bloqueia o ace
 
 ## Conferência
 
-- Em duas homologações diferentes, escolha responsáveis distintos e confira que um não altera o outro nem a autoria dos OKs.
+- Em duas homologações diferentes, escolha responsáveis distintos e confira que um não altera o outro. Na migração, registre um novo OK e confira que **Validado por** corresponde ao responsável escolhido, enquanto o histórico identifica o operador logado.
 - Envie um arquivo pequeno; baixe após atualizar a página. Confira nome/autor e que o conteúdo foi preservado.
 - Teste arquivo vazio e maior que 15 MB: o aplicativo deve recusar antes de enviar. O bucket também impõe o limite em chamadas diretas.
 - Com leitor, confira que só o download está disponível. Com outra conta sem acesso ao projeto, o banco e o Storage devem negar consulta e gravação.

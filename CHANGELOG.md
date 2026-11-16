@@ -1,5 +1,12 @@
 # Histórico de versões
 
+## 1.21.1 — Responsável em Validado por
+
+- Uma única seleção em **Validado por** define o responsável pela homologação da migração, entre os usuários do projeto. O nome escolhido é respeitado ao registrar o OK.
+- O banco usa o nome da conta escolhida, valida seu acesso e mantém separadamente o usuário autenticado que registrou a alteração, com data e auditoria.
+- Conflitos na escolha do responsável impedem registrar um OK com dados desatualizados. OKs antigos não são reatribuídos pela migração.
+- Complemento SQL `202611160002_homologation_validator.sql`, após o SQL de anexos/responsáveis.
+
 ## 1.21.0 — Responsável e anexos nas homologações
 
 - Responsável selecionado entre os usuários ativos com acesso ao projeto, por módulo/entidade nas conferências de migração e nos aceites de implantação. A autoria dos OKs continua sendo do usuário autenticado.

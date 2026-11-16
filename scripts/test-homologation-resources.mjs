@@ -101,6 +101,10 @@ export async function testHomologationResources(owner, connection) {
     );
     const migration = await sql("202611160001_homologation_resources.sql");
     await root.query(migration);
+    const validatorMigration = await sql(
+      "202611160002_homologation_validator.sql",
+    );
+    await root.query(validatorMigration);
     const editor = await open("editor"),
       viewer = await open("viewer"),
       other = await open("other"),
@@ -144,6 +148,128 @@ export async function testHomologationResources(owner, connection) {
     assert.equal(saved.responsibleName, "viewer");
     assert.equal(saved.audit[0].actor_name, "editor");
     checks++;
+    assert.equal(saved.validatorVersion, 1);
+    checks++;
+    const row = (
+      await root.query(
+        "select * from public.implanta_conference_records where project_id='p' and id=$1",
+        [entry],
+      )
+    ).rows[0];
+    const approval = {
+      ...row.data,
+      status: "ok",
+      checks: row.data.checks.map((c) => ({ ...c, done: true })),
+      evidence: "Relatórios comparados",
+      validatedBy: "Forjado",
+      validatedActorId: ids.other,
+      recordedActorId: ids.other,
+      recordedBy: "Forjado",
+      responsibleRevision: 1,
+    };
+    const commitApproval = (data, revision) =>
+      rpc(editor, "implanta_commit_v2", [
+        JSON.stringify([
+          { project_id: "p", kind: "conference", id: entry, data, revision },
+        ]),
+        "[]",
+        "[]",
+        "[]",
+        null,
+        false,
+      ]);
+    await commitApproval(approval, row.revision);
+    const confirmed = (
+      await root.query(
+        "select * from public.implanta_conference_records where project_id='p' and id=$1",
+        [entry],
+      )
+    ).rows[0];
+    assert.equal(confirmed.data.validatedBy, "viewer");
+    assert.equal(confirmed.data.validatedActorId, ids.viewer);
+    assert.equal(confirmed.data.recordedBy, "editor");
+    assert.equal(confirmed.data.recordedActorId, ids.editor);
+    assert.equal(confirmed.data.responsibleRevision, undefined);
+    checks++;
+    await assert.rejects(
+      commitApproval(
+        {
+          ...confirmed.data,
+          notes: "Tentativa inválida",
+          validatedResponsibleId: ids.other,
+          responsibleRevision: 1,
+        },
+        confirmed.revision,
+      ),
+      (e) => e.code === "23514",
+    );
+    checks++;
+    const reopened = {
+      ...confirmed.data,
+      status: "pending",
+      validatedBy: "",
+      validatedAt: "",
+      validatedResponsibleId: ids.manager,
+      responsibleRevision: 1,
+    };
+    await commitApproval(reopened, confirmed.revision);
+    assert.equal((await get()).responsibleId, ids.manager);
+    checks++;
+    const pendingRow = (
+      await root.query(
+        "select * from public.implanta_conference_records where project_id='p' and id=$1",
+        [entry],
+      )
+    ).rows[0];
+    assert.equal(pendingRow.data.status, "pending");
+    assert.equal(pendingRow.data.validatedBy, "");
+    checks++;
+    await commitApproval(
+      {
+        ...approval,
+        validatedResponsibleId: ids.viewer,
+        responsibleRevision: 2,
+      },
+      pendingRow.revision,
+    );
+    const currentApproved = (
+      await root.query(
+        "select * from public.implanta_conference_records where project_id='p' and id=$1",
+        [entry],
+      )
+    ).rows[0];
+    assert.equal(currentApproved.data.validatedBy, "viewer");
+    checks++;
+
+    const audit = (
+      await root.query(
+        "select actor_id,actor_name from public.implanta_record_audit where project_id='p' and kind='conference' and record_id=$1 order by id desc limit 1",
+        [entry],
+      )
+    ).rows[0];
+    assert.equal(audit.actor_id, ids.editor);
+    assert.equal(audit.actor_name, "editor");
+    checks++;
+    await assert.rejects(
+      commitApproval(
+        { ...approval, responsibleRevision: 0 },
+        currentApproved.revision,
+      ),
+      (e) => e.code === "40001",
+    );
+    checks++;
+    await root.query(validatorMigration);
+    assert.equal(
+      (
+        await root.query(
+          "select data from public.implanta_conference_records where project_id='p' and id=$1",
+          [entry],
+        )
+      ).rows[0].data.validatedBy,
+      "viewer",
+    );
+    checks++;
+
     await fail(
       editor,
       "implanta_homologation_responsible",
@@ -226,6 +352,7 @@ export async function testHomologationResources(owner, connection) {
     );
     checks++;
     await root.query(migration);
+    await root.query(validatorMigration);
     assert.equal((await get()).files.length, 1);
     checks++;
     await root.query(

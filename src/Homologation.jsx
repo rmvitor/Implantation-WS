@@ -376,9 +376,19 @@ function EntryModal({
   onTask,
 }) {
   const [resourcePending, setResourcePending] = useState(false);
+  const [responsibility, setResponsibility] = useState(null);
+  const [selectedValidator, setSelectedValidator] = useState(null);
   const [draft, setDraft] = useState(() => structuredClone(entry));
   const [newCheck, setNewCheck] = useState("");
   const [issue, setIssue] = useState(false);
+  const validatorId =
+    selectedValidator ?? responsibility?.responsibleId ?? actor?.id ?? "";
+  const validatorName =
+    responsibility?.users.find((u) => u.id === validatorId)?.name ||
+    (responsibility?.responsibleId
+      ? responsibility.responsibleName
+      : actor?.name) ||
+    draft.validatedBy;
   const patch = (key, value) => setDraft((d) => ({ ...d, [key]: value }));
   const linked = project.tasks.find((t) => t.id === entry.taskId);
   const add = () => {
@@ -407,11 +417,19 @@ function EntryModal({
             onSave(
               {
                 ...draft,
-                ...(actor && draft.status === "ok"
+                ...(actor
                   ? {
-                      validatedBy: actor.name,
-                      validatedActorId: actor.id,
-                      validationSource: "authenticated-client",
+                      validatedBy: validatorName,
+                      validatedActorId: validatorId,
+                      ...(responsibility?.validatorVersion === 1
+                        ? {
+                            validatedResponsibleId: validatorId,
+                            responsibleRevision: responsibility.revision,
+                          }
+                        : {}),
+                      ...(draft.status === "ok"
+                        ? { validationSource: "authenticated-client" }
+                        : {}),
                     }
                   : {}),
               },
@@ -490,14 +508,42 @@ function EntryModal({
                 ))}
               </select>
             </Field>
-            <Field label="Validado por" hint="Obrigatório para registrar o OK.">
-              <input
-                value={actor?.name || draft.validatedBy}
-                readOnly={!!actor}
-                required={draft.status === "ok"}
-                onChange={(e) => patch("validatedBy", e.target.value)}
-                placeholder="Quem conferiu os dados"
-              />
+            <Field
+              label="Validado por"
+              hint={
+                actor
+                  ? "Escolha um usuário do projeto. Ele também será o responsável pela homologação."
+                  : "Obrigatório para registrar o OK."
+              }
+            >
+              {actor ? (
+                <select
+                  value={validatorId}
+                  disabled={readOnly || responsibility?.validatorVersion !== 1}
+                  required={draft.status === "ok"}
+                  onChange={(e) => setSelectedValidator(e.target.value)}
+                >
+                  <option value="">Não definido</option>
+                  {!(responsibility?.users || []).some(
+                    (u) => u.id === validatorId,
+                  ) &&
+                    validatorId && (
+                      <option value={validatorId}>{validatorName}</option>
+                    )}
+                  {(responsibility?.users || []).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={draft.validatedBy}
+                  required={draft.status === "ok"}
+                  onChange={(e) => patch("validatedBy", e.target.value)}
+                  placeholder="Quem conferiu os dados"
+                />
+              )}
             </Field>
             <Field
               label="Referência / evidência da conferência"
@@ -520,9 +566,19 @@ function EntryModal({
               />
             </Field>
           </div>
+          {actor && responsibility && responsibility.validatorVersion !== 1 && (
+            <p role="alert" className="muted">
+              Aplique o SQL 202611160002_homologation_validator.sql para
+              registrar o responsável escolhido em Validado por. As conferências
+              anteriores foram preservadas.
+            </p>
+          )}
           {entry.validatedAt && (
             <p className="muted">
               Último OK: {entry.validatedBy} · {dateTime(entry.validatedAt)}.
+              {entry.validationSource === "server" && entry.recordedBy
+                ? ` Registrado por: ${entry.recordedBy}.`
+                : ""}{" "}
               Uma nova conferência reabre a liberação.
             </p>
           )}
@@ -553,7 +609,15 @@ function EntryModal({
             >
               Cancelar
             </button>
-            <button type="submit" className="button primary">
+            <button
+              type="submit"
+              className="button primary"
+              disabled={
+                draft.status === "ok" &&
+                !!actor &&
+                responsibility?.validatorVersion !== 1
+              }
+            >
               {draft.status === "ok" ? "Registrar OK" : "Salvar conferência"}
             </button>
           </div>
@@ -565,6 +629,11 @@ function EntryModal({
         entryId={entry.id}
         readOnly={readOnly}
         onPending={setResourcePending}
+        hideResponsible
+        onResponsibleChange={(data) => {
+          setResponsibility(data);
+          setSelectedValidator(data.responsibleId || actor?.id || "");
+        }}
       />
     </Modal>
   );
