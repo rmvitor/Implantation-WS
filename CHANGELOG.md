@@ -1,5 +1,13 @@
 # Histórico de versões
 
+## 1.21.0 — Responsável e anexos nas homologações
+
+- Responsável selecionado entre os usuários ativos com acesso ao projeto, por módulo/entidade nas conferências de migração e nos aceites de implantação. A autoria dos OKs continua sendo do usuário autenticado.
+- Anexos privados de até 15 MB por arquivo, com download autenticado e confirmação para excluir. Limite aplicado na interface, nos metadados e no bucket do Supabase.
+- Responsável e arquivos separados dos registros de validação, sem regravar o município. Conflitos de edição, autoria e data são controlados no banco.
+- Envios e exclusões interrompidos ficam identificados para recuperação, sem apagar automaticamente um arquivo cuja confirmação possa ter sido recebida pelo banco.
+- SQL aditivo `202611160001_homologation_resources.sql` e guia de ativação; preserva os dados existentes e as rotinas de validação.
+
 ## 1.20.2 — Marcações independentes por data
 
 - Cada ocorrência tem suas próprias marcações e horários, com seleção da data em edição no formulário.

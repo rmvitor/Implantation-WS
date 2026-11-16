@@ -1,4 +1,5 @@
 import pg from "pg";
+import { testHomologationResources } from "./test-homologation-resources.mjs";
 import { testTimeAdjustments } from "./test-time-adjustments.mjs";
 import { testAttendance } from "./test-attendance.mjs";
 import { testActivityResponsibility } from "./test-activity-responsibility.mjs";
@@ -330,6 +331,7 @@ try {
   await testActivityResponsibility(owner, url.href);
   await testAttendance(owner, url.href);
   await testTimeAdjustments(owner, url.href);
+  await testHomologationResources(owner, url.href);
 } finally {
   await Promise.all(clients.map((c) => c.end()));
   await owner.query(`drop database if exists ${database}`);

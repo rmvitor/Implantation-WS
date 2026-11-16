@@ -80,6 +80,12 @@ async function setup(
     otp: [],
     smtpFail: false,
     inviteNumber: 0,
+    resources: {},
+    resourceCalls: [],
+    uploadFail: false,
+    resourceConflict: false,
+    resourcesMissing: false,
+    uploadedFiles: new Set(),
   };
   state.records = projectRecords(state.row.data).map((r) => ({
     ...r,
@@ -258,6 +264,104 @@ async function setup(
         }
         if (args.p_preferences) state.preferences = args.p_preferences;
         data = path.endsWith("_implantation") ? [state.row] : null;
+      }
+    } else if (path.includes("/rpc/implanta_homologation_")) {
+      const args = request.postDataJSON() || {};
+      state.resourceCalls.push({ path, args });
+      const scopeKey = JSON.stringify([args.p_kind, args.p_entry]);
+      const resource = () =>
+        (state.resources[scopeKey] ||= {
+          revision: 0,
+          responsibleId: null,
+          responsibleName: "",
+          users: [
+            { id: userId, name: "Consultor autenticado" },
+            {
+              id: "00000000-0000-4000-8000-000000000099",
+              name: "Colega do projeto",
+            },
+          ],
+          files: [],
+          audit: [],
+        });
+      if (state.resourcesMissing) {
+        status = 404;
+        data = { code: "PGRST202" };
+      } else if (path.endsWith("implanta_homologation_resources"))
+        data = resource();
+      else if (path.endsWith("implanta_homologation_responsible")) {
+        if (state.resourceConflict) {
+          status = 409;
+          data = { code: "40001" };
+        } else {
+          const r = resource();
+          r.responsibleId = args.p_user;
+          r.responsibleName =
+            r.users.find((u) => u.id === args.p_user)?.name || "";
+          r.revision++;
+          data = r;
+        }
+      } else if (path.endsWith("implanta_homologation_file_reserve")) {
+        resource().files.push({
+          id: args.p_id,
+          file_name: args.p_name,
+          file_size: args.p_size,
+          state: "pending",
+          uploaded_name: "Consultor autenticado",
+          created_at: new Date().toISOString(),
+        });
+        data = null;
+      } else {
+        const r = Object.values(state.resources).find((r) =>
+          r.files.some((f) => f.id === args.p_id),
+        );
+        if (path.endsWith("implanta_homologation_file_delete_begin")) {
+          r.files.find((f) => f.id === args.p_id).state = "deleting";
+          data = r;
+        } else if (path.endsWith("implanta_homologation_file_finish")) {
+          if (!state.uploadedFiles.has(args.p_id)) {
+            status = 400;
+            data = {
+              code: "23514",
+              message: "Arquivo não recebido integralmente.",
+            };
+          } else {
+            r.files.find((f) => f.id === args.p_id).state = "ready";
+            data = r;
+            if (state.finishLost) {
+              state.finishLost = false;
+              status = 503;
+              data = { message: "Confirmação indisponível após envio" };
+            }
+          }
+        } else if (path.endsWith("implanta_homologation_file_forget")) {
+          r.files = r.files.filter((f) => f.id !== args.p_id);
+          data = r;
+        }
+      }
+    } else if (path.startsWith("/storage/v1/")) {
+      state.resourceCalls.push({ path, method: request.method() });
+      if (request.method() === "POST") {
+        if (state.uploadFail) {
+          status = 503;
+          data = {
+            statusCode: "503",
+            error: "Falha de rede",
+            message: "Falha de rede no envio",
+          };
+        } else {
+          const id = path.split("/").at(-1);
+          state.uploadedFiles.add(id);
+          data = { Key: id };
+        }
+      } else if (request.method() === "DELETE") {
+        data = [];
+      } else {
+        await route.fulfill({
+          contentType: "application/octet-stream",
+          body: "Evidência de homologação de teste.",
+        });
+        return;
       }
     } else throw new Error(`Unexpected acceptance UI request: ${path}`);
     await route.fulfill({
@@ -1309,4 +1413,254 @@ test("alterar o cadastro do cliente exige novo convite e não oferece reenvio ao
     page.getByLabel("Link do formulário", { exact: true }),
   ).toHaveCount(0);
   expect(state.otp).toEqual([]);
+});
+
+for (const width of [390, 1440])
+  test(`anexos privados e responsável por módulo/entidade em ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    const state = await setup(page, {
+      project: preparedImplantation(),
+      normalized: true,
+    });
+    await open(page);
+    const panel = page.getByRole("region", {
+      name: "Responsável e anexos da homologação",
+    });
+    await expect(
+      panel.getByRole("combobox", { name: "Responsável pela homologação" }),
+    ).toBeVisible();
+    await panel
+      .getByRole("combobox")
+      .selectOption("00000000-0000-4000-8000-000000000099");
+    state.resourceConflict = true;
+    await panel
+      .getByRole("button", { name: "Salvar responsável", exact: true })
+      .click();
+    await expect(panel.getByRole("alert")).toContainText("outro aparelho");
+    await expect(panel.getByRole("combobox")).toHaveValue(
+      "00000000-0000-4000-8000-000000000099",
+    );
+    state.resourceConflict = false;
+    await panel
+      .getByRole("button", { name: "Salvar responsável", exact: true })
+      .click();
+    await expect(panel.getByRole("status")).toHaveText("Responsável salvo.");
+    const uploads = panel.getByLabel("Adicionar anexo à homologação", {
+      exact: true,
+    });
+    await uploads.setInputFiles({
+      name: "excesso.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.alloc(15 * 1024 * 1024 + 1),
+    });
+    await expect(panel.getByRole("alert")).toContainText("15 MB");
+    expect(
+      state.resourceCalls.some((c) => c.path.endsWith("_file_reserve")),
+    ).toBe(false);
+    await uploads.setInputFiles({
+      name: "comparação.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("Conferência de saldos"),
+    });
+    await expect(panel.getByRole("status")).toHaveText("Anexo salvo.");
+    await expect(
+      panel.getByText("comparação.txt", { exact: true }),
+    ).toBeVisible();
+    const downloaded = page.waitForEvent("download");
+    await panel.getByRole("button", { name: "Baixar", exact: true }).click();
+    expect((await downloaded).suggestedFilename()).toBe("comparação.txt");
+    await page.reload();
+    await open(page);
+    await expect(panel.getByRole("combobox")).toHaveValue(
+      "00000000-0000-4000-8000-000000000099",
+    );
+    await expect(
+      panel.getByText("comparação.txt", { exact: true }),
+    ).toBeVisible();
+    await panel
+      .getByRole("button", { name: "Excluir anexo", exact: true })
+      .click();
+    await expect(panel.getByRole("alert")).toContainText(
+      "não pode ser desfeita",
+    );
+    await panel
+      .getByRole("button", { name: "Confirmar exclusão do anexo", exact: true })
+      .click();
+    await expect(
+      panel.getByText("Nenhum anexo nesta homologação.", { exact: true }),
+    ).toBeVisible();
+    expect(state.changes).toEqual([]);
+    expect(
+      await panel.evaluate((node) => node.scrollWidth <= node.clientWidth),
+    ).toBe(true);
+  });
+
+test("falha de upload fica pendente e não interfere nos OKs; SQL ausente preserva relatório", async ({
+  page,
+}) => {
+  const state = await setup(page, {
+    project: preparedImplantation(),
+    normalized: true,
+  });
+  await open(page);
+  const panel = page.getByRole("region", {
+    name: "Responsável e anexos da homologação",
+  });
+  state.uploadFail = true;
+  await panel
+    .getByLabel("Adicionar anexo à homologação", { exact: true })
+    .setInputFiles({
+      name: "pendente.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("Dados"),
+    });
+  await expect(panel.getByRole("alert")).toContainText("Falha de rede");
+  await expect(panel.getByText(/Envio pendente de confirmação/)).toBeVisible();
+  await panel
+    .getByRole("button", { name: "Confirmar envio", exact: true })
+    .click();
+  await expect(panel.getByRole("alert")).toContainText("não recebido");
+  await panel
+    .getByRole("button", { name: "Excluir anexo", exact: true })
+    .click();
+  await panel
+    .getByRole("button", { name: "Confirmar exclusão do anexo", exact: true })
+    .click();
+  await expect(
+    panel.getByText("Nenhum anexo nesta homologação.", { exact: true }),
+  ).toBeVisible();
+  state.resourcesMissing = true;
+  await panel
+    .getByRole("button", {
+      name: "Atualizar anexos e responsável",
+      exact: true,
+    })
+    .click();
+  await expect(panel.getByRole("alert")).toContainText("Ative o SQL");
+  await expect(
+    point(page, 1).getByRole("checkbox", {
+      name: "Aceite técnico: Sim",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  expect(state.changes).toEqual([]);
+});
+
+test("homologação da migração mostra os mesmos recursos sem alterar o validador autenticado", async ({
+  page,
+}) => {
+  const { configureHomologation, homologationId } = await import(
+    "../src/domain.js"
+  );
+  const project = configureHomologation(preparedImplantation(), [
+    homologationId("Frota", "Prefeitura"),
+  ]);
+  await setup(page, { project, normalized: true });
+  await page.goto("/");
+  await page.locator(".municipality-card").click();
+  await page
+    .locator("nav")
+    .getByRole("button", { name: "Homologação", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Conferir Frota — Prefeitura", exact: true })
+    .click();
+  const panel = page.getByRole("region", {
+    name: "Responsável e anexos da homologação",
+  });
+  await panel
+    .getByRole("combobox")
+    .selectOption("00000000-0000-4000-8000-000000000099");
+  await panel
+    .getByRole("button", { name: "Salvar responsável", exact: true })
+    .click();
+  await expect(panel.getByRole("status")).toHaveText("Responsável salvo.");
+  await expect(page.getByLabel("Validado por", { exact: true })).toHaveValue(
+    "Consultor autenticado",
+  );
+  await expect(
+    page.getByLabel("Validado por", { exact: true }),
+  ).not.toBeEditable();
+});
+
+test("leitor baixa anexos sem alterar responsável nem arquivos", async ({
+  page,
+}) => {
+  const project = preparedImplantation(),
+    state = await setup(page, { project, normalized: true, viewer: true });
+  state.resources[
+    JSON.stringify(["implantation", project.implantation.entries[0].id])
+  ] = {
+    revision: 1,
+    responsibleId: userId,
+    responsibleName: "Consultor autenticado",
+    users: [{ id: userId, name: "Consultor autenticado" }],
+    files: [
+      {
+        id: "00000000-0000-4000-8000-000000000088",
+        file_name: "evidencia.txt",
+        file_size: 10,
+        state: "ready",
+        uploaded_name: "Consultor",
+        created_at: new Date().toISOString(),
+      },
+    ],
+    audit: [],
+  };
+  await open(page);
+  const panel = page.getByRole("region", {
+    name: "Responsável e anexos da homologação",
+  });
+  await expect(panel.getByRole("combobox")).toBeDisabled();
+  await expect(
+    panel.getByLabel("Adicionar anexo à homologação"),
+  ).toBeDisabled();
+  await expect(
+    panel.getByRole("button", { name: "Excluir anexo", exact: true }),
+  ).toHaveCount(0);
+  const dl = page.waitForEvent("download");
+  await panel.getByRole("button", { name: "Baixar", exact: true }).click();
+  await dl;
+  expect(state.changes).toEqual([]);
+});
+
+test("resposta perdida após confirmar não apaga nem duplica anexo já salvo", async ({
+  page,
+}) => {
+  const state = await setup(page, {
+    project: preparedImplantation(),
+    normalized: true,
+  });
+  await open(page);
+  state.finishLost = true;
+  const panel = page.getByRole("region", {
+    name: "Responsável e anexos da homologação",
+  });
+  await panel
+    .getByLabel("Adicionar anexo à homologação")
+    .setInputFiles({
+      name: "recibo.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("Recibo"),
+    });
+  await expect(panel.getByRole("alert")).toContainText(
+    "Confirmação indisponível",
+  );
+  await expect(
+    panel.getByRole("button", { name: "Baixar", exact: true }),
+  ).toBeVisible();
+  expect(
+    state.resourceCalls.filter((c) => c.path.endsWith("_file_reserve")),
+  ).toHaveLength(1);
+  expect(state.resourceCalls.some((c) => c.method === "DELETE")).toBe(false);
+  await panel
+    .getByRole("button", {
+      name: "Atualizar anexos e responsável",
+      exact: true,
+    })
+    .click();
+  await expect(panel.getByRole("alert")).toHaveCount(0);
+  await expect(panel.getByText("recibo.txt", { exact: true })).toHaveCount(1);
 });

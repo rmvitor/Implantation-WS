@@ -1,3 +1,4 @@
+import { HomologationResources } from "./HomologationResources.jsx";
 import React, { useEffect, useRef, useState } from "react";
 import {
   CheckCheck,
@@ -78,6 +79,8 @@ export function ImplantationAcceptance({
   Field,
 }) {
   const team = useTeam();
+  const [resourcePending, setResourcePending] = useState(false);
+  const resourceWorking = useRef(false);
   const storageKey = implantationNavigationKey(team.actor?.id, project.id);
   const [nav, setNav] = useState(() =>
     readAcceptanceNavigation(localStorage, storageKey),
@@ -105,7 +108,7 @@ export function ImplantationAcceptance({
         }
       },
       onState: (state) => {
-        live.current.onUnsaved(state.pending > 0);
+        live.current.onUnsaved(state.pending > 0 || resourceWorking.current);
         setQueueState(state);
       },
     }),
@@ -194,9 +197,9 @@ export function ImplantationAcceptance({
   }, [team.client, retry]);
   const dirty = queueState.pending > 0;
   useEffect(() => {
-    onEditing(!!dialog || pending || dirty || !!focused);
+    onEditing(!!dialog || pending || dirty || resourcePending || !!focused);
     return () => onEditing(false);
-  }, [dialog, pending, dirty, focused, onEditing]);
+  }, [dialog, pending, dirty, resourcePending, focused, onEditing]);
   useEffect(() => {
     if (!dirty) return;
     const warn = (e) => {
@@ -206,7 +209,13 @@ export function ImplantationAcceptance({
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
-  const editable = !readOnly && ["ready", "local"].includes(schema);
+  const editable =
+    !readOnly && !resourcePending && ["ready", "local"].includes(schema);
+  const resourcePendingChanged = (value) => {
+    resourceWorking.current = value;
+    setResourcePending(value);
+    live.current.onUnsaved(value || queueState.pending > 0);
+  };
   const canConfirm = editable && !!team.actor;
   const entity = project.entities.includes(nav.entity) ? nav.entity : "";
   const entries = implantationEntries(project, entity || undefined);
@@ -214,7 +223,8 @@ export function ImplantationAcceptance({
   const entry =
     entityEntries.find((e) => e.module === nav.modules[entity]) ||
     entityEntries[0];
-  const navigate = (selectedEntity, module) =>
+  const navigate = (selectedEntity, module) => {
+    if (resourceWorking.current) return;
     setNav((old) => ({
       ...old,
       entity: selectedEntity,
@@ -222,7 +232,9 @@ export function ImplantationAcceptance({
         ? { ...old.modules, [selectedEntity]: module }
         : old.modules,
     }));
+  };
   const open = async (value) => {
+    if (resourceWorking.current) return;
     setError("");
     if (
       ["scope", "models"].includes(value.type) &&
@@ -664,6 +676,19 @@ export function ImplantationAcceptance({
                         )}
                     </div>
                   </header>
+                  <HomologationResources
+                    key={`${project.id}:${entry.id}`}
+                    projectId={project.id}
+                    kind="implantation"
+                    entryId={entry.id}
+                    readOnly={
+                      readOnly ||
+                      project.status === "closed" ||
+                      dirty ||
+                      pending
+                    }
+                    onPending={resourcePendingChanged}
+                  />
                   {!entry.responsibles.length && (
                     <div className="info-box">
                       <p>

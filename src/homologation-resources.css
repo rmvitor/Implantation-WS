@@ -1,0 +1,86 @@
+.homologation-resources {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin: 16px 0;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.homologation-resources h3,
+.homologation-resources p {
+  margin: 0;
+}
+.homologation-resources label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+.homologation-resource-heading,
+.homologation-resource-owner,
+.homologation-file-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.homologation-resource-heading {
+  justify-content: space-between;
+}
+.homologation-resource-owner {
+  align-items: end;
+}
+.homologation-resource-owner label {
+  flex: 1;
+}
+.homologation-resources select,
+.homologation-resources input {
+  max-width: 100%;
+  min-width: 0;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 10px;
+  border-radius: 7px;
+}
+.homologation-file-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+.homologation-file-list > li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+.homologation-file-list > li > div {
+  min-width: 0;
+}
+.homologation-file-list small {
+  display: block;
+  margin-top: 5px;
+}
+.homologation-file-confirm {
+  border: 1px solid var(--border);
+  padding: 12px;
+  border-radius: 7px;
+}
+.homologation-file-confirm button {
+  margin: 10px 8px 0 0;
+}
+@media (max-width: 650px) {
+  .homologation-file-list > li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .homologation-resource-owner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

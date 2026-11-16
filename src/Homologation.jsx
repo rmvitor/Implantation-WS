@@ -20,6 +20,7 @@ import {
 } from "./domain";
 
 import { useTeam } from "./Team.jsx";
+import { HomologationResources } from "./HomologationResources.jsx";
 
 const dateTime = (value) =>
   new Date(value).toLocaleString("pt-BR", {
@@ -374,6 +375,7 @@ function EntryModal({
   onSave,
   onTask,
 }) {
+  const [resourcePending, setResourcePending] = useState(false);
   const [draft, setDraft] = useState(() => structuredClone(entry));
   const [newCheck, setNewCheck] = useState("");
   const [issue, setIssue] = useState(false);
@@ -392,10 +394,13 @@ function EntryModal({
     <Modal
       title="Conferir dados migrados"
       subtitle={`${entry.module} · ${entry.entity}`}
-      onClose={onClose}
+      onClose={() => (resourcePending ? false : onClose())}
       wide
     >
-      <fieldset disabled={readOnly} className="readonly-fields">
+      <fieldset
+        disabled={readOnly || resourcePending}
+        className="readonly-fields"
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -554,6 +559,13 @@ function EntryModal({
           </div>
         </form>
       </fieldset>
+      <HomologationResources
+        projectId={project.id}
+        kind="migration"
+        entryId={entry.id}
+        readOnly={readOnly}
+        onPending={setResourcePending}
+      />
     </Modal>
   );
 }
